@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Patrimônios</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="sidebar-logo"><div class="logo-icon">📦</div>PatriControl</div>
+    <div class="nav-group">
+      <div class="nav-label">Principal</div>
+      <div class="nav-item active" onclick="nav('dashboard')"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+      <div class="nav-item" onclick="nav('lista')"><i class="ti ti-archive"></i> Patrimônios</div>
+      <div class="nav-item" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo Cadastro</div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Dados</div>
+      <div class="nav-item" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Configurações</div>
+      <div class="nav-item" onclick="nav('config')"><i class="ti ti-settings"></i> Personalizar</div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="dark-toggle" onclick="toggleDark()">
+        <span style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--txt2)"><i class="ti ti-moon" style="font-size:16px"></i> Modo escuro</span>
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </div>
+    </div>
+  </div>
+ 
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topbar-title">Dashboard</div>
+      <div class="topbar-actions">
+        <button class="btn" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+        <button class="btn btn-primary" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo Patrimônio</button>
+      </div>
+    </div>
+    <div class="content">
+ 
+      <!-- DASHBOARD -->
+      <div class="page active" id="page-dashboard">
+        <div class="stats-row" id="stats-row"></div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Patrimônios recentes</div>
+            <button class="btn btn-sm btn-ghost" onclick="nav('lista')">Ver todos →</button>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Nº</th><th>Nome</th><th>N° Série</th><th>Categoria</th><th>Status</th></tr></thead><tbody id="dash-tbody"></tbody></table>
+          </div>
+        </div>
+      </div>
+ 
+      <!-- LISTA -->
+      <div class="page" id="page-lista">
+        <div class="page-header">
+          <div class="ph-title">Todos os Patrimônios</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-success" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+            <button class="btn btn-primary" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo</button>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <input class="f-input" id="srch" placeholder="🔍  Buscar nome, nº ou série..." oninput="renderLista()" style="flex:1;min-width:180px">
+          <select class="f-input" id="fcat" onchange="renderLista()"><option value="">Todas as categorias</option></select>
+          <select class="f-input" id="fstat" onchange="renderLista()"><option value="">Todos os status</option></select>
+        </div>
+        <div class="card"><div class="table-wrap"><table><thead><tr id="lista-head"></tr></thead><tbody id="lista-tbody"></tbody></table></div></div>
+      </div>
+ 
+      <!-- CADASTRO -->
+      <div class="page" id="page-cadastro">
+        <div class="page-header">
+          <div class="ph-title" id="form-title">Novo Patrimônio</div>
+          <button class="btn btn-ghost" onclick="cancelEdit()"><i class="ti ti-arrow-left"></i> Voltar</button>
+        </div>
+        <div class="alert" id="form-alert"></div>
+        <div id="form-wrap"></div>
+      </div>
+ 
+      <!-- CONFIG -->
+      <div class="page" id="page-config">
+        <div class="page-header"><div class="ph-title">Personalizar Sistema</div></div>
+        <div class="tab-bar">
+          <div class="stab active" onclick="switchTab('tc')">Categorias</div>
+          <div class="stab" onclick="switchTab('tp')">Pessoas</div>
+          <div class="stab" onclick="switchTab('tl')">Locais</div>
+          <div class="stab" onclick="switchTab('ts')">Opções de Status</div>
+        </div>
+        <div id="tc" class="stab-panel">
+          <div class="card" style="padding:1.25rem">
+            <div style="font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:.75rem">Categorias de itens</div>
+            <div class="tag-cloud" id="cat-cloud"></div>
+            <div class="add-row">
+              <input class="f-input" id="ncat" placeholder="Nome da categoria" style="width:200px">
+              <input type="color" id="ncat-color" value="#2563eb" style="width:38px;height:34px;border-radius:7px;border:1px solid var(--border2);padding:2px;cursor:pointer;background:var(--bg)">
+              <button class="btn btn-primary btn-sm" onclick="addCat()"><i class="ti ti-plus"></i> Adicionar</button>
+            </div>
+          </div>
+        </div>
+        <div id="tp" class="stab-panel" style="display:none">
+          <div class="card" style="padding:1.25rem">
+            <div style="font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:.75rem">Pessoas cadastradas</div>
+            <div class="tag-cloud" id="pess-cloud"></div>
+            <div class="add-row">
+              <input class="f-input" id="npess" placeholder="Nome da pessoa" style="width:250px">
+              <button class="btn btn-primary btn-sm" onclick="addPess()"><i class="ti ti-plus"></i> Adicionar</button>
+            </div>
+          </div>
+        </div>
+        <div id="tl" class="stab-panel" style="display:none">
+          <div class="card" style="padding:1.25rem">
+            <div style="font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:.75rem">Locais cadastrados</div>
+            <div class="tag-cloud" id="loc-cloud"></div>
+            <div class="add-row">
+              <input class="f-input" id="nloc" placeholder="Nome do local" style="width:250px">
+              <button class="btn btn-primary btn-sm" onclick="addLoc()"><i class="ti ti-plus"></i> Adicionar</button>
+            </div>
+          </div>
+        </div>
+        <div id="ts" class="stab-panel" style="display:none">
+          <div class="card" style="padding:1.25rem">
+            <div style="font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:.75rem">Opções de Status do patrimônio</div>
+            <p style="font-size:12.5px;color:var(--txt3);margin-bottom:.75rem">Estas opções aparecem no campo "Status" do cadastro (obrigatório).</p>
+            <div class="tag-cloud" id="stat-cloud"></div>
+            <div class="add-row">
+              <input class="f-input" id="nstat" placeholder="Nova opção de status" style="width:250px">
+              <input type="color" id="nstat-color" value="#059669" style="width:38px;height:34px;border-radius:7px;border:1px solid var(--border2);padding:2px;cursor:pointer;background:var(--bg)">
+              <button class="btn btn-primary btn-sm" onclick="addStat()"><i class="ti ti-plus"></i> Adicionar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+ 
+    </div>
+  </div>
+</div>
+ 
+<!-- Export Modal -->
+<div id="exp-modal" style="display:none" class="modal-overlay" onclick="closeExportModal(event)">
+  <div class="modal">
+    <div class="modal-title"><i class="ti ti-file-spreadsheet" style="color:#059669;margin-right:6px"></i>Exportar para Excel</div>
+    <div class="modal-sub">Escolha o que deseja exportar:</div>
+    <div class="modal-opts">
+      <label class="exp-opt"><input type="radio" name="exptype" value="todos" checked><div class="exp-opt-info"><div class="exp-opt-label">Todos os patrimônios</div><div class="exp-opt-desc">Exporta toda a base de dados cadastrada</div></div></label>
+      <label class="exp-opt"><input type="radio" name="exptype" value="filtrado"><div class="exp-opt-info"><div class="exp-opt-label">Somente itens filtrados</div><div class="exp-opt-desc">Exporta apenas os resultados do filtro atual</div></div></label>
+      <label class="exp-opt"><input type="radio" name="exptype" value="categorias"><div class="exp-opt-info"><div class="exp-opt-label">Uma aba por categoria</div><div class="exp-opt-desc">Exporta com abas separadas por tipo de item</div></div></label>
+      <label class="exp-opt"><input type="radio" name="exptype" value="historico"><div class="exp-opt-info"><div class="exp-opt-label">Histórico de movimentações</div><div class="exp-opt-desc">Exporta todas as movimentações registradas</div></div></label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="document.getElementById('exp-modal').style.display='none'">Cancelar</button>
+      <button class="btn btn-success" onclick="doExport()"><i class="ti ti-download"></i> Baixar .xlsx</button>
+    </div>
+  </div>
+</div>
+ 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
