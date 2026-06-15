@@ -25,7 +25,7 @@ html.dark,html.dark body {
     --txt:#1a1a1a;
     --txt2:#555;
     --txt3:#999;
-    --accent:#2563eb;
+    --accent:#ff9100;
     --accent-bg:#dbeafe;
     --accent-txt:#1d4ed8;
     --sidebar-bg:#ffffff;
@@ -102,7 +102,6 @@ html.dark {
 .sidebar-logo .logo-icon {
     width:28px;
     height:28px;
-    background:var(--accent);
     border-radius:7px;
     display:flex;
     align-items:center;
