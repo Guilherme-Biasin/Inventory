@@ -2,7 +2,9 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Controle de Patrimônios</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <link rel="stylesheet" href="css/style.css">
@@ -36,10 +38,14 @@
  
   <div class="main">
     <div class="topbar">
-      <div class="topbar-title" id="topbar-title">Dashboard</div>
+      <div style="display:flex;align-items:center;gap:.625rem">
+        <button class="hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="Menu"><i class="ti ti-menu-2"></i></button>
+        <div class="topbar-title" id="topbar-title">Dashboard</div>
+      </div>
       <div class="topbar-actions">
-        <button class="btn" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
-        <button class="btn btn-primary" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo Patrimônio</button>
+        <button class="btn mobile-dark-btn" onclick="toggleDark()" title="Modo escuro"><i class="ti ti-moon" id="mobile-dark-icon"></i></button>
+        <button class="btn" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> <span class="btn-label">Exportar Excel</span></button>
+        <button class="btn btn-primary" onclick="nav('cadastro')"><i class="ti ti-plus"></i> <span class="btn-label">Novo Patrimônio</span></button>
       </div>
     </div>
     <div class="content">
@@ -161,7 +167,30 @@
   </div>
 </div>
  
+<!-- Sidebar overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- Scanner Modal -->
+<div class="scanner-modal" id="scanner-modal">
+  <div class="scanner-header">
+    <button class="scanner-close" onclick="closeScanner()"><i class="ti ti-x"></i></button>
+    <div class="scanner-label">📷 Leia o código de barras</div>
+    <div style="width:38px"></div>
+  </div>
+  <video id="scanner-video" autoplay playsinline muted></video>
+  <div class="scanner-frame">
+    <div class="scanner-corner-bl"></div>
+    <div class="scanner-corner-br"></div>
+    <div class="scanner-line"></div>
+  </div>
+  <div class="scanner-hint">Aponte a câmera para o código de barras do aparelho</div>
+  <div class="scanner-manual">
+    <button class="scanner-manual-btn" onclick="closeScanner()"><i class="ti ti-keyboard"></i> Digitar manualmente</button>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="js/app.js"></script>
+<script src="js/mobile-scanner.js"></script>
 </body>
 </html>
