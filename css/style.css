@@ -220,6 +220,8 @@ html.dark .toggle-thumb {
     align-items:center;
     justify-content:space-between;
     flex-shrink:0;
+    gap:1rem;
+    overflow:hidden;
 }
 
 .topbar-title {
@@ -227,12 +229,15 @@ html.dark .toggle-thumb {
     font-weight:600;
     color:var(--txt);
     letter-spacing:-.2px;
+    white-space:nowrap;
 }
 
 .topbar-actions {
     display:flex;
     gap:6px;
     align-items:center;
+    flex-shrink:0;
+    min-width:0;
 }
 
 .btn {
@@ -468,6 +473,42 @@ tbody tr:hover td {
     display:grid;
     grid-template-columns:1fr 1fr;
     gap:1rem;
+}
+
+/* Wrapper que coloca as duas cards lado a lado no desktop */
+.form-two-col {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:1.25rem;
+    margin-bottom:1rem;
+    max-width:1100px;
+    margin-left:auto;
+    margin-right:auto;
+}
+
+/* Card de dados e movimentação dentro do two-col não têm margin-bottom própria */
+.form-two-col .scard,
+.form-two-col .mov-card {
+    margin-bottom:0;
+}
+
+/* Hist-card também centralizado */
+.hist-card {
+    max-width:1100px;
+    margin-left:auto;
+    margin-right:auto;
+}
+
+/* Botões de ação centralizados */
+.form-actions-row {
+    max-width:1100px;
+    margin-left:auto;
+    margin-right:auto;
+    display:flex;
+    gap:8px;
+    justify-content:flex-end;
+    margin-top:.5rem;
+    margin-bottom:1rem;
 }
 
 .fg {
@@ -1118,4 +1159,38 @@ html.dark .modal {
     .stat { padding: .75rem 1rem; }
     .stat-val { font-size: 22px; }
     .topbar-actions .btn-primary .btn-label { display: none; }
+}
+/* ── USER BADGE no topbar ─────────────────────────────── */
+.user-badge {
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:12.5px;
+    color:var(--txt2);
+    padding:5px 10px;
+    border-radius:8px;
+    border:1px solid var(--border2);
+    cursor:pointer;
+    white-space:nowrap;
+    max-width:200px;
+    overflow:hidden;
+}
+.user-badge span {
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.user-badge:hover { background:var(--hover); }
+
+/* ── FORM TWO-COL: empilha no mobile (não altera mobile) ─ */
+@media (max-width:768px) {
+    .form-two-col {
+        grid-template-columns:1fr;
+    }
+    .hist-card,
+    .form-actions-row {
+        max-width:100%;
+    }
+    .user-badge span { display:none; }
+    .user-badge { padding:5px 8px; }
 }

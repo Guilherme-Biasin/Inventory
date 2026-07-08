@@ -222,7 +222,7 @@ function renderForm() {
     ? 'Registrar Movimentação'
     : (isEdit ? 'Editar Patrimônio' : 'Novo Patrimônio');
 
-  let h = '<form onsubmit="saveItem(event)">';
+  let h = '<form onsubmit="saveItem(event)"><div class="form-two-col">';
 
   if (!movMode) {
     h += `<div class="scard">
@@ -241,7 +241,7 @@ function renderForm() {
           </select></div>
         <div class="fg"><label class="flabel">N° de Série<span class="req">*</span></label>
           <input class="finput" id="f_serie" value="${esc(it.serie||'')}" required placeholder="Ex: SN-0001-XYZ"></div>
-        <div class="fg"><label class="flabel">Status<span class="req">*</span></label>
+        <div class="fg full"><label class="flabel">Status<span class="req">*</span></label>
           <select class="finput" id="f_status">
             <option value="">Selecione...</option>
             ${S.statusOpts.map(x=>`<option value="${esc(x.id)}"${Array.isArray(it.status)&&it.status[0]===x.id?' selected':''}>${esc(x.name)}</option>`).join('')}
@@ -254,8 +254,8 @@ function renderForm() {
     const it2 = S.items.find(x => x.id === S.editId) || {};
     h += `<div class="scard" style="background:var(--accent-bg);border-color:var(--accent)">
       <div style="font-size:13px;margin-bottom:.75rem;color:var(--accent-txt);font-weight:600">
-        <i class="ti ti-info-circle"></i> Movimentando: <strong>${esc(it2.patrimonio||'')} — ${esc(it2.nome||'')}</strong>
-        &nbsp;${statPills(it2.status)}
+        <i class="ti ti-info-circle"></i> Movimentando:<br><strong>${esc(it2.patrimonio||'')} — ${esc(it2.nome||'')}</strong>
+        <div style="margin-top:.5rem">${statPills(it2.status)}</div>
       </div>
     </div>`;
   }
@@ -280,9 +280,11 @@ function renderForm() {
           ${S.locais.map(l=>`<option${(!movMode && it.local_atual===l)?' selected':''}>${esc(l)}</option>`).join('')}
         </select></div>
       <div class="fg full"><label class="flabel">Observações da Movimentação</label>
-        <textarea class="finput" id="f_obs_mov" rows="3" style="resize:vertical" placeholder="Descreva esta movimentação..."></textarea></div>
+        <textarea class="finput" id="f_obs_mov" rows="4" style="resize:vertical" placeholder="Descreva esta movimentação..."></textarea></div>
     </div>
   </div>`;
+
+  h += '</div>'; // fecha form-two-col
 
   if (isEdit || movMode) {
     const itH = S.items.find(x => x.id === S.editId) || {};
@@ -292,6 +294,7 @@ function renderForm() {
         <span class="badge b-gray" style="margin-left:6px">${hist.length}</span>
       </div>`;
     if (hist.length) {
+      h += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:.75rem">`;
       h += [...hist].reverse().map(hv => `
         <div class="hist-item">
           <div class="hist-meta">${fmtDT(hv.timestamp)} · ${hv.tipo==='entrada'?'📥 Entrada':'🔄 Movimentação'}</div>
@@ -303,13 +306,14 @@ function renderForm() {
             ${hv.obs_mov ? `<div style="margin-top:3px;color:var(--txt2)">📝 ${esc(hv.obs_mov)}</div>` : ''}
           </div>
         </div>`).join('');
+      h += '</div>';
     } else {
       h += '<div style="color:var(--txt3);font-size:13px;padding:.5rem 0">Nenhuma movimentação registrada ainda.</div>';
     }
     h += '</div>';
   }
 
-  h += `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:.5rem">
+  h += `<div class="form-actions-row">
     <button type="button" class="btn btn-ghost" onclick="cancelEdit()">Cancelar</button>
     <button type="submit" class="btn btn-primary" id="save-btn"><i class="ti ti-device-floppy"></i> ${movMode?'Registrar Movimentação':(isEdit?'Salvar Alterações':'Cadastrar')}</button>
   </div></form>`;
