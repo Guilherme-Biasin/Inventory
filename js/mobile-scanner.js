@@ -317,7 +317,7 @@ function _updateScannerLabel() {
 const _origRenderForm = window.renderForm;
 window.renderForm = function () {
   _origRenderForm.apply(this, arguments);
-  _injectScanButton();
+  requestAnimationFrame(_injectScanButton);
 };
 
 function _injectScanButton() {
@@ -330,7 +330,6 @@ function _injectScanButton() {
   field.parentNode.insertBefore(wrap, field);
   wrap.appendChild(field);
 
-  // Botão único — abre sempre no modo "both"
   const btn = document.createElement('button');
   btn.type      = 'button';
   btn.className = 'scan-btn';
@@ -340,7 +339,7 @@ function _injectScanButton() {
   wrap.appendChild(btn);
 
   const hint = document.createElement('div');
-  hint.className   = 'scan-hint';
-  hint.innerHTML   = '📷 Toque para ler <strong>código de barras</strong> ou <strong>QR Code</strong>';
+  hint.className = 'scan-hint';
+  hint.innerHTML = '📷 Toque para ler <strong>código de barras</strong> ou <strong>QR Code</strong>';
   wrap.parentNode.insertBefore(hint, wrap.nextSibling);
 }

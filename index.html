@@ -5,12 +5,109 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Controle de Patrimônios</title>
+<title>Inventory Guemat</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <link rel="stylesheet" href="css/style.css">
 <link rel="icon" type="image/png" href="https://cdn.awsli.com.br/1709/1709002/favicon/a48a060e0c.ico">
+<style>
+/* ── LOGIN SCREEN ─────────────────────────────────────────── */
+#screen-login {
+  display:none;position:fixed;inset:0;z-index:1000;
+  background:var(--bg2);align-items:center;justify-content:center;
+}
+.login-card {
+  background:var(--bg);border:1px solid var(--border2);border-radius:16px;
+  padding:2.5rem 2rem;width:100%;max-width:380px;box-shadow:0 8px 40px rgba(0,0,0,.12);
+}
+.login-logo {
+  text-align:center;font-size:22px;font-weight:800;color:var(--txt);
+  margin-bottom:.5rem;letter-spacing:-.5px;
+}
+.login-logo span { color:var(--accent); }
+.login-sub { text-align:center;font-size:13px;color:var(--txt3);margin-bottom:2rem; }
+.login-err {
+  background:var(--danger-bg);color:var(--danger-txt);border-radius:8px;
+  padding:9px 12px;font-size:13px;margin-bottom:1rem;display:none;
+}
+.login-fg { display:flex;flex-direction:column;gap:5px;margin-bottom:1rem; }
+.login-lbl { font-size:12.5px;font-weight:500;color:var(--txt2); }
+.login-input {
+  padding:11px 12px;border-radius:9px;border:1.5px solid var(--border2);
+  background:var(--bg);color:var(--txt);font-size:15px;font-family:inherit;
+  transition:border-color .12s;
+}
+.login-input:focus { outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,145,0,.15); }
+.login-btn {
+  width:100%;padding:13px;border-radius:9px;background:var(--accent);
+  color:#fff;border:none;font-size:15px;font-weight:600;cursor:pointer;
+  margin-top:.5rem;transition:background .12s;
+}
+.login-btn:hover   { background:#e07800; }
+.login-btn:disabled { opacity:.6;cursor:not-allowed; }
+
+/* ── APP SCREEN ───────────────────────────────────────────── */
+#screen-app { display:none; }
+
+/* ── LOADING OVERLAY ─────────────────────────────────────── */
+#loading-overlay {
+  position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:900;
+  display:none;align-items:center;justify-content:center;flex-direction:column;gap:.75rem;
+}
+.loading-box {
+  background:var(--bg);border-radius:12px;padding:1.5rem 2rem;
+  display:flex;align-items:center;gap:.875rem;box-shadow:0 8px 32px rgba(0,0,0,.2);
+}
+.spinner {
+  width:22px;height:22px;border:3px solid var(--border2);
+  border-top-color:var(--accent);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+#loading-msg { font-size:14px;color:var(--txt);font-weight:500; }
+
+/* ── TOAST ───────────────────────────────────────────────── */
+.toast {
+  position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);
+  padding:11px 20px;border-radius:10px;font-size:13.5px;font-weight:500;
+  z-index:950;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.2);
+  opacity:0;transition:opacity .2s;pointer-events:none;
+}
+.toast.show { opacity:1; }
+.toast-ok  { background:#166534;color:#dcfce7; }
+.toast-err { background:#991b1b;color:#fee2e2; }
+
+/* ── USER BADGE ──────────────────────────────────────────── */
+.user-badge {
+  display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--txt2);
+  padding:5px 10px;border-radius:8px;border:1px solid var(--border2);cursor:pointer;
+}
+.user-badge:hover { background:var(--hover); }
+</style>
 </head>
 <body>
+
+<!-- ── TELA DE LOGIN ──────────────────────────────────────── -->
+<div id="screen-login">
+  <div class="login-card">
+    <div class="login-logo">💻 Inventory <span>Guemat</span></div>
+    <div class="login-sub">Faça login para continuar</div>
+    <div class="login-err" id="l-err"></div>
+    <form onsubmit="doLogin(event)">
+      <div class="login-fg">
+        <label class="login-lbl">E-mail</label>
+        <input class="login-input" id="l-email" type="email" required placeholder="seu@email.com" autocomplete="email">
+      </div>
+      <div class="login-fg">
+        <label class="login-lbl">Senha</label>
+        <input class="login-input" id="l-pass" type="password" required placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="login-btn" id="l-btn" type="submit">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── TELA DO APP ────────────────────────────────────────── -->
+<div id="screen-app">
 <div class="app">
   <div class="sidebar">
     <div class="sidebar-logo"><div class="logo-icon">💻</div>Inventory Guemat</div>
@@ -35,7 +132,7 @@
       </div>
     </div>
   </div>
- 
+
   <div class="main">
     <div class="topbar">
       <div style="display:flex;align-items:center;gap:.625rem">
@@ -46,10 +143,15 @@
         <button class="btn mobile-dark-btn" onclick="toggleDark()" title="Modo escuro"><i class="ti ti-moon" id="mobile-dark-icon"></i></button>
         <button class="btn" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> <span class="btn-label">Exportar Excel</span></button>
         <button class="btn btn-primary" onclick="nav('cadastro')"><i class="ti ti-plus"></i> <span class="btn-label">Novo Patrimônio</span></button>
+        <div class="user-badge" onclick="doLogout()" title="Clique para sair">
+          <i class="ti ti-user" style="font-size:15px"></i>
+          <span id="user-email">—</span>
+          <i class="ti ti-logout" style="font-size:14px;opacity:.6"></i>
+        </div>
       </div>
     </div>
+
     <div class="content">
- 
       <!-- DASHBOARD -->
       <div class="page active" id="page-dashboard">
         <div class="stats-row" id="stats-row"></div>
@@ -59,11 +161,12 @@
             <button class="btn btn-sm btn-ghost" onclick="nav('lista')">Ver todos →</button>
           </div>
           <div class="table-wrap">
-            <table><thead><tr><th>Nº</th><th>Nome</th><th>N° Série</th><th>Categoria</th><th>Status</th></tr></thead><tbody id="dash-tbody"></tbody></table>
+            <table><thead><tr><th>Nº</th><th>Nome</th><th>N° Série</th><th>Categoria</th><th>Status</th></tr></thead>
+            <tbody id="dash-tbody"></tbody></table>
           </div>
         </div>
       </div>
- 
+
       <!-- LISTA -->
       <div class="page" id="page-lista">
         <div class="page-header">
@@ -80,7 +183,7 @@
         </div>
         <div class="card"><div class="table-wrap"><table><thead><tr id="lista-head"></tr></thead><tbody id="lista-tbody"></tbody></table></div></div>
       </div>
- 
+
       <!-- CADASTRO -->
       <div class="page" id="page-cadastro">
         <div class="page-header">
@@ -90,7 +193,7 @@
         <div class="alert" id="form-alert"></div>
         <div id="form-wrap"></div>
       </div>
- 
+
       <!-- CONFIG -->
       <div class="page" id="page-config">
         <div class="page-header"><div class="ph-title">Personalizar Sistema</div></div>
@@ -99,6 +202,7 @@
           <div class="stab" onclick="switchTab('tp')">Pessoas</div>
           <div class="stab" onclick="switchTab('tl')">Locais</div>
           <div class="stab" onclick="switchTab('ts')">Opções de Status</div>
+          <div class="stab" onclick="switchTab('tv')">⚡ Vínculos</div>
         </div>
         <div id="tc" class="stab-panel">
           <div class="card" style="padding:1.25rem">
@@ -133,8 +237,7 @@
         </div>
         <div id="ts" class="stab-panel" style="display:none">
           <div class="card" style="padding:1.25rem">
-            <div style="font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:.75rem">Opções de Status do patrimônio</div>
-            <p style="font-size:12.5px;color:var(--txt3);margin-bottom:.75rem">Estas opções aparecem no campo "Status" do cadastro (obrigatório).</p>
+            <div style="font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:.75rem">Opções de Status</div>
             <div class="tag-cloud" id="stat-cloud"></div>
             <div class="add-row">
               <input class="f-input" id="nstat" placeholder="Nova opção de status" style="width:250px">
@@ -143,22 +246,23 @@
             </div>
           </div>
         </div>
+        <div id="tv" class="stab-panel" style="display:none"></div>
       </div>
- 
-    </div>
-  </div>
-</div>
- 
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+</div><!-- /screen-app -->
+
 <!-- Export Modal -->
 <div id="exp-modal" style="display:none" class="modal-overlay" onclick="closeExportModal(event)">
   <div class="modal">
     <div class="modal-title"><i class="ti ti-file-spreadsheet" style="color:#059669;margin-right:6px"></i>Exportar para Excel</div>
     <div class="modal-sub">Escolha o que deseja exportar:</div>
     <div class="modal-opts">
-      <label class="exp-opt"><input type="radio" name="exptype" value="todos" checked><div class="exp-opt-info"><div class="exp-opt-label">Todos os patrimônios</div><div class="exp-opt-desc">Exporta toda a base de dados cadastrada</div></div></label>
+      <label class="exp-opt"><input type="radio" name="exptype" value="todos" checked><div class="exp-opt-info"><div class="exp-opt-label">Todos os patrimônios</div><div class="exp-opt-desc">Exporta toda a base de dados</div></div></label>
       <label class="exp-opt"><input type="radio" name="exptype" value="filtrado"><div class="exp-opt-info"><div class="exp-opt-label">Somente itens filtrados</div><div class="exp-opt-desc">Exporta apenas os resultados do filtro atual</div></div></label>
-      <label class="exp-opt"><input type="radio" name="exptype" value="categorias"><div class="exp-opt-info"><div class="exp-opt-label">Uma aba por categoria</div><div class="exp-opt-desc">Exporta com abas separadas por tipo de item</div></div></label>
-      <label class="exp-opt"><input type="radio" name="exptype" value="historico"><div class="exp-opt-info"><div class="exp-opt-label">Histórico de movimentações</div><div class="exp-opt-desc">Exporta todas as movimentações registradas</div></div></label>
+      <label class="exp-opt"><input type="radio" name="exptype" value="categorias"><div class="exp-opt-info"><div class="exp-opt-label">Uma aba por categoria</div><div class="exp-opt-desc">Exporta com abas separadas por tipo</div></div></label>
+      <label class="exp-opt"><input type="radio" name="exptype" value="historico"><div class="exp-opt-info"><div class="exp-opt-label">Histórico de movimentações</div><div class="exp-opt-desc">Exporta todas as movimentações</div></div></label>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="document.getElementById('exp-modal').style.display='none'">Cancelar</button>
@@ -166,15 +270,15 @@
     </div>
   </div>
 </div>
- 
-<!-- Sidebar overlay (mobile) -->
+
+<!-- Sidebar overlay -->
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
 <!-- Scanner Modal -->
 <div class="scanner-modal" id="scanner-modal">
   <div class="scanner-header">
     <button class="scanner-close" onclick="closeScanner()"><i class="ti ti-x"></i></button>
-    <div class="scanner-label">📷 Leia o código de barras</div>
+    <div class="scanner-label" id="scanner-label-text">📷 Leia o código de barras ou QR Code</div>
     <div style="width:38px"></div>
   </div>
   <video id="scanner-video" autoplay playsinline muted></video>
@@ -183,13 +287,27 @@
     <div class="scanner-corner-br"></div>
     <div class="scanner-line"></div>
   </div>
-  <div class="scanner-hint">Aponte a câmera para o código de barras do aparelho</div>
+  <div class="scanner-hint">Aponte a câmera para o código de barras ou QR Code</div>
   <div class="scanner-manual">
     <button class="scanner-manual-btn" onclick="closeScanner()"><i class="ti ti-keyboard"></i> Digitar manualmente</button>
   </div>
 </div>
 
+<!-- Loading overlay -->
+<div id="loading-overlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <span id="loading-msg">Carregando...</span>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Supabase CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="js/supabase-config.js"></script>
 <script src="js/app.js"></script>
 <script src="js/mobile-scanner.js"></script>
 </body>
