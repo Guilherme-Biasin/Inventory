@@ -204,10 +204,9 @@ const DB = {
   },
 
   // ── AUDITORIA ────────────────────────────────────────────────
-  // Carrega log de auditoria (últimos N registros)
-  async loadAuditoria(limit = 100) {
+  async loadAuditoria(limit = 200) {
     const { data, error } = await _sb
-      .from('v_auditoria')
+      .from('auditoria')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -215,10 +214,9 @@ const DB = {
     return data || [];
   },
 
-  // Carrega auditoria de um patrimônio específico
   async loadAuditoriaItem(patrimonioId) {
     const { data, error } = await _sb
-      .from('v_auditoria')
+      .from('auditoria')
       .select('*')
       .eq('registro_id', String(patrimonioId))
       .order('created_at', { ascending: false });
@@ -226,7 +224,6 @@ const DB = {
     return data || [];
   },
 
-  // Realtime: notifica quando nova entrada de auditoria for criada
   subscribeAuditoria(callback) {
     return _sb
       .channel('auditoria_changes')

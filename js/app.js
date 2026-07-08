@@ -518,16 +518,23 @@ function toggleVinculo(tipo, field, id, checked) {
 
 // ─── AUDITORIA ───────────────────────────────────────────────
 let _auditFiltro = '';
+let _auditLogs   = [];
 
 async function renderAuditoria() {
   const el = document.getElementById('audit-body');
   if (!el) return;
-  el.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--txt3)"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+  el.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--txt3)">
+    <div style="display:inline-block;width:22px;height:22px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div>
+    <div style="margin-top:.5rem;font-size:13px">Carregando auditoria...</div>
+  </td></tr>`;
   try {
-    const logs = await DB.loadAuditoria(200);
-    _renderAuditRows(logs);
+    _auditLogs = await DB.loadAuditoria(200);
+    _renderAuditRows(_auditLogs);
   } catch(e) {
-    el.innerHTML = `<tr><td colspan="5" style="color:var(--danger-txt);padding:1rem">${e.message}</td></tr>`;
+    el.innerHTML = `<tr><td colspan="5" style="color:var(--danger-txt);padding:1rem;font-size:13px">
+      <strong>Erro ao carregar auditoria:</strong> ${esc(e.message)}<br>
+      <span style="font-size:12px;color:var(--txt3)">Verifique se rodou o setup_auditoria.sql no Supabase.</span>
+    </td></tr>`;
   }
 }
 
@@ -649,4 +656,13 @@ function doExport() {
 }
 
 // ─── INIT ────────────────────────────────────────────────────
-appInit();
+// Aguarda DOM completo antes de qualquer acesso a elementos
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    appInit();
+  } catch(e) {
+    document.body.innerHTML = `<div style="padding:2rem;font-family:sans-serif;color:#dc2626">
+      <h2>Erro ao iniciar</h2><pre style="background:#fee2e2;padding:1rem;border-radius:8px;font-size:13px">${e.message}\n${e.stack||''}</pre>
+    </div>`;
+  }
+});
