@@ -127,14 +127,15 @@ function nav(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  const titles = {dashboard:'Dashboard',lista:'Patrimônios',cadastro:'Cadastro',config:'Personalizar'};
+  const titles = {dashboard:'Dashboard',lista:'Patrimônios',cadastro:'Cadastro',config:'Personalizar',auditoria:'Auditoria'};
   document.getElementById('topbar-title').textContent = titles[p] || '';
-  const navIdx = {dashboard:0,lista:1,cadastro:2,config:5};
+  const navIdx = {dashboard:0,lista:1,cadastro:2,config:5,auditoria:4};
   document.querySelectorAll('.nav-item')[navIdx[p]]?.classList.add('active');
   if (p === 'dashboard') renderDash();
   if (p === 'lista')     { populateFilters(); renderLista(); }
   if (p === 'cadastro')  { S.editId = null; movMode = false; renderForm(); }
   if (p === 'config')    renderConfig();
+  if (p === 'auditoria') renderAuditoria();
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────
@@ -513,6 +514,89 @@ function toggleVinculo(tipo, field, id, checked) {
   const arr = S.vinculos[tipo][field] || [];
   S.vinculos[tipo][field] = checked ? [...arr.filter(x=>x!==id), id] : arr.filter(x=>x!==id);
   persistConfig();
+}
+
+// ─── AUDITORIA ───────────────────────────────────────────────
+let _auditFiltro = '';
+
+async function renderAuditoria() {
+  const el = document.getElementById('audit-body');
+  if (!el) return;
+  el.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--txt3)"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+  try {
+    const logs = await DB.loadAuditoria(200);
+    _renderAuditRows(logs);
+  } catch(e) {
+    el.innerHTML = `<tr><td colspan="5" style="color:var(--danger-txt);padding:1rem">${e.message}</td></tr>`;
+  }
+}
+
+function _renderAuditRows(logs) {
+  const el = document.getElementById('audit-body'); if (!el) return;
+  const srch = _auditFiltro.toLowerCase();
+  const filtered = srch
+    ? logs.filter(r => (r.descricao||'').toLowerCase().includes(srch) || (r.user_email||'').toLowerCase().includes(srch))
+    : logs;
+
+  const iconMap = { INSERT:'ti-plus', UPDATE:'ti-edit', DELETE:'ti-trash' };
+  const colorMap = { INSERT:'#059669', UPDATE:'#d97706', DELETE:'#dc2626' };
+  const labelMap = { INSERT:'Cadastro', UPDATE:'Edição', DELETE:'Exclusão' };
+  const tabelaMap = { patrimonios:'Patrimônio', movimentacoes:'Movimentação', config:'Configuração' };
+
+  el.innerHTML = filtered.length ? filtered.map(r => `
+    <tr>
+      <td style="white-space:nowrap;color:var(--txt3);font-size:12px">${_fmtDTAudit(r.created_at)}</td>
+      <td>
+        <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:11.5px;font-weight:600;background:${colorMap[r.acao]}22;color:${colorMap[r.acao]}">
+          <i class="ti ${iconMap[r.acao]||'ti-circle'}"></i> ${labelMap[r.acao]||r.acao}
+        </span>
+        <span style="font-size:11px;color:var(--txt3);margin-left:5px">${tabelaMap[r.tabela]||r.tabela}</span>
+      </td>
+      <td style="font-size:13px">${esc(r.descricao||'—')}</td>
+      <td style="font-size:12px;color:var(--txt2)">${esc(r.user_email||'—')}</td>
+      <td>
+        ${r.dados_antes||r.dados_depois ? `<button class="btn btn-sm btn-ghost" onclick="showAuditDetail(${r.id})" style="font-size:11px">
+          <i class="ti ti-eye"></i> Ver
+        </button>` : '—'}
+      </td>
+    </tr>`).join('')
+  : '<tr class="empty-row"><td colspan="5">Nenhum registro encontrado</td></tr>';
+
+  // Guarda logs no estado para o modal de detalhe
+  window._auditLogs = logs;
+}
+
+function _fmtDTAudit(ts) {
+  if (!ts) return '—';
+  try { return new Date(ts).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+  catch(e) { return ts; }
+}
+
+function filterAudit() {
+  _auditFiltro = document.getElementById('audit-srch')?.value || '';
+  if (window._auditLogs) _renderAuditRows(window._auditLogs);
+}
+
+function showAuditDetail(id) {
+  const r = (window._auditLogs||[]).find(x => x.id === id); if (!r) return;
+  const fmt = obj => obj ? JSON.stringify(obj, null, 2) : 'N/A';
+  const el = document.getElementById('audit-detail-modal');
+  document.getElementById('audit-detail-body').innerHTML = `
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:600;color:var(--txt2);margin-bottom:4px">DESCRIÇÃO</div>
+      <div style="font-size:14px">${esc(r.descricao||'—')}</div>
+    </div>
+    ${r.dados_antes ? `
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:600;color:#dc2626;margin-bottom:4px">ANTES</div>
+      <pre style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.75rem;font-size:11.5px;overflow-x:auto;color:var(--txt)">${fmt(r.dados_antes)}</pre>
+    </div>` : ''}
+    ${r.dados_depois ? `
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#059669;margin-bottom:4px">DEPOIS</div>
+      <pre style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.75rem;font-size:11.5px;overflow-x:auto;color:var(--txt)">${fmt(r.dados_depois)}</pre>
+    </div>` : ''}`;
+  el.style.display = 'flex';
 }
 
 // ─── EXPORTAR EXCEL ──────────────────────────────────────────

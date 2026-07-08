@@ -3,8 +3,8 @@
 //  ⚠️  Substitua as 2 variáveis abaixo pelas suas do Supabase
 // ═══════════════════════════════════════════════════════════════
 
-const SUPABASE_URL    = 'https://mptmocfmtboathsdwwwe.supabase.co';       
-const SUPABASE_ANON   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wdG1vY2ZtdGJvYXRoc2R3d3dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NzgxNTIsImV4cCI6MjA5OTA1NDE1Mn0.E8vC2WSnxQZpUoBpCxkQenfbUU8C4xEyQQDR2wJdSAE';  
+const SUPABASE_URL    = 'COLE_SUA_URL_AQUI';       // ex: https://xyzxyz.supabase.co
+const SUPABASE_ANON   = 'COLE_SUA_ANON_KEY_AQUI';  // chave pública (anon key)
 
 // ── Carrega o cliente Supabase (importado via CDN no index.html)
 const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -200,6 +200,37 @@ const DB = {
       .channel('patrimonios_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'patrimonios' }, callback)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'movimentacoes' }, callback)
+      .subscribe();
+  },
+
+  // ── AUDITORIA ────────────────────────────────────────────────
+  // Carrega log de auditoria (últimos N registros)
+  async loadAuditoria(limit = 100) {
+    const { data, error } = await _sb
+      .from('v_auditoria')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Carrega auditoria de um patrimônio específico
+  async loadAuditoriaItem(patrimonioId) {
+    const { data, error } = await _sb
+      .from('v_auditoria')
+      .select('*')
+      .eq('registro_id', String(patrimonioId))
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Realtime: notifica quando nova entrada de auditoria for criada
+  subscribeAuditoria(callback) {
+    return _sb
+      .channel('auditoria_changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'auditoria' }, callback)
       .subscribe();
   }
 };

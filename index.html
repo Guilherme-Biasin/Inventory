@@ -120,6 +120,7 @@
     <div class="nav-group">
       <div class="nav-label">Dados</div>
       <div class="nav-item" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</div>
+      <div class="nav-item" onclick="nav('auditoria')"><i class="ti ti-shield-check"></i> Auditoria</div>
     </div>
     <div class="nav-group">
       <div class="nav-label">Configurações</div>
@@ -194,7 +195,32 @@
         <div id="form-wrap"></div>
       </div>
 
-      <!-- CONFIG -->
+      <!-- AUDITORIA -->
+      <div class="page" id="page-auditoria">
+        <div class="page-header">
+          <div class="ph-title"><i class="ti ti-shield-check" style="color:var(--accent)"></i> Log de Auditoria</div>
+          <button class="btn" onclick="renderAuditoria()"><i class="ti ti-refresh"></i> Atualizar</button>
+        </div>
+        <div class="filter-bar">
+          <input class="f-input" id="audit-srch" placeholder="🔍  Filtrar por descrição ou usuário..." oninput="filterAudit()" style="flex:1">
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th style="width:140px">Data/Hora</th>
+                <th style="width:150px">Ação</th>
+                <th>Descrição</th>
+                <th style="width:180px">Usuário</th>
+                <th style="width:70px">Detalhe</th>
+              </tr></thead>
+              <tbody id="audit-body">
+                <tr class="empty-row"><td colspan="5">Clique em Auditoria para carregar</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
       <div class="page" id="page-config">
         <div class="page-header"><div class="ph-title">Personalizar Sistema</div></div>
         <div class="tab-bar">
@@ -290,6 +316,17 @@
   <div class="scanner-hint">Aponte a câmera para o código de barras ou QR Code</div>
   <div class="scanner-manual">
     <button class="scanner-manual-btn" onclick="closeScanner()"><i class="ti ti-keyboard"></i> Digitar manualmente</button>
+  </div>
+</div>
+
+<!-- Audit Detail Modal -->
+<div id="audit-detail-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:600px;max-height:80vh;overflow-y:auto">
+    <div class="modal-title"><i class="ti ti-eye" style="color:var(--accent);margin-right:6px"></i>Detalhe da Auditoria</div>
+    <div id="audit-detail-body"></div>
+    <div class="modal-footer" style="margin-top:1rem">
+      <button class="btn btn-primary" onclick="document.getElementById('audit-detail-modal').style.display='none'">Fechar</button>
+    </div>
   </div>
 </div>
 
