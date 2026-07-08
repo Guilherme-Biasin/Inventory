@@ -3,8 +3,8 @@
 //  ⚠️  Substitua as 2 variáveis abaixo pelas suas do Supabase
 // ═══════════════════════════════════════════════════════════════
 
-const SUPABASE_URL    = 'COLE_SUA_URL_AQUI';       // ex: https://xyzxyz.supabase.co
-const SUPABASE_ANON   = 'COLE_SUA_ANON_KEY_AQUI';  // chave pública (anon key)
+const SUPABASE_URL    = 'https://mptmocfmtboathsdwwwe.supabase.co';       // ex: https://xyzxyz.supabase.co
+const SUPABASE_ANON   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wdG1vY2ZtdGJvYXRoc2R3d3dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NzgxNTIsImV4cCI6MjA5OTA1NDE1Mn0.E8vC2WSnxQZpUoBpCxkQenfbUU8C4xEyQQDR2wJdSAE';  // chave pública (anon key)
 
 // ── Carrega o cliente Supabase (importado via CDN no index.html)
 const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
