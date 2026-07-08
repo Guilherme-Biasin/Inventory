@@ -46,8 +46,8 @@ async function appInit() {
 }
 
 function showScreen(which) {
-  document.getElementById('screen-login').style.display = which === 'login' ? 'flex' : 'none';
-  document.getElementById('screen-app').style.display   = which === 'app'   ? 'flex' : 'none';
+  document.getElementById('screen-login').style.display = which === 'login' ? 'flex'  : 'none';
+  document.getElementById('screen-app').style.display   = which === 'app'   ? 'block' : 'none';
 }
 
 async function loadAll() {
@@ -294,7 +294,7 @@ function renderForm() {
         <span class="badge b-gray" style="margin-left:6px">${hist.length}</span>
       </div>`;
     if (hist.length) {
-      h += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:.75rem">`;
+      h += `<div class="hist-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:.75rem">`;
       h += [...hist].reverse().map(hv => `
         <div class="hist-item">
           <div class="hist-meta">${fmtDT(hv.timestamp)} · ${hv.tipo==='entrada'?'📥 Entrada':'🔄 Movimentação'}</div>

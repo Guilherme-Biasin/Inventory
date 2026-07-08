@@ -46,7 +46,12 @@
 .login-btn:disabled { opacity:.6;cursor:not-allowed; }
 
 /* ── APP SCREEN ───────────────────────────────────────────── */
-#screen-app { display:none; }
+#screen-app {
+  display:none;
+  width:100vw;
+  height:100vh;
+  overflow:hidden;
+}
 
 /* ── LOADING OVERLAY ─────────────────────────────────────── */
 #loading-overlay {
@@ -107,7 +112,7 @@
 </div>
 
 <!-- ── TELA DO APP ────────────────────────────────────────── -->
-<div id="screen-app">
+<div id="screen-app" style="width:100%;height:100vh;">
 <div class="app">
   <div class="sidebar">
     <div class="sidebar-logo"><div class="logo-icon">💻</div>Inventory Guemat</div>

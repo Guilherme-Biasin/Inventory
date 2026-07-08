@@ -209,6 +209,8 @@ html.dark .toggle-thumb {
     flex-direction:column;
     overflow:hidden;
     background:var(--bg2);
+    min-width:0; /* crítico: evita que flex item exceda o container */
+    width:0;     /* força o flex:1 a funcionar corretamente */
 }
 
 .topbar {
@@ -310,20 +312,25 @@ html.dark .toggle-thumb {
     flex:1;
     overflow-y:auto;
     padding:1.25rem;
+    min-width:0; /* evita overflow em flex */
+    width:100%;
 }
 
 .page {
     display:none;
+    width:100%;
 }
 
 .page.active {
     display:block;
+    width:100%;
 }
 
 .card {
     background:var(--bg);
     border:1px solid var(--border);
     border-radius:12px;
+    width:100%;
 }
 
 .card-header {
@@ -345,6 +352,7 @@ html.dark .toggle-thumb {
     grid-template-columns:repeat(4,1fr);
     gap:10px;
     margin-bottom:1.25rem;
+    width:100%;
 }
 
 .stat {
@@ -475,35 +483,30 @@ tbody tr:hover td {
     gap:1rem;
 }
 
-/* Wrapper que coloca as duas cards lado a lado no desktop */
+/* Wrapper que coloca as duas cards lado a lado — preenche o espaço disponível */
 .form-two-col {
     display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:1.25rem;
-    margin-bottom:1rem;
-    max-width:1100px;
-    margin-left:auto;
-    margin-right:auto;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:1.5rem;
+    margin-bottom:1.25rem;
+    width:100%;
 }
 
-/* Card de dados e movimentação dentro do two-col não têm margin-bottom própria */
+/* Cards dentro do two-col sem margin-bottom própria */
 .form-two-col .scard,
 .form-two-col .mov-card {
     margin-bottom:0;
+    height:100%; /* mesma altura */
 }
 
-/* Hist-card também centralizado */
+/* Hist-card ocupa largura total */
 .hist-card {
-    max-width:1100px;
-    margin-left:auto;
-    margin-right:auto;
+    width:100%;
 }
 
-/* Botões de ação centralizados */
+/* Botões de ação alinhados à direita */
 .form-actions-row {
-    max-width:1100px;
-    margin-left:auto;
-    margin-right:auto;
+    width:100%;
     display:flex;
     gap:8px;
     justify-content:flex-end;
@@ -1084,82 +1087,6 @@ html.dark .modal {
     margin-top: 2px;
 }
 
-/* ══════════════════════════════════════════════════
-   BREAKPOINT ≤ 768px — Layout mobile
-   ══════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-
-    /* Mostra hamburger e mobile-dark-btn */
-    .hamburger { display: flex; }
-    .mobile-dark-btn { display: inline-flex; }
-
-    /* Esconde labels verbosos nos botões do topbar */
-    .btn-label { display: none; }
-
-    /* Sidebar vira drawer deslizante */
-    .sidebar {
-        position: fixed;
-        top: 0; left: 0; bottom: 0;
-        width: 240px;
-        z-index: 300;
-        transform: translateX(-100%);
-        transition: transform .22s cubic-bezier(.4,0,.2,1);
-        overflow-y: auto;
-    }
-    .sidebar.open { transform: translateX(0); }
-
-    /* Dark toggle da sidebar — ocultar no mobile (está no topbar) */
-    .sidebar-footer { display: none; }
-
-    /* Main ocupa 100% da largura */
-    .main { width: 100%; }
-
-    /* Topbar */
-    .topbar { padding: 0 .75rem; gap: .5rem; }
-    .topbar-title { font-size: 14px; }
-    .topbar-actions { gap: 5px; }
-    .topbar-actions .btn { padding: 6px 9px; font-size: 12px; }
-
-    /* Stats: 2 colunas em vez de 4 */
-    .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
-
-    /* Form: 1 coluna em vez de 2 */
-    .form-grid { grid-template-columns: 1fr; }
-    .fg.full { grid-column: auto; }
-
-    /* Tabela: scroll horizontal */
-    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    table { min-width: 500px; }
-
-    /* Filter bar: empilha */
-    .filter-bar { flex-direction: column; }
-    .filter-bar .f-input { width: 100%; }
-
-    /* Modal de exportação: full width */
-    .modal { width: calc(100vw - 2rem); max-width: 400px; margin: 0 1rem; }
-
-    /* Page header: compacta */
-    .page-header { flex-wrap: wrap; gap: 8px; }
-    .ph-title { font-size: 15px; }
-
-    /* Config tabs: scroll horizontal */
-    .tab-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .tab-bar::-webkit-scrollbar { display: none; }
-    .stab { white-space: nowrap; }
-
-    /* Content padding menor */
-    .content { padding: .875rem; }
-}
-
-/* ══════════════════════════════════════════════════
-   BREAKPOINT ≤ 480px — Telas muito pequenas
-   ══════════════════════════════════════════════════ */
-@media (max-width: 480px) {
-    .stats-row { grid-template-columns: 1fr 1fr; }
-    .stat { padding: .75rem 1rem; }
-    .stat-val { font-size: 22px; }
-    .topbar-actions .btn-primary .btn-label { display: none; }
-}
 /* ── USER BADGE no topbar ─────────────────────────────── */
 .user-badge {
     display:flex;
@@ -1172,8 +1099,9 @@ html.dark .modal {
     border:1px solid var(--border2);
     cursor:pointer;
     white-space:nowrap;
-    max-width:200px;
+    max-width:220px;
     overflow:hidden;
+    flex-shrink:0;
 }
 .user-badge span {
     overflow:hidden;
@@ -1182,15 +1110,129 @@ html.dark .modal {
 }
 .user-badge:hover { background:var(--hover); }
 
-/* ── FORM TWO-COL: empilha no mobile (não altera mobile) ─ */
+/* ══════════════════════════════════════════════════════
+   1920×1080 — conteúdo se expande para usar a tela toda
+   Sidebar 210px fixa; content usa o restante (~1710px)
+   ══════════════════════════════════════════════════════ */
+@media (min-width:1600px) {
+    .content { padding:1.5rem 2rem; }
+    .form-two-col { gap:2rem; }
+    .scard, .mov-card { padding:1.5rem; }
+    .form-grid { gap:1.25rem; }
+    .finput { font-size:14px; padding:10px 12px; }
+    .hist-card { padding:1.5rem; }
+    /* Histórico em 3 colunas em telas muito largas */
+    .hist-grid { grid-template-columns:repeat(3,1fr) !important; }
+    .stats-row { gap:1.25rem; }
+    .stat { padding:1.25rem 1.5rem; }
+    .stat-val { font-size:30px; }
+}
+
+/* ══════════════════════════════════════════════════════
+   1280–1599px — desktop padrão
+   ══════════════════════════════════════════════════════ */
+@media (min-width:1280px) and (max-width:1599px) {
+    .content { padding:1.25rem 1.5rem; }
+    .form-two-col { gap:1.5rem; }
+}
+
+/* ══════════════════════════════════════════════════════
+   1024–1279px — laptop / desktop pequeno
+   ══════════════════════════════════════════════════════ */
+@media (min-width:1024px) and (max-width:1279px) {
+    .content { padding:1rem 1.25rem; }
+    .form-two-col { gap:1rem; }
+    .stat-val { font-size:24px; }
+}
+
+/* ══════════════════════════════════════════════════════
+   769–1023px — tablet landscape / iPad Pro
+   ══════════════════════════════════════════════════════ */
+@media (min-width:769px) and (max-width:1023px) {
+    .sidebar { width:180px; }
+    .content { padding:1rem; }
+    .form-two-col { gap:1rem; }
+    .stats-row { grid-template-columns:1fr 1fr; gap:10px; }
+    .stat-val { font-size:22px; }
+    .form-grid { grid-template-columns:1fr; }
+    .fg.full { grid-column:auto; }
+    .hist-grid { grid-template-columns:1fr !important; }
+}
+
+/* ══════════════════════════════════════════════════════
+   ≤ 768px — mobile / tablet portrait
+   ══════════════════════════════════════════════════════ */
 @media (max-width:768px) {
-    .form-two-col {
-        grid-template-columns:1fr;
+    /* Hamburger visível */
+    .hamburger { display: flex; }
+    .mobile-dark-btn { display: inline-flex; }
+
+    /* Sidebar vira drawer */
+    .sidebar {
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        width: 240px;
+        z-index: 300;
+        transform: translateX(-100%);
+        transition: transform .22s cubic-bezier(.4,0,.2,1);
+        overflow-y: auto;
     }
-    .hist-card,
-    .form-actions-row {
-        max-width:100%;
-    }
-    .user-badge span { display:none; }
-    .user-badge { padding:5px 8px; }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-footer { display: none; }
+    .main { width: 100%; }
+
+    /* Topbar compacto */
+    .topbar { padding: 0 .75rem; gap: .5rem; }
+    .topbar-title { font-size: 14px; }
+    .topbar-actions { gap: 5px; }
+    .topbar-actions .btn { padding: 6px 9px; font-size: 12px; }
+    .btn-label { display: none; }
+    .user-badge span { display: none; }
+    .user-badge { padding: 5px 8px; max-width: none; }
+
+    /* Conteúdo */
+    .content { padding: .875rem; }
+
+    /* Formulário empilha */
+    .form-two-col { grid-template-columns: 1fr; gap: .875rem; }
+    .form-grid { grid-template-columns: 1fr; }
+    .fg.full { grid-column: auto; }
+    .hist-grid { grid-template-columns: 1fr !important; }
+
+    /* Stats 2 colunas */
+    .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    /* Tabela scroll horizontal */
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { min-width: 500px; }
+
+    /* Filtros empilham */
+    .filter-bar { flex-direction: column; }
+    .filter-bar .f-input { width: 100%; }
+
+    /* Modal full width */
+    .modal { width: calc(100vw - 2rem); max-width: 400px; margin: 0 1rem; }
+
+    /* Page header */
+    .page-header { flex-wrap: wrap; gap: 8px; }
+    .ph-title { font-size: 15px; }
+
+    /* Config tabs scroll */
+    .tab-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tab-bar::-webkit-scrollbar { display: none; }
+    .stab { white-space: nowrap; }
+}
+
+/* ══════════════════════════════════════════════════════
+   ≤ 480px — telas muito pequenas (iPhone SE, etc.)
+   ══════════════════════════════════════════════════════ */
+@media (max-width:480px) {
+    .content { padding: .625rem; }
+    .stats-row { grid-template-columns: 1fr 1fr; gap: 6px; }
+    .stat { padding: .75rem .875rem; }
+    .stat-val { font-size: 20px; }
+    .stat-label { font-size: 11px; }
+    .scard, .mov-card, .hist-card { padding: .875rem; }
+    .form-grid { gap: .75rem; }
+    .topbar { padding: 0 .625rem; }
 }
