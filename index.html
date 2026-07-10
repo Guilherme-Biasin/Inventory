@@ -126,6 +126,7 @@
       <div class="nav-label">Dados</div>
       <div class="nav-item" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</div>
       <div class="nav-item" onclick="nav('auditoria')"><i class="ti ti-shield-check"></i> Auditoria</div>
+      <div class="nav-item" id="nav-usuarios" onclick="nav('usuarios')"><i class="ti ti-users"></i> Usuários</div>
     </div>
     <div class="nav-group">
       <div class="nav-label">Configurações</div>
@@ -148,10 +149,11 @@
       <div class="topbar-actions">
         <button class="btn mobile-dark-btn" onclick="toggleDark()" title="Modo escuro"><i class="ti ti-moon" id="mobile-dark-icon"></i></button>
         <button class="btn" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> <span class="btn-label">Exportar Excel</span></button>
-        <button class="btn btn-primary" onclick="nav('cadastro')"><i class="ti ti-plus"></i> <span class="btn-label">Novo Patrimônio</span></button>
+        <button class="btn btn-primary" id="btn-novo-topbar" onclick="nav('cadastro')"><i class="ti ti-plus"></i> <span class="btn-label">Novo Patrimônio</span></button>
         <div class="user-badge" onclick="doLogout()" title="Clique para sair">
           <i class="ti ti-user" style="font-size:15px"></i>
           <span id="user-email">—</span>
+          <span id="role-badge" style="font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,.1)"></span>
           <i class="ti ti-logout" style="font-size:14px;opacity:.6"></i>
         </div>
       </div>
@@ -223,6 +225,48 @@
                 <tr class="empty-row"><td colspan="5">Clique em Auditoria para carregar</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+      <!-- USUÁRIOS -->
+      <div class="page" id="page-usuarios">
+        <div class="page-header">
+          <div class="ph-title"><i class="ti ti-users" style="color:var(--accent)"></i> Gerenciar Usuários</div>
+          <button class="btn btn-primary" onclick="openInviteUser()"><i class="ti ti-user-plus"></i> Novo Usuário</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Usuário</th><th style="width:140px">Nível</th>
+                <th style="width:110px">Status</th><th style="width:150px">Criado em</th>
+                <th style="width:100px">Ações</th>
+              </tr></thead>
+              <tbody id="usuarios-body"><tr class="empty-row"><td colspan="5">Carregando...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div style="margin-top:1rem;display:grid;grid-template-columns:repeat(3,1fr);gap:1rem">
+          <div class="card" style="padding:1rem">
+            <div style="font-size:13px;font-weight:700;color:#7c3aed;margin-bottom:.5rem">👑 Admin</div>
+            <ul style="font-size:12.5px;color:var(--txt2);line-height:2;padding-left:1rem">
+              <li>Tudo que o Editor pode</li><li>Excluir patrimônios</li>
+              <li>Adicionar e remover usuários</li><li>Alterar nível de acesso</li>
+            </ul>
+          </div>
+          <div class="card" style="padding:1rem">
+            <div style="font-size:13px;font-weight:700;color:#2563eb;margin-bottom:.5rem">✏️ Editor</div>
+            <ul style="font-size:12.5px;color:var(--txt2);line-height:2;padding-left:1rem">
+              <li>Cadastrar patrimônios</li><li>Editar patrimônios</li>
+              <li>Registrar movimentações</li><li>Alterar configurações</li>
+            </ul>
+          </div>
+          <div class="card" style="padding:1rem">
+            <div style="font-size:13px;font-weight:700;color:#059669;margin-bottom:.5rem">👁️ Leitor</div>
+            <ul style="font-size:12.5px;color:var(--txt2);line-height:2;padding-left:1rem">
+              <li>Ver dashboard</li><li>Ver lista de patrimônios</li>
+              <li>Ver histórico completo</li><li>Exportar Excel</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -331,6 +375,65 @@
     <div id="audit-detail-body"></div>
     <div class="modal-footer" style="margin-top:1rem">
       <button class="btn btn-primary" onclick="document.getElementById('audit-detail-modal').style.display='none'">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Editar Usuário -->
+<div id="user-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title"><i class="ti ti-user-edit" style="color:var(--accent);margin-right:6px"></i>Editar Usuário</div>
+    <input type="hidden" id="eu-id">
+    <div style="display:flex;flex-direction:column;gap:.875rem;margin-top:1rem">
+      <div>
+        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Nome de exibição</label>
+        <input class="f-input" id="eu-nome" placeholder="Nome do usuário" style="width:100%">
+      </div>
+      <div>
+        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Nível de acesso</label>
+        <select class="f-input" id="eu-role" style="width:100%">
+          <option value="admin">👑 Admin — acesso total</option>
+          <option value="editor">✏️ Editor — pode cadastrar e editar</option>
+          <option value="leitor">👁️ Leitor — somente visualização</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer" style="margin-top:1.25rem">
+      <button class="btn" onclick="document.getElementById('user-modal').style.display='none'">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEditUser()"><i class="ti ti-device-floppy"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Convidar Usuário -->
+<div id="invite-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title"><i class="ti ti-user-plus" style="color:var(--accent);margin-right:6px"></i>Novo Usuário</div>
+    <div style="display:flex;flex-direction:column;gap:.875rem;margin-top:1rem">
+      <div>
+        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">E-mail <span style="color:#dc2626">*</span></label>
+        <input class="f-input" id="inv-email" type="email" placeholder="email@empresa.com" style="width:100%">
+      </div>
+      <div>
+        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Nome</label>
+        <input class="f-input" id="inv-nome" placeholder="Nome completo" style="width:100%">
+      </div>
+      <div>
+        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Nível de acesso</label>
+        <select class="f-input" id="inv-role" style="width:100%">
+          <option value="leitor">👁️ Leitor — somente visualização</option>
+          <option value="editor">✏️ Editor — pode cadastrar e editar</option>
+          <option value="admin">👑 Admin — acesso total</option>
+        </select>
+      </div>
+      <div id="inv-result" style="display:none"></div>
+      <div style="font-size:12px;color:var(--txt3);background:var(--bg2);padding:.75rem;border-radius:8px">
+        <i class="ti ti-info-circle"></i> Uma senha temporária será gerada. Passe ao usuário para o primeiro acesso.
+      </div>
+    </div>
+    <div class="modal-footer" style="margin-top:1.25rem">
+      <button class="btn" onclick="document.getElementById('invite-modal').style.display='none'">Cancelar</button>
+      <button class="btn btn-primary" onclick="doInviteUser()"><i class="ti ti-user-plus"></i> Criar Usuário</button>
     </div>
   </div>
 </div>

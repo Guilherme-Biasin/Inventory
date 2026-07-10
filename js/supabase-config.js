@@ -8,7 +8,7 @@ const SUPABASE_ANON   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 // ── Carrega o cliente Supabase (importado via CDN no index.html)
 const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-
+ 
 // ═══════════════════════════════════════════════════════════════
 //  AUTH
 // ═══════════════════════════════════════════════════════════════
@@ -19,18 +19,18 @@ const Auth = {
     if (error) throw error;
     return data.user;
   },
-
+ 
   // Logout
   async logout() {
     await _sb.auth.signOut();
   },
-
+ 
   // Retorna usuário logado ou null
   async getUser() {
     const { data } = await _sb.auth.getUser();
     return data?.user || null;
   },
-
+ 
   // Observa mudanças de sessão
   onAuthChange(callback) {
     _sb.auth.onAuthStateChange((_event, session) => {
@@ -38,12 +38,12 @@ const Auth = {
     });
   }
 };
-
+ 
 // ═══════════════════════════════════════════════════════════════
 //  CONFIG (categorias, locais, status, vínculos)
 // ═══════════════════════════════════════════════════════════════
 const DB = {
-
+ 
   async loadConfig() {
     const { data, error } = await _sb
       .from('config')
@@ -59,7 +59,7 @@ const DB = {
       vinculos:   data.vinculos    || { entrada: { statusIds:[], localIds:[] }, saida: { statusIds:[], localIds:[] } }
     };
   },
-
+ 
   async saveConfig(cfg) {
     const { error } = await _sb
       .from('config')
@@ -74,11 +74,11 @@ const DB = {
       .eq('id', 'main');
     if (error) throw error;
   },
-
+ 
   // ═══════════════════════════════════════════════════════════
   //  PATRIMÔNIOS
   // ═══════════════════════════════════════════════════════════
-
+ 
   // Carrega todos os patrimônios com histórico
   async loadItems() {
     const { data: pats, error } = await _sb
@@ -86,7 +86,7 @@ const DB = {
       .select('*, movimentacoes(*)')
       .order('id', { ascending: true });
     if (error) throw error;
-
+ 
     return pats.map(p => ({
       id:           p.id,
       patrimonio:   p.patrimonio,
@@ -109,11 +109,11 @@ const DB = {
                       }))
     }));
   },
-
+ 
   // Cria novo patrimônio + primeira movimentação
   async createItem(item, mov) {
     const user = await Auth.getUser();
-
+ 
     const { data: pat, error: pe } = await _sb
       .from('patrimonios')
       .insert({
@@ -129,7 +129,7 @@ const DB = {
       .select()
       .single();
     if (pe) throw pe;
-
+ 
     if (mov.data_mov || mov.quem_recebeu_retirou || mov.obs_mov || mov.local) {
       const { error: me } = await _sb.from('movimentacoes').insert({
         patrimonio_id:        pat.id,
@@ -143,10 +143,10 @@ const DB = {
       });
       if (me) throw me;
     }
-
+ 
     return pat.id;
   },
-
+ 
   // Atualiza dados fixos do patrimônio
   async updateItem(id, item) {
     const { error } = await _sb
@@ -161,11 +161,11 @@ const DB = {
       .eq('id', id);
     if (error) throw error;
   },
-
+ 
   // Registra nova movimentação + atualiza local/usuário no patrimônio
   async registrarMovimentacao(patrimonioId, mov) {
     const user = await Auth.getUser();
-
+ 
     const { error: me } = await _sb.from('movimentacoes').insert({
       patrimonio_id:        patrimonioId,
       tipo:                 'movimentacao',
@@ -177,7 +177,7 @@ const DB = {
       created_by:           user?.id
     });
     if (me) throw me;
-
+ 
     // Atualiza local e usuário atual no patrimônio
     const upd = {};
     if (mov.local)         upd.local_atual   = mov.local;
@@ -187,13 +187,13 @@ const DB = {
       await _sb.from('patrimonios').update(upd).eq('id', patrimonioId);
     }
   },
-
+ 
   // Deleta patrimônio (histórico é deletado em cascata)
   async deleteItem(id) {
     const { error } = await _sb.from('patrimonios').delete().eq('id', id);
     if (error) throw error;
   },
-
+ 
   // ── Realtime: recebe callback quando qualquer patrimônio mudar
   subscribeItems(callback) {
     try {
@@ -209,7 +209,7 @@ const DB = {
       return null;
     }
   },
-
+ 
   // ── AUDITORIA ────────────────────────────────────────────────
   async loadAuditoria(limit = 200) {
     const { data, error } = await _sb
@@ -220,7 +220,7 @@ const DB = {
     if (error) throw error;
     return data || [];
   },
-
+ 
   async loadAuditoriaItem(patrimonioId) {
     const { data, error } = await _sb
       .from('auditoria')
@@ -230,11 +230,76 @@ const DB = {
     if (error) throw error;
     return data || [];
   },
-
+ 
   subscribeAuditoria(callback) {
     return _sb
       .channel('auditoria_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'auditoria' }, callback)
       .subscribe();
+  },
+ 
+  // ── USUÁRIOS / PERFIS ────────────────────────────────────────
+  async getMyProfile() {
+    const user = await Auth.getUser();
+    if (!user) return null;
+    const { data, error } = await _sb
+      .from('user_profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+    if (error) return { id: user.id, email: user.email, role: 'leitor', ativo: true };
+    return data;
+  },
+ 
+  async loadUsers() {
+    const { data, error } = await _sb
+      .from('user_profiles')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+ 
+  async updateUserRole(userId, role) {
+    const { error } = await _sb
+      .from('user_profiles')
+      .update({ role })
+      .eq('id', userId);
+    if (error) throw error;
+  },
+ 
+  async updateUserNome(userId, nome) {
+    const { error } = await _sb
+      .from('user_profiles')
+      .update({ nome })
+      .eq('id', userId);
+    if (error) throw error;
+  },
+ 
+  async toggleUserAtivo(userId, ativo) {
+    const { error } = await _sb
+      .from('user_profiles')
+      .update({ ativo })
+      .eq('id', userId);
+    if (error) throw error;
+  },
+ 
+  // Convida novo usuário via Supabase Auth Admin API (requer service_role — feito pelo admin no painel)
+  // No frontend usamos signUp normal; o admin depois ajusta o role
+  async inviteUser(email, role, nome) {
+    // Cria usuário com senha temporária
+    const tempPass = 'Trocar@' + Math.random().toString(36).slice(2,10);
+    const { data, error } = await _sb.auth.admin.createUser({
+      email,
+      password: tempPass,
+      email_confirm: true,
+      user_metadata: { nome }
+    });
+    if (error) throw error;
+    // Atualiza role e nome no perfil
+    await _sb.from('user_profiles').upsert({
+      id: data.user.id, email, nome, role
+    });
+    return { user: data.user, tempPass };
   }
 };

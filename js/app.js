@@ -2,11 +2,12 @@
 //  app.js — Inventory Guemat  (Supabase edition)
 // ═══════════════════════════════════════════════════════════════
 
-// ── Estado global (carregado do Supabase, não mais localStorage)
+// ── Estado global
 let S = {
   items: [], cats: [], pessoas: [], locais: [],
   statusOpts: [], vinculos: { entrada:{statusIds:[],localIds:[]}, saida:{statusIds:[],localIds:[]} },
-  editId: null, dark: false, lastFiltered: []
+  editId: null, dark: false, lastFiltered: [],
+  role: 'leitor'   // 'admin' | 'editor' | 'leitor'  — carregado após login
 };
 
 // Dark mode persiste localmente (preferência visual por usuário)
@@ -53,6 +54,10 @@ function showScreen(which) {
 async function loadAll() {
   showLoading('Carregando dados...');
   try {
+    // Carrega perfil do usuário para obter o role
+    const profile = await DB.getMyProfile();
+    S.role = profile?.role || 'leitor';
+
     const [cfg, items] = await Promise.all([DB.loadConfig(), DB.loadItems()]);
     S.cats       = cfg.cats;
     S.pessoas    = cfg.pessoas;
@@ -61,9 +66,11 @@ async function loadAll() {
     S.vinculos   = cfg.vinculos;
     S.items      = items;
     S.lastFiltered = [...items];
+
+    // Aplica permissões na UI
+    applyRoleUI();
     renderDash();
 
-    // Realtime: recarrega quando outro usuário fizer alteração
     DB.subscribeItems(async () => {
       const fresh = await DB.loadItems();
       S.items = fresh;
@@ -127,15 +134,25 @@ function nav(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  const titles = {dashboard:'Dashboard',lista:'Patrimônios',cadastro:'Cadastro',config:'Personalizar',auditoria:'Auditoria'};
+  const titles = {dashboard:'Dashboard',lista:'Patrimônios',cadastro:'Cadastro',config:'Personalizar',auditoria:'Auditoria',usuarios:'Usuários'};
   document.getElementById('topbar-title').textContent = titles[p] || '';
-  const navIdx = {dashboard:0,lista:1,cadastro:2,config:5,auditoria:4};
+  const navIdx = {dashboard:0,lista:1,cadastro:2,config:5,auditoria:4,usuarios:6};
   document.querySelectorAll('.nav-item')[navIdx[p]]?.classList.add('active');
   if (p === 'dashboard') renderDash();
   if (p === 'lista')     { populateFilters(); renderLista(); }
-  if (p === 'cadastro')  { S.editId = null; movMode = false; renderForm(); }
-  if (p === 'config')    renderConfig();
+  if (p === 'cadastro')  {
+    if (!can('cadastrar')) { showToast('Sem permissão para cadastrar.','err'); return; }
+    S.editId = null; movMode = false; renderForm();
+  }
+  if (p === 'config')    {
+    if (!can('config')) { showToast('Sem permissão para configurações.','err'); return; }
+    renderConfig();
+  }
   if (p === 'auditoria') renderAuditoria();
+  if (p === 'usuarios')  {
+    if (!can('gerenciar_usuarios')) { showToast('Acesso restrito a administradores.','err'); return; }
+    renderUsuarios();
+  }
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────
@@ -146,6 +163,59 @@ function fmtDT(ts)   { if (!ts) return '—'; try { return new Date(ts).toLocale
 function catPills(arr)  { return (arr||[]).map(id => { const c=getCat(id);  return `<span class="cat-pill" style="background:${c.color}22;color:${c.color}">${c.name}</span>`; }).join('')||'—'; }
 function statPills(arr) { return (arr||[]).map(id => { const s=getStat(id); return `<span class="cat-pill" style="background:${s.color}22;color:${s.color}">${s.name}</span>`; }).join('')||'—'; }
 function esc(str) { return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ─── PERMISSÕES ──────────────────────────────────────────────
+const ROLES = { admin:3, editor:2, leitor:1 };
+function can(action) {
+  const r = ROLES[S.role] || 1;
+  switch(action) {
+    case 'gerenciar_usuarios': return r >= 3;   // só admin
+    case 'cadastrar':          return r >= 2;   // admin + editor
+    case 'editar':             return r >= 2;
+    case 'movimentar':         return r >= 2;
+    case 'excluir':            return r >= 3;   // só admin
+    case 'config':             return r >= 2;
+    case 'exportar':           return r >= 1;   // todos
+    default:                   return false;
+  }
+}
+
+function applyRoleUI() {
+  // Badge de role no topbar
+  const badge = document.getElementById('role-badge');
+  const labels = { admin:'👑 Admin', editor:'✏️ Editor', leitor:'👁️ Leitor' };
+  const colors = { admin:'#7c3aed', editor:'#2563eb', leitor:'#059669' };
+  if (badge) {
+    badge.textContent = labels[S.role] || S.role;
+    badge.style.color = colors[S.role] || '#888';
+  }
+
+  // Mostra/oculta aba de Usuários na sidebar
+  const navUsuarios = document.getElementById('nav-usuarios');
+  if (navUsuarios) navUsuarios.style.display = can('gerenciar_usuarios') ? '' : 'none';
+
+  // Botão "Novo Patrimônio" no topbar
+  const btnNovo = document.getElementById('btn-novo-topbar');
+  if (btnNovo) {
+    btnNovo.disabled = !can('cadastrar');
+    btnNovo.title    = can('cadastrar') ? '' : 'Sem permissão para cadastrar';
+  }
+
+  // Exportar — sempre visível para todos
+}
+
+// Aplica disabled em botões de ação de um item conforme role
+function actionButtons(id) {
+  const edOk  = can('editar');
+  const movOk = can('movimentar');
+  const delOk = can('excluir');
+  const dis   = (ok, tip) => !ok ? `disabled title="${tip}" style="opacity:.4;cursor:not-allowed"` : '';
+  return `<div class="actions-cell">
+    <button class="btn btn-sm" onclick="${edOk?`editItem(${id})`:''}" ${dis(edOk,'Sem permissão para editar')} title="${edOk?'Editar':'Sem permissão'}"><i class="ti ti-edit"></i></button>
+    <button class="btn btn-sm btn-warn" onclick="${movOk?`novaMovimentacao(${id})`:''}" ${dis(movOk,'Sem permissão para movimentar')} title="${movOk?'Movimentar':'Sem permissão'}"><i class="ti ti-transfer"></i></button>
+    <button class="btn btn-sm" style="${delOk?'border-color:var(--danger-txt);color:var(--danger-txt)':'opacity:.4;cursor:not-allowed'}" onclick="${delOk?`delItem(${id})`:''}" ${dis(delOk,'Sem permissão para excluir')} title="${delOk?'Excluir':'Sem permissão'}"><i class="ti ti-trash"></i></button>
+  </div>`;
+}
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 function renderDash() {
@@ -201,11 +271,7 @@ function renderLista() {
         <td>${it.local_atual||'—'}</td>
         <td>${it.usuario_atual||'—'}</td>
         <td><span class="badge b-gray">${(it.historico||[]).length}</span></td>
-        <td><div class="actions-cell">
-          <button class="btn btn-sm" onclick="editItem(${it.id})" title="Editar"><i class="ti ti-edit"></i></button>
-          <button class="btn btn-sm btn-warn" onclick="novaMovimentacao(${it.id})" title="Movimentar"><i class="ti ti-transfer"></i></button>
-          <button class="btn btn-sm" style="border-color:var(--danger-txt);color:var(--danger-txt)" onclick="delItem(${it.id})" title="Excluir"><i class="ti ti-trash"></i></button>
-        </div></td>
+        <td>${actionButtons(it.id)}</td>
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="9">Nenhum resultado encontrado</td></tr>';
 }
@@ -352,6 +418,7 @@ function novaMovimentacao(id)  { S.editId = id; movMode = true;  nav('cadastro')
 function cancelEdit()          { S.editId = null; movMode = false; nav('lista'); }
 
 async function delItem(id) {
+  if (!can('excluir')) { showToast('Sem permissão para excluir patrimônios.','err'); return; }
   if (!confirm('Excluir este patrimônio e todo o histórico?')) return;
   showLoading('Excluindo...');
   try {
@@ -365,6 +432,7 @@ async function delItem(id) {
 
 async function saveItem(e) {
   e.preventDefault();
+  if (!can('cadastrar')) { showToast('Sem permissão para salvar patrimônios.','err'); return; }
   const btn = document.getElementById('save-btn');
   btn.disabled = true;
 
@@ -608,6 +676,125 @@ function showAuditDetail(id) {
       <pre style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.75rem;font-size:11.5px;overflow-x:auto;color:var(--txt)">${fmt(r.dados_depois)}</pre>
     </div>` : ''}`;
   el.style.display = 'flex';
+}
+
+// ─── USUÁRIOS ────────────────────────────────────────────────
+const ROLE_LABELS = { admin:'👑 Admin', editor:'✏️ Editor', leitor:'👁️ Leitor' };
+const ROLE_COLORS = { admin:'#7c3aed', editor:'#2563eb', leitor:'#059669' };
+
+async function renderUsuarios() {
+  const el = document.getElementById('usuarios-body');
+  if (!el) return;
+  el.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem">
+    <div style="display:inline-block;width:22px;height:22px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div>
+  </td></tr>`;
+  try {
+    const users = await DB.loadUsers();
+    _renderUserRows(users);
+  } catch(e) {
+    el.innerHTML = `<tr><td colspan="5" style="color:var(--danger-txt);padding:1rem">Erro: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function _renderUserRows(users) {
+  const el = document.getElementById('usuarios-body'); if (!el) return;
+  const myId = users.find(u => u.email === document.getElementById('user-email')?.textContent)?.id;
+
+  el.innerHTML = users.map(u => {
+    const isMe   = u.id === myId;
+    const rcolor = ROLE_COLORS[u.role] || '#888';
+    const rlabel = ROLE_LABELS[u.role] || u.role;
+    return `<tr style="${!u.ativo?'opacity:.5':''}">
+      <td>
+        <div style="font-weight:600;font-size:13px">${esc(u.nome || '—')}</div>
+        <div style="font-size:11.5px;color:var(--txt3)">${esc(u.email)}</div>
+        ${isMe?`<span style="font-size:10px;background:#22c55e22;color:#16a34a;padding:1px 6px;border-radius:10px">você</span>`:''}
+      </td>
+      <td>
+        <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;background:${rcolor}22;color:${rcolor}">${rlabel}</span>
+      </td>
+      <td>
+        <span style="padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500;background:${u.ativo?'#dcfce7':'#fee2e2'};color:${u.ativo?'#166534':'#991b1b'}">
+          ${u.ativo ? '✓ Ativo' : '✗ Inativo'}
+        </span>
+      </td>
+      <td style="font-size:12px;color:var(--txt3)">${_fmtDTAudit(u.created_at)}</td>
+      <td>
+        <div class="actions-cell" style="gap:6px">
+          <button class="btn btn-sm" onclick="openEditUser('${u.id}','${esc(u.nome||'')}','${u.role}')" title="Editar"><i class="ti ti-edit"></i></button>
+          <button class="btn btn-sm" onclick="toggleAtivo('${u.id}',${!u.ativo})" title="${u.ativo?'Desativar':'Ativar'}"
+            style="${u.ativo?'color:var(--danger-txt);border-color:var(--danger-txt)':'color:#059669;border-color:#059669'}">
+            <i class="ti ti-${u.ativo?'user-off':'user-check'}"></i>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('') || '<tr class="empty-row"><td colspan="5">Nenhum usuário</td></tr>';
+}
+
+function openEditUser(id, nome, role) {
+  document.getElementById('eu-id').value   = id;
+  document.getElementById('eu-nome').value = nome;
+  document.getElementById('eu-role').value = role;
+  document.getElementById('user-modal').style.display = 'flex';
+}
+
+async function saveEditUser() {
+  const id   = document.getElementById('eu-id').value;
+  const nome = document.getElementById('eu-nome').value.trim();
+  const role = document.getElementById('eu-role').value;
+  showLoading('Salvando...');
+  try {
+    await DB.updateUserRole(id, role);
+    if (nome) await DB.updateUserNome(id, nome);
+    showToast('✅ Usuário atualizado!');
+    document.getElementById('user-modal').style.display = 'none';
+    renderUsuarios();
+  } catch(e) { showToast('Erro: ' + e.message, 'err'); }
+  finally    { hideLoading(); }
+}
+
+async function toggleAtivo(id, ativo) {
+  showLoading(ativo ? 'Ativando...' : 'Desativando...');
+  try {
+    await DB.toggleUserAtivo(id, ativo);
+    showToast(ativo ? '✅ Usuário ativado!' : '✅ Usuário desativado!');
+    renderUsuarios();
+  } catch(e) { showToast('Erro: ' + e.message, 'err'); }
+  finally    { hideLoading(); }
+}
+
+async function openInviteUser() {
+  document.getElementById('inv-email').value = '';
+  document.getElementById('inv-nome').value  = '';
+  document.getElementById('inv-role').value  = 'leitor';
+  document.getElementById('inv-result').style.display = 'none';
+  document.getElementById('invite-modal').style.display = 'flex';
+}
+
+async function doInviteUser() {
+  const email = document.getElementById('inv-email').value.trim();
+  const nome  = document.getElementById('inv-nome').value.trim();
+  const role  = document.getElementById('inv-role').value;
+  if (!email) { showToast('Informe o e-mail.','err'); return; }
+  showLoading('Criando usuário...');
+  try {
+    const res = await DB.inviteUser(email, role, nome);
+    hideLoading();
+    // Mostra senha temporária
+    const r = document.getElementById('inv-result');
+    r.style.display = 'block';
+    r.innerHTML = `<div style="background:var(--success-bg);color:var(--success-txt);padding:1rem;border-radius:8px;font-size:13px">
+      ✅ Usuário criado!<br>
+      <strong>E-mail:</strong> ${esc(email)}<br>
+      <strong>Senha temporária:</strong> <code style="background:rgba(0,0,0,.15);padding:2px 6px;border-radius:4px">${res.tempPass}</code><br>
+      <small>Passe essas credenciais ao usuário para o primeiro acesso.</small>
+    </div>`;
+    renderUsuarios();
+  } catch(e) {
+    hideLoading();
+    showToast('Erro ao criar: ' + e.message, 'err');
+  }
 }
 
 // ─── EXPORTAR EXCEL ──────────────────────────────────────────
