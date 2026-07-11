@@ -244,10 +244,14 @@ const DB = {
     if (!user) return null;
     const { data, error } = await _sb
       .from('user_profiles')
-      .select('*')
+      .select('id, email, nome, role, ativo')
       .eq('id', user.id)
       .single();
-    if (error) return { id: user.id, email: user.email, role: 'leitor', ativo: true };
+    if (error) {
+      console.error('getMyProfile error:', error.message, error.code);
+      // Se a tabela não existe ainda, retorna leitor com aviso
+      return { id: user.id, email: user.email, role: 'leitor', ativo: true, _error: error.message };
+    }
     return data;
   },
  

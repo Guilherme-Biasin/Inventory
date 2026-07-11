@@ -56,7 +56,14 @@ async function loadAll() {
   try {
     // Carrega perfil do usuário para obter o role
     const profile = await DB.getMyProfile();
+
+    if (profile?._error) {
+      console.error('Perfil com erro:', profile._error);
+      showToast('⚠️ Erro ao carregar perfil: rode o SQL fix_rls_profiles no Supabase.', 'err');
+    }
+
     S.role = profile?.role || 'leitor';
+    console.log('Role carregado:', S.role); // debug — remover depois
 
     const [cfg, items] = await Promise.all([DB.loadConfig(), DB.loadItems()]);
     S.cats       = cfg.cats;
@@ -67,7 +74,6 @@ async function loadAll() {
     S.items      = items;
     S.lastFiltered = [...items];
 
-    // Aplica permissões na UI
     applyRoleUI();
     renderDash();
 
