@@ -56,14 +56,7 @@ async function loadAll() {
   try {
     // Carrega perfil do usuário para obter o role
     const profile = await DB.getMyProfile();
-
-    if (profile?._error) {
-      console.error('Perfil com erro:', profile._error);
-      showToast('⚠️ Erro ao carregar perfil: rode o SQL fix_rls_profiles no Supabase.', 'err');
-    }
-
     S.role = profile?.role || 'leitor';
-    console.log('Role carregado:', S.role); // debug — remover depois
 
     const [cfg, items] = await Promise.all([DB.loadConfig(), DB.loadItems()]);
     S.cats       = cfg.cats;
@@ -74,6 +67,7 @@ async function loadAll() {
     S.items      = items;
     S.lastFiltered = [...items];
 
+    // Aplica permissões na UI
     applyRoleUI();
     renderDash();
 
@@ -142,8 +136,9 @@ function nav(p) {
   document.getElementById('page-' + p).classList.add('active');
   const titles = {dashboard:'Dashboard',lista:'Patrimônios',cadastro:'Cadastro',config:'Personalizar',auditoria:'Auditoria',usuarios:'Usuários'};
   document.getElementById('topbar-title').textContent = titles[p] || '';
-  const navIdx = {dashboard:0,lista:1,cadastro:2,config:5,auditoria:4,usuarios:6};
-  document.querySelectorAll('.nav-item')[navIdx[p]]?.classList.add('active');
+  // Ativa o item de nav correto pelo data-nav attribute
+  const navEl = document.querySelector(`.nav-item[data-nav="${p}"]`);
+  if (navEl) navEl.classList.add('active');
   if (p === 'dashboard') renderDash();
   if (p === 'lista')     { populateFilters(); renderLista(); }
   if (p === 'cadastro')  {
@@ -728,6 +723,7 @@ function _renderUserRows(users) {
       <td>
         <div class="actions-cell" style="gap:6px">
           <button class="btn btn-sm" onclick="openEditUser('${u.id}','${esc(u.nome||'')}','${u.role}')" title="Editar"><i class="ti ti-edit"></i></button>
+          ${can('gerenciar_usuarios') ? `<button class="btn btn-sm" onclick="adminResetPassword('${u.id}','${esc(u.email)}')" title="Redefinir senha" style="color:#d97706;border-color:#d97706"><i class="ti ti-key"></i></button>` : ''}
           <button class="btn btn-sm" onclick="toggleAtivo('${u.id}',${!u.ativo})" title="${u.ativo?'Desativar':'Ativar'}"
             style="${u.ativo?'color:var(--danger-txt);border-color:var(--danger-txt)':'color:#059669;border-color:#059669'}">
             <i class="ti ti-${u.ativo?'user-off':'user-check'}"></i>
@@ -801,6 +797,64 @@ async function doInviteUser() {
     hideLoading();
     showToast('Erro ao criar: ' + e.message, 'err');
   }
+}
+
+// ─── ALTERAR SENHA ───────────────────────────────────────────
+function openChangePassword() {
+  document.getElementById('cp-current').value = '';
+  document.getElementById('cp-new').value     = '';
+  document.getElementById('cp-confirm').value  = '';
+  document.getElementById('cp-err').style.display = 'none';
+  document.getElementById('cp-ok').style.display  = 'none';
+  document.getElementById('change-password-modal').style.display = 'flex';
+}
+
+async function doChangePassword() {
+  const current = document.getElementById('cp-current').value;
+  const nova    = document.getElementById('cp-new').value;
+  const confirm = document.getElementById('cp-confirm').value;
+  const err     = document.getElementById('cp-err');
+  const ok      = document.getElementById('cp-ok');
+  err.style.display = 'none'; ok.style.display = 'none';
+
+  if (!nova || nova.length < 6) {
+    err.textContent = 'A nova senha deve ter pelo menos 6 caracteres.';
+    err.style.display = 'block'; return;
+  }
+  if (nova !== confirm) {
+    err.textContent = 'As senhas não coincidem.';
+    err.style.display = 'block'; return;
+  }
+
+  showLoading('Alterando senha...');
+  try {
+    // Reautentica para validar senha atual
+    const user = await Auth.getUser();
+    await Auth.login(user.email, current);
+    await Auth.changePassword(nova);
+    ok.textContent = '✅ Senha alterada com sucesso!';
+    ok.style.display = 'block';
+    setTimeout(() => {
+      document.getElementById('change-password-modal').style.display = 'none';
+    }, 1800);
+  } catch(e) {
+    err.textContent = e.message.includes('Invalid') || e.message.includes('invalid')
+      ? 'Senha atual incorreta.' : 'Erro: ' + e.message;
+    err.style.display = 'block';
+  } finally { hideLoading(); }
+}
+
+// Admin reseta senha de outro usuário
+async function adminResetPassword(userId, email) {
+  const nova = prompt(`Nova senha para ${email} (mínimo 6 caracteres):`);
+  if (!nova || nova.length < 6) { showToast('Senha muito curta.','err'); return; }
+  showLoading('Alterando senha...');
+  try {
+    const { error } = await _sb.auth.admin.updateUserById(userId, { password: nova });
+    if (error) throw error;
+    showToast(`✅ Senha de ${email} alterada!`);
+  } catch(e) { showToast('Erro: ' + e.message,'err'); }
+  finally { hideLoading(); }
 }
 
 // ─── EXPORTAR EXCEL ──────────────────────────────────────────

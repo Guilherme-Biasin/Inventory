@@ -36,6 +36,18 @@ const Auth = {
     _sb.auth.onAuthStateChange((_event, session) => {
       callback(session?.user || null);
     });
+  },
+
+  // Altera a senha do usuário logado
+  async changePassword(newPassword) {
+    const { error } = await _sb.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+  },
+
+  // Admin: redefine senha de outro usuário (requer service_role — só funciona com admin.updateUserById)
+  async adminResetPassword(userId, newPassword) {
+    const { error } = await _sb.auth.admin.updateUserById(userId, { password: newPassword });
+    if (error) throw error;
   }
 };
  
@@ -244,14 +256,10 @@ const DB = {
     if (!user) return null;
     const { data, error } = await _sb
       .from('user_profiles')
-      .select('id, email, nome, role, ativo')
+      .select('*')
       .eq('id', user.id)
       .single();
-    if (error) {
-      console.error('getMyProfile error:', error.message, error.code);
-      // Se a tabela não existe ainda, retorna leitor com aviso
-      return { id: user.id, email: user.email, role: 'leitor', ativo: true, _error: error.message };
-    }
+    if (error) return { id: user.id, email: user.email, role: 'leitor', ativo: true };
     return data;
   },
  

@@ -1,6 +1,6 @@
 // ─── mobile-scanner.js ───────────────────────────────────────────
-// Leitor de código de barras + QR Code (iOS Safari + Android)
-// Usa ZXing como fallback quando BarcodeDetector não está disponível
+// Scanner de QR Code + Código de Barras
+// Usa html5-qrcode (suporte real iOS Safari + Android Chrome)
 // ─────────────────────────────────────────────────────────────────
 
 // ── SIDEBAR MOBILE ────────────────────────────────────────────────
@@ -11,8 +11,8 @@ function toggleSidebar() {
   ov.classList.toggle('open', open);
 }
 function closeSidebar() {
-  document.querySelector('.sidebar').classList.remove('open');
-  document.getElementById('sidebar-overlay').classList.remove('open');
+  document.querySelector('.sidebar')?.classList.remove('open');
+  document.getElementById('sidebar-overlay')?.classList.remove('open');
 }
 document.querySelectorAll('.nav-item').forEach(el => {
   el.addEventListener('click', () => { if (window.innerWidth <= 768) closeSidebar(); });
@@ -22,228 +22,124 @@ document.querySelectorAll('.nav-item').forEach(el => {
 const _origToggleDark = window.toggleDark;
 window.toggleDark = function () {
   _origToggleDark();
-  syncMobileDarkIcon();
+  _syncDarkIcon();
 };
-function syncMobileDarkIcon() {
+function _syncDarkIcon() {
   const icon = document.getElementById('mobile-dark-icon');
   if (!icon) return;
   icon.className = document.documentElement.classList.contains('dark') ? 'ti ti-sun' : 'ti ti-moon';
 }
-syncMobileDarkIcon();
+_syncDarkIcon();
 
-// ── SCANNER: estado global ────────────────────────────────────────
-let _scanStream       = null;
-let _scanAnimFrame    = null;
-let _nativeDetector   = null;   // BarcodeDetector (Android/Chrome)
-let _zxingReader      = null;   // ZXing (iOS/Safari fallback)
-let _targetFieldId    = 'f_serie';
-let _scanMode         = 'both'; // 'both' | 'barcode' | 'qr'
-let _useZXing         = false;
-let _scannerReady     = false;
+// ── SCANNER ───────────────────────────────────────────────────────
+let _html5Qr      = null;   // instância Html5Qrcode
+let _scanRunning  = false;
+let _targetField  = 'f_serie';
 
-// Formatos separados por tipo (para UI)
-const BARCODE_FORMATS = ['code_128','code_39','code_93','codabar','ean_13','ean_8','upc_a','upc_e','itf','data_matrix','pdf417'];
-const QR_FORMATS      = ['qr_code','aztec'];
-const ALL_FORMATS     = [...BARCODE_FORMATS, ...QR_FORMATS];
-
-// ── CARREGAR ZXing dinamicamente ─────────────────────────────────
-function _loadZXing() {
+// Carrega a biblioteca html5-qrcode dinamicamente
+function _loadHtml5Qrcode() {
   return new Promise((resolve, reject) => {
-    if (window.ZXing) { resolve(); return; }
+    if (window.Html5Qrcode) { resolve(); return; }
     const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js';
-    s.onload  = resolve;
+    s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+    s.onload  = () => { resolve(); };
     s.onerror = reject;
     document.head.appendChild(s);
   });
 }
 
-// ── DETECTAR SUPORTE ─────────────────────────────────────────────
-async function _detectSupport() {
-  // iOS Safari: nunca tem BarcodeDetector, usa ZXing
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  if (isIOS || !('BarcodeDetector' in window)) {
-    _useZXing = true;
-  } else {
-    _useZXing = false;
-  }
-}
-
-// ── ABRIR SCANNER ────────────────────────────────────────────────
-async function openScanner(fieldId, mode) {
-  _targetFieldId = fieldId || 'f_serie';
-  _scanMode      = mode    || 'both';
-
-  await _detectSupport();
-
-  // Atualiza label do modal conforme modo
-  _updateScannerLabel();
-
-  // Botões de modo ativos
-  document.querySelectorAll('.scan-mode-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.mode === _scanMode);
-  });
-
-  const modal = document.getElementById('scanner-modal');
+async function openScanner(fieldId) {
+  _targetField = fieldId || 'f_serie';
 
   try {
-    // Pede permissão de câmera — funciona no iOS com estas constraints
-    const constraints = {
-      video: {
-        facingMode: { ideal: 'environment' },
-        width:  { ideal: 1280 },
-        height: { ideal: 720 }
-      }
-    };
-    _scanStream = await navigator.mediaDevices.getUserMedia(constraints);
+    await _loadHtml5Qrcode();
+  } catch(e) {
+    alert('Erro ao carregar leitor. Verifique sua conexão.');
+    return;
+  }
 
-    const video = document.getElementById('scanner-video');
-    video.srcObject = _scanStream;
+  // Abre o modal
+  document.getElementById('scanner-modal').classList.add('open');
 
-    // iOS precisa do evento 'loadedmetadata' antes de detectar
-    await new Promise(res => {
-      if (video.readyState >= 2) { res(); return; }
-      video.addEventListener('loadedmetadata', res, { once: true });
-    });
+  // Se já estava rodando, para antes de reiniciar
+  if (_html5Qr && _scanRunning) {
+    try { await _html5Qr.stop(); } catch(_) {}
+    _scanRunning = false;
+  }
 
-    modal.classList.add('open');
+  // Container onde o html5-qrcode renderiza o vídeo
+  const container = document.getElementById('scanner-qr-container');
+  container.innerHTML = ''; // limpa
 
-    if (_useZXing) {
-      await _startZXing(video);
-    } else {
-      await _startNative(video);
-    }
+  _html5Qr = new Html5Qrcode('scanner-qr-container', { verbose: false });
 
-  } catch (err) {
-    console.error('Scanner error:', err);
-    modal.classList.remove('open');
-    _stopScanner();
+  // Todos os formatos suportados (QR + barcodes)
+  const formatos = [
+    Html5QrcodeSupportedFormats.QR_CODE,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODE_93,
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.ITF,
+    Html5QrcodeSupportedFormats.CODABAR,
+    Html5QrcodeSupportedFormats.PDF_417,
+    Html5QrcodeSupportedFormats.DATA_MATRIX,
+    Html5QrcodeSupportedFormats.AZTEC,
+  ];
 
+  const config = {
+    fps: 15,
+    qrbox: { width: 260, height: 180 },
+    aspectRatio: 1.5,
+    formatsToSupport: formatos,
+    showTorchButtonIfSupported: true,
+    focusMode: 'continuous',
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+  };
+
+  try {
+    await _html5Qr.start(
+      { facingMode: 'environment' },
+      config,
+      (decodedText) => { _onScanned(decodedText); },
+      () => {} // onScanFailure — silencioso (NotFoundException normal)
+    );
+    _scanRunning = true;
+  } catch(err) {
+    document.getElementById('scanner-modal').classList.remove('open');
     let msg = '📷 Não foi possível acessar a câmera.';
-    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')
+    if (err.toString().includes('NotAllowed') || err.toString().includes('Permission'))
       msg = '📷 Permissão de câmera negada.\n\niOS: Configurações → Safari → Câmera → Permitir\nAndroid: Configurações do navegador → Permissões → Câmera';
-    else if (err.name === 'NotFoundError')
+    else if (err.toString().includes('NotFound'))
       msg = '📷 Câmera não encontrada neste dispositivo.';
-    else if (err.name === 'NotReadableError')
-      msg = '📷 A câmera está sendo usada por outro aplicativo.';
-
     alert(msg);
   }
 }
 
-// ── NATIVE BarcodeDetector (Chrome/Android) ───────────────────────
-async function _startNative(video) {
-  try {
-    const supported = await BarcodeDetector.getSupportedFormats();
-    let formats = [];
-    if (_scanMode === 'barcode') formats = BARCODE_FORMATS.filter(f => supported.includes(f));
-    else if (_scanMode === 'qr') formats = QR_FORMATS.filter(f => supported.includes(f));
-    else formats = ALL_FORMATS.filter(f => supported.includes(f));
-    if (!formats.length) formats = supported;
-
-    _nativeDetector = new BarcodeDetector({ formats });
-    _scannerReady   = true;
-    _nativeLoop(video);
-  } catch (e) {
-    // Fallback para ZXing se BarcodeDetector falhar
-    console.warn('BarcodeDetector failed, falling back to ZXing', e);
-    _useZXing = true;
-    await _startZXing(video);
-  }
-}
-
-function _nativeLoop(video) {
-  let lastDetect = 0;
-  async function loop() {
-    if (!_nativeDetector || !_scanStream) return;
-    const now = Date.now();
-    if (now - lastDetect > 250 && video.readyState >= 2) {
-      try {
-        const codes = await _nativeDetector.detect(video);
-        if (codes.length && codes[0].rawValue) {
-          _applyScannedValue(codes[0].rawValue.trim(), codes[0].format);
-          return;
-        }
-      } catch (_) {}
-    }
-    lastDetect = now;
-    _scanAnimFrame = requestAnimationFrame(loop);
-  }
-  _scanAnimFrame = requestAnimationFrame(loop);
-}
-
-// ── ZXing (iOS Safari + fallback universal) ───────────────────────
-async function _startZXing(video) {
-  try {
-    await _loadZXing();
-    const hints = new Map();
-
-    // Formatos ZXing conforme modo
-    const ZF = window.ZXing.BarcodeFormat;
-    let fmts = [];
-    if (_scanMode === 'barcode' || _scanMode === 'both') {
-      fmts.push(ZF.CODE_128, ZF.CODE_39, ZF.CODE_93, ZF.EAN_13, ZF.EAN_8,
-                ZF.UPC_A, ZF.UPC_E, ZF.ITF, ZF.CODABAR, ZF.PDF_417, ZF.DATA_MATRIX);
-    }
-    if (_scanMode === 'qr' || _scanMode === 'both') {
-      fmts.push(ZF.QR_CODE, ZF.AZTEC);
-    }
-    hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, fmts);
-    hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
-
-    _zxingReader = new window.ZXing.MultiFormatReader();
-    _zxingReader.setHints(hints);
-
-    _scannerReady = true;
-    _zxingLoop(video);
-  } catch (e) {
-    console.error('ZXing load error:', e);
-    alert('Erro ao carregar leitor de código. Verifique sua conexão.');
-    closeScanner();
-  }
-}
-
-function _zxingLoop(video) {
-  const canvas = document.createElement('canvas');
-  const ctx    = canvas.getContext('2d');
-
-  function loop() {
-    if (!_zxingReader || !_scanStream) return;
-    if (video.readyState >= 2 && video.videoWidth > 0) {
-      canvas.width  = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
-      try {
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const luminance = new window.ZXing.RGBLuminanceSource(imageData.data, canvas.width, canvas.height);
-        const binary    = new window.ZXing.HybridBinarizer(luminance);
-        const bmp       = new window.ZXing.BinaryBitmap(binary);
-        const result    = _zxingReader.decode(bmp);
-        if (result && result.getText()) {
-          _applyScannedValue(result.getText().trim(), result.getBarcodeFormat());
-          return;
-        }
-      } catch (_) { /* NotFoundException é normal — continua loop */ }
-    }
-    _scanAnimFrame = requestAnimationFrame(loop);
-  }
-  _scanAnimFrame = requestAnimationFrame(loop);
-}
-
-// ── APLICAR VALOR LIDO ────────────────────────────────────────────
-function _applyScannedValue(value, format) {
+function _onScanned(value) {
   closeScanner();
-  const field = document.getElementById(_targetFieldId);
+  const field = document.getElementById(_targetField);
   if (!field) return;
-
-  field.value = value;
+  field.value = value.trim();
   field.focus();
   field.style.borderColor = '#059669';
   field.style.boxShadow   = '0 0 0 3px rgba(5,150,105,.2)';
   setTimeout(() => { field.style.borderColor = ''; field.style.boxShadow = ''; }, 2500);
+  _showScanToast('✅ Lido: ' + value.trim());
+}
 
-  // Toast de confirmação
-  _showScanToast('✅ Lido: ' + value);
+async function closeScanner() {
+  document.getElementById('scanner-modal').classList.remove('open');
+  if (_html5Qr && _scanRunning) {
+    try { await _html5Qr.stop(); } catch(_) {}
+    _scanRunning = false;
+  }
+  // Limpa container para liberar câmera
+  const c = document.getElementById('scanner-qr-container');
+  if (c) c.innerHTML = '';
 }
 
 function _showScanToast(msg) {
@@ -251,66 +147,12 @@ function _showScanToast(msg) {
   if (!t) {
     t = document.createElement('div');
     t.id = 'scan-toast';
-    t.style.cssText = `
-      position:fixed;bottom:calc(80px + env(safe-area-inset-bottom));left:50%;
-      transform:translateX(-50%);background:#1a1a1a;color:#fff;
-      padding:10px 18px;border-radius:10px;font-size:13px;font-weight:500;
-      z-index:800;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.3);
-      opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;
-      overflow:hidden;text-overflow:ellipsis;`;
+    t.style.cssText = 'position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:#166534;color:#dcfce7;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:500;z-index:900;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.3);opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;overflow:hidden;text-overflow:ellipsis;';
     document.body.appendChild(t);
   }
   t.textContent = msg;
   t.style.opacity = '1';
   setTimeout(() => { t.style.opacity = '0'; }, 3000);
-}
-
-// ── PARAR SCANNER ─────────────────────────────────────────────────
-function _stopScanner() {
-  if (_scanAnimFrame) { cancelAnimationFrame(_scanAnimFrame); _scanAnimFrame = null; }
-  if (_scanStream)    { _scanStream.getTracks().forEach(t => t.stop()); _scanStream = null; }
-  _nativeDetector = null;
-  _zxingReader    = null;
-  _scannerReady   = false;
-}
-
-function closeScanner() {
-  _stopScanner();
-  document.getElementById('scanner-modal').classList.remove('open');
-}
-
-// ── MUDAR MODO (barcode/qr/both) ─────────────────────────────────
-function setScanMode(mode) {
-  _scanMode = mode;
-  _updateScannerLabel();
-  document.querySelectorAll('.scan-mode-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.mode === mode);
-  });
-  // Reinicia detector com novos formatos
-  if (_scanStream) {
-    const video = document.getElementById('scanner-video');
-    if (_useZXing) {
-      if (_zxingReader) { _stopZXingOnly(); _startZXing(video); }
-    } else {
-      if (_nativeDetector) { _stopNativeOnly(); _startNative(video); }
-    }
-  }
-}
-
-function _stopZXingOnly() {
-  if (_scanAnimFrame) { cancelAnimationFrame(_scanAnimFrame); _scanAnimFrame = null; }
-  _zxingReader = null;
-}
-function _stopNativeOnly() {
-  if (_scanAnimFrame) { cancelAnimationFrame(_scanAnimFrame); _scanAnimFrame = null; }
-  _nativeDetector = null;
-}
-
-function _updateScannerLabel() {
-  const el = document.getElementById('scanner-label-text');
-  if (!el) return;
-  const labels = { barcode: '📊 Código de Barras', qr: '⬛ QR Code', both: '📷 Código de Barras ou QR Code' };
-  el.textContent = labels[_scanMode] || labels.both;
 }
 
 // ── PATCH: injeta botão de scan no campo N° de Série ─────────────
@@ -335,7 +177,7 @@ function _injectScanButton() {
   btn.className = 'scan-btn';
   btn.title     = 'Ler código de barras ou QR Code';
   btn.innerHTML = '<i class="ti ti-scan"></i>';
-  btn.onclick   = () => openScanner('f_serie', 'both');
+  btn.onclick   = () => openScanner('f_serie');
   wrap.appendChild(btn);
 
   const hint = document.createElement('div');
