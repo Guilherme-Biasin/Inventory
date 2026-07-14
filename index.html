@@ -118,19 +118,19 @@
     <div class="sidebar-logo"><div class="logo-icon">💻</div>Inventory Guemat</div>
     <div class="nav-group">
       <div class="nav-label">Principal</div>
-      <div class="nav-item active" data-nav="dashboard" onclick="nav('dashboard')"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
-      <div class="nav-item" data-nav="lista" onclick="nav('lista')"><i class="ti ti-archive"></i> Patrimônios</div>
-      <div class="nav-item" data-nav="cadastro" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo Cadastro</div>
+      <div class="nav-item active" onclick="nav('dashboard')"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+      <div class="nav-item" onclick="nav('lista')"><i class="ti ti-archive"></i> Patrimônios</div>
+      <div class="nav-item" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo Cadastro</div>
     </div>
     <div class="nav-group">
       <div class="nav-label">Dados</div>
-      <div class="nav-item" data-nav="exportar" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</div>
-      <div class="nav-item" data-nav="auditoria" onclick="nav('auditoria')"><i class="ti ti-shield-check"></i> Auditoria</div>
-      <div class="nav-item" id="nav-usuarios" data-nav="usuarios" onclick="nav('usuarios')"><i class="ti ti-users"></i> Usuários</div>
+      <div class="nav-item" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</div>
+      <div class="nav-item" onclick="nav('auditoria')"><i class="ti ti-shield-check"></i> Auditoria</div>
+      <div class="nav-item" id="nav-usuarios" onclick="nav('usuarios')"><i class="ti ti-users"></i> Usuários</div>
     </div>
     <div class="nav-group">
       <div class="nav-label">Configurações</div>
-      <div class="nav-item" data-nav="config" onclick="nav('config')"><i class="ti ti-settings"></i> Personalizar</div>
+      <div class="nav-item" onclick="nav('config')"><i class="ti ti-settings"></i> Personalizar</div>
     </div>
     <div class="sidebar-footer">
       <div class="dark-toggle" onclick="toggleDark()">
@@ -150,12 +150,11 @@
         <button class="btn mobile-dark-btn" onclick="toggleDark()" title="Modo escuro"><i class="ti ti-moon" id="mobile-dark-icon"></i></button>
         <button class="btn" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> <span class="btn-label">Exportar Excel</span></button>
         <button class="btn btn-primary" id="btn-novo-topbar" onclick="nav('cadastro')"><i class="ti ti-plus"></i> <span class="btn-label">Novo Patrimônio</span></button>
-        <div class="user-badge" title="Opções do usuário" style="cursor:default">
+        <div class="user-badge" onclick="doLogout()" title="Clique para sair">
           <i class="ti ti-user" style="font-size:15px"></i>
           <span id="user-email">—</span>
           <span id="role-badge" style="font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,.1)"></span>
-          <button onclick="openChangePassword()" title="Alterar senha" style="background:none;border:none;color:var(--txt3);cursor:pointer;padding:0 2px;font-size:14px"><i class="ti ti-key"></i></button>
-          <button onclick="doLogout()" title="Sair" style="background:none;border:none;color:var(--txt3);cursor:pointer;padding:0 2px;font-size:14px"><i class="ti ti-logout"></i></button>
+          <i class="ti ti-logout" style="font-size:14px;opacity:.6"></i>
         </div>
       </div>
     </div>
@@ -354,12 +353,16 @@
 <div class="scanner-modal" id="scanner-modal">
   <div class="scanner-header">
     <button class="scanner-close" onclick="closeScanner()"><i class="ti ti-x"></i></button>
-    <div class="scanner-label" id="scanner-label-text">📷 Código de Barras ou QR Code</div>
+    <div class="scanner-label">📷 Código de Barras ou QR Code</div>
     <div style="width:38px"></div>
   </div>
-  <!-- html5-qrcode renderiza o vídeo aqui -->
-  <div id="scanner-qr-container" style="width:100%;flex:1;display:flex;align-items:center;justify-content:center;background:#000"></div>
-  <div class="scanner-hint">Aponte a câmera para o código de barras ou QR Code</div>
+  <video id="scanner-video" autoplay playsinline muted webkit-playsinline></video>
+  <div class="scanner-frame">
+    <div class="scanner-corner-bl"></div>
+    <div class="scanner-corner-br"></div>
+    <div class="scanner-line"></div>
+  </div>
+  <div class="scanner-hint" id="scanner-hint-text">Inicializando câmera...</div>
   <div class="scanner-manual">
     <button class="scanner-manual-btn" onclick="closeScanner()"><i class="ti ti-keyboard"></i> Digitar manualmente</button>
   </div>
@@ -376,34 +379,7 @@
   </div>
 </div>
 
-<!-- Modal: Alterar Senha -->
-<div id="change-password-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal" style="max-width:400px">
-    <div class="modal-title"><i class="ti ti-key" style="color:var(--accent);margin-right:6px"></i>Alterar Minha Senha</div>
-    <div style="display:flex;flex-direction:column;gap:.875rem;margin-top:1rem">
-      <div>
-        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Senha atual</label>
-        <input class="f-input" id="cp-current" type="password" placeholder="••••••••" style="width:100%">
-      </div>
-      <div>
-        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Nova senha</label>
-        <input class="f-input" id="cp-new" type="password" placeholder="Mínimo 6 caracteres" style="width:100%">
-      </div>
-      <div>
-        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Confirmar nova senha</label>
-        <input class="f-input" id="cp-confirm" type="password" placeholder="Repita a nova senha" style="width:100%">
-      </div>
-      <div id="cp-err" style="display:none;background:var(--danger-bg);color:var(--danger-txt);padding:9px 12px;border-radius:8px;font-size:13px"></div>
-      <div id="cp-ok"  style="display:none;background:var(--success-bg);color:var(--success-txt);padding:9px 12px;border-radius:8px;font-size:13px"></div>
-    </div>
-    <div class="modal-footer" style="margin-top:1.25rem">
-      <button class="btn" onclick="document.getElementById('change-password-modal').style.display='none'">Cancelar</button>
-      <button class="btn btn-primary" onclick="doChangePassword()"><i class="ti ti-device-floppy"></i> Alterar Senha</button>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Alterar Usuário -->
+<!-- Modal: Editar Usuário -->
 <div id="user-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal" style="max-width:440px">
     <div class="modal-title"><i class="ti ti-user-edit" style="color:var(--accent);margin-right:6px"></i>Editar Usuário</div>
