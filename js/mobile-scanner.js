@@ -98,8 +98,8 @@ async function openScanner(fieldId) {
       target: container,
       constraints: {
         facingMode: 'environment',
-        width:  { min: 640, ideal: 1280 },
-        height: { min: 480, ideal: 720 }
+        width:  { ideal: 1280 },
+        height: { ideal: 720 }
       },
       area: { top: '30%', right: '15%', left: '15%', bottom: '30%' }
     },
@@ -134,11 +134,32 @@ async function openScanner(fieldId) {
     // Estiliza o vídeo/canvas que o Quagga injeta para preencher o modal
     _styleQuaggaVideo();
 
+    // Trava o zoom em 1x — evita o navegador trocar de lente (grande-angular)
+    // e dar aquele "salto" de zoom logo ao abrir a câmera
+    _lockZoom(container);
+
     // Inicia leitura paralela de QR Code via jsQR
     _startQrLoop(container);
   });
 
+  // Remove listener anterior antes de registrar um novo — Quagga é singleton
+  // global e empilha listeners a cada chamada, o que fazia o contador de
+  // confirmação (votos) somar em dobro/triplo nas leituras seguintes
+  Quagga.offDetected(_onBarcodeDetected);
   Quagga.onDetected(_onBarcodeDetected);
+}
+
+// Define zoom = 1 explicitamente na track de vídeo, se o navegador suportar
+function _lockZoom(container) {
+  try {
+    const video = container.querySelector('video');
+    const track = video?.srcObject?.getVideoTracks?.()[0];
+    if (!track) return;
+    const caps = track.getCapabilities?.();
+    if (caps && caps.zoom) {
+      track.applyConstraints({ advanced: [{ zoom: caps.zoom.min || 1 }] }).catch(() => {});
+    }
+  } catch(_) { /* zoom não suportado neste dispositivo/navegador */ }
 }
 
 function _styleQuaggaVideo() {
@@ -242,6 +263,7 @@ function _onDetected(value) {
 function closeScanner() {
   if (_qrInterval) { clearInterval(_qrInterval); _qrInterval = null; }
   if (_quaggaRunning && window.Quagga) {
+    try { Quagga.offDetected(_onBarcodeDetected); } catch(_) {}
     try { Quagga.stop(); } catch(_) {}
     _quaggaRunning = false;
   }
