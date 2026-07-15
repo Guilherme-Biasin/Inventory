@@ -101,16 +101,15 @@ async function openScanner(fieldId) {
         width:  { ideal: 1280 },
         height: { ideal: 720 }
       },
-      area: { top: '30%', right: '15%', left: '15%', bottom: '30%' }
+      area: { top: '25%', right: '10%', left: '10%', bottom: '25%' }
     },
-    locator: { patchSize: 'medium', halfSample: true },
+    locator: { patchSize: 'small', halfSample: true },
     numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
-    frequency: 8,
+    frequency: 10,
     decoder: {
       readers: [
         'code_128_reader', 'ean_reader', 'ean_8_reader',
-        'code_39_reader', 'code_39_vin_reader', 'codabar_reader',
-        'upc_reader', 'upc_e_reader', 'i2of5_reader', 'code_93_reader'
+        'code_39_reader', 'upc_reader', 'upc_e_reader', 'i2of5_reader'
       ],
       multiple: false
     },
@@ -178,8 +177,9 @@ function _styleQuaggaVideo() {
 
 function _onBarcodeDetected(result) {
   if (_detected) return;
-  const code = result?.codeResult?.code;
-  if (code) _registerVote(code.trim());
+  const code   = result?.codeResult?.code;
+  const format = result?.codeResult?.format;
+  if (code) _registerVote(code.trim(), format);
 }
 
 // ── QR CODE via jsQR ──────────────────────────────────────────────
@@ -202,21 +202,66 @@ function _startQrLoop(container) {
         inversionAttempts: 'attemptBoth'
       });
       if (result && result.data) {
-        _registerVote(result.data.trim());
+        _registerVote(result.data.trim(), 'qr_code');
       }
     } catch(_) { /* ignora frame inválido */ }
   }, 300);
 }
 
+// ── VALIDAÇÃO DE CHECKSUM ─────────────────────────────────────────
+// EAN-13/EAN-8/UPC-A têm um dígito verificador matemático.
+// Sem validar isso, a Quagga pode "confirmar" 3 leituras erradas
+// diferentes que por acaso pareceram plausíveis. Validando o
+// checksum, leituras incorretas nunca chegam a ser contadas como voto.
+function _isValidEAN13(str) {
+  if (!/^\d{13}$/.test(str)) return false;
+  const d = str.split('').map(Number);
+  const check = d.pop();
+  let sum = 0;
+  d.forEach((n, i) => { sum += n * (i % 2 === 0 ? 1 : 3); });
+  return ((10 - (sum % 10)) % 10) === check;
+}
+function _isValidEAN8(str) {
+  if (!/^\d{8}$/.test(str)) return false;
+  const d = str.split('').map(Number);
+  const check = d.pop();
+  let sum = 0;
+  d.forEach((n, i) => { sum += n * (i % 2 === 0 ? 3 : 1); });
+  return ((10 - (sum % 10)) % 10) === check;
+}
+function _isValidUPCA(str) {
+  if (!/^\d{12}$/.test(str)) return false;
+  return _isValidEAN13('0' + str);
+}
+
+// Retorna true se o valor "faz sentido" para o formato lido.
+// Formatos sem checksum conhecido (code_128, code_39, itf, qr_code)
+// passam direto — apenas exige um tamanho mínimo razoável.
+function _passesChecksum(value, format) {
+  switch (format) {
+    case 'ean_13':  return _isValidEAN13(value);
+    case 'ean_8':    return _isValidEAN8(value);
+    case 'upc_a':    return _isValidUPCA(value);
+    case 'upc_e':    return value.length >= 6; // UPC-E não tem checksum simples de validar aqui
+    default:         return value.length >= 3; // code_128, code_39, itf, qr_code etc.
+  }
+}
+
 // ── SISTEMA DE CONFIRMAÇÃO POR VOTOS ─────────────────────────────
 // Só aceita um código depois de lê-lo IDENTICAMENTE várias vezes
-// seguidas — evita aceitar leituras corrompidas/parciais.
-function _registerVote(value) {
+// seguidas, E somente se o valor passar na validação de checksum
+// (quando aplicável ao formato). Leituras que falham no checksum
+// são descartadas silenciosamente — nem chegam a virar voto.
+function _registerVote(value, format) {
   if (_detected || !value) return;
+
+  // Filtra leituras matematicamente inválidas antes de tudo
+  if (!_passesChecksum(value, format)) {
+    return; // ignora este frame, não conta e não reseta a contagem atual
+  }
 
   const now = Date.now();
 
-  // Se demorou muito desde o último voto, ou o valor mudou, reseta contagem
   if (value !== _lastValue || (now - _lastVoteTime) > CONFIRM_WINDOW_MS) {
     _lastValue = value;
     _voteCount = 1;
@@ -225,7 +270,6 @@ function _registerVote(value) {
   }
   _lastVoteTime = now;
 
-  // Feedback visual de progresso
   _setHint(`Confirmando código... (${_voteCount}/${CONFIRM_NEEDED})`);
   _pulseFrame();
 
