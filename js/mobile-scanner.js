@@ -98,15 +98,18 @@ async function openScanner(fieldId) {
       target: container,
       constraints: {
         facingMode: 'environment',
-        width:  { ideal: 1280 },
-        height: { ideal: 720 },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 },
         zoom:   { ideal: 1 }
       }
       // 'area' removida — estava cortando códigos que aparecem perto da
       // borda do quadro visual (ex: etiqueta de patrimônio). O quadro na
       // tela já orienta o usuário; a Quagga agora varre o frame inteiro.
     },
-    locator: { patchSize: 'small', halfSample: true },
+    // patchSize 'x-small' + halfSample:false — dá à Quagga resolução fina
+    // o suficiente para decodificar códigos pequenos/finos como etiquetas
+    // de patrimônio, ao custo de um pouco mais de processamento.
+    locator: { patchSize: 'x-small', halfSample: false },
     numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
     frequency: 10,
     decoder: {
