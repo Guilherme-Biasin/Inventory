@@ -1014,6 +1014,7 @@ html.dark .modal {
     border: 2px solid rgba(255,255,255,.15);
     border-radius: 16px;
     pointer-events: none;
+    transition: border-color .15s ease;
 }
 .scanner-frame::before, .scanner-frame::after,
 .scanner-corner-bl, .scanner-corner-br {

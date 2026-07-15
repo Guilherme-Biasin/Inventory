@@ -31,12 +31,21 @@ _syncDarkIcon();
 
 // ─────────────────────────────────────────────────────────────────
 //  SCANNER — Quagga2 (barcodes) + jsQR (QR Code) em paralelo
+//  Sistema de confirmação: só aceita após ler o MESMO código
+//  repetidamente, evitando falsos positivos de leitura rápida
 // ─────────────────────────────────────────────────────────────────
 let _targetField   = 'f_serie';
 let _quaggaRunning = false;
 let _qrInterval    = null;
 let _libsLoaded    = false;
 let _detected      = false;
+
+// Confirmação por votos consecutivos
+const CONFIRM_NEEDED = 3;      // precisa ler o mesmo valor 3x seguidas
+const CONFIRM_WINDOW_MS = 2500; // reseta se demorar mais que isso entre leituras
+let _lastValue    = null;
+let _voteCount    = 0;
+let _lastVoteTime = 0;
 
 function _loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -62,6 +71,9 @@ async function _loadLibs() {
 async function openScanner(fieldId) {
   _targetField = fieldId || 'f_serie';
   _detected = false;
+  _lastValue = null;
+  _voteCount = 0;
+  _lastVoteTime = 0;
 
   _setHint('Carregando leitor...');
   document.getElementById('scanner-modal').classList.add('open');
@@ -89,11 +101,11 @@ async function openScanner(fieldId) {
         width:  { min: 640, ideal: 1280 },
         height: { min: 480, ideal: 720 }
       },
-      area: { top: '20%', right: '10%', left: '10%', bottom: '20%' }
+      area: { top: '30%', right: '15%', left: '15%', bottom: '30%' }
     },
     locator: { patchSize: 'medium', halfSample: true },
     numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
-    frequency: 10,
+    frequency: 8,
     decoder: {
       readers: [
         'code_128_reader', 'ean_reader', 'ean_8_reader',
@@ -146,7 +158,7 @@ function _styleQuaggaVideo() {
 function _onBarcodeDetected(result) {
   if (_detected) return;
   const code = result?.codeResult?.code;
-  if (code) _onDetected(code.trim());
+  if (code) _registerVote(code.trim());
 }
 
 // ── QR CODE via jsQR ──────────────────────────────────────────────
@@ -169,15 +181,50 @@ function _startQrLoop(container) {
         inversionAttempts: 'attemptBoth'
       });
       if (result && result.data) {
-        _onDetected(result.data.trim());
+        _registerVote(result.data.trim());
       }
     } catch(_) { /* ignora frame inválido */ }
   }, 300);
 }
 
+// ── SISTEMA DE CONFIRMAÇÃO POR VOTOS ─────────────────────────────
+// Só aceita um código depois de lê-lo IDENTICAMENTE várias vezes
+// seguidas — evita aceitar leituras corrompidas/parciais.
+function _registerVote(value) {
+  if (_detected || !value) return;
+
+  const now = Date.now();
+
+  // Se demorou muito desde o último voto, ou o valor mudou, reseta contagem
+  if (value !== _lastValue || (now - _lastVoteTime) > CONFIRM_WINDOW_MS) {
+    _lastValue = value;
+    _voteCount = 1;
+  } else {
+    _voteCount++;
+  }
+  _lastVoteTime = now;
+
+  // Feedback visual de progresso
+  _setHint(`Confirmando código... (${_voteCount}/${CONFIRM_NEEDED})`);
+  _pulseFrame();
+
+  if (_voteCount >= CONFIRM_NEEDED) {
+    _onDetected(_lastValue);
+  }
+}
+
+// Pisca a moldura verde brevemente a cada voto confirmado, dando feedback tátil visual
+function _pulseFrame() {
+  const frame = document.querySelector('.scanner-frame');
+  if (!frame) return;
+  frame.style.borderColor = 'rgba(34,197,94,.6)';
+  setTimeout(() => { frame.style.borderColor = ''; }, 150);
+}
+
 function _onDetected(value) {
   if (_detected) return;
   _detected = true;
+  _setHint('✅ Código confirmado!');
   closeScanner();
 
   const field = document.getElementById(_targetField);
@@ -201,6 +248,8 @@ function closeScanner() {
   const container = document.getElementById('scanner-qr-container');
   if (container) container.innerHTML = '';
   document.getElementById('scanner-modal')?.classList.remove('open');
+  _lastValue = null;
+  _voteCount = 0;
 }
 
 function _setHint(txt) {
