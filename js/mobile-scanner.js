@@ -99,7 +99,8 @@ async function openScanner(fieldId) {
       constraints: {
         facingMode: 'environment',
         width:  { ideal: 1280 },
-        height: { ideal: 720 }
+        height: { ideal: 720 },
+        zoom:   { ideal: 1 }
       },
       area: { top: '25%', right: '10%', left: '10%', bottom: '25%' }
     },
@@ -149,6 +150,12 @@ async function openScanner(fieldId) {
 }
 
 // Define zoom = 1 explicitamente na track de vídeo, se o navegador suportar
+// Define zoom = 1x explicitamente na track de vídeo, se o navegador suportar.
+// IMPORTANTE: usar zoom.min aqui estava errado — no iPhone o mínimo geralmente
+// corresponde à lente ultra grande-angular (0.5x), que mostra muito mais cena
+// ao redor e faz o código de barras aparecer pequeno demais para ser lido.
+// O alvo correto é 1x (mesmo padrão da câmera nativa), sempre respeitando
+// os limites reais de zoom suportados pelo dispositivo.
 function _lockZoom(container) {
   try {
     const video = container.querySelector('video');
@@ -156,7 +163,8 @@ function _lockZoom(container) {
     if (!track) return;
     const caps = track.getCapabilities?.();
     if (caps && caps.zoom) {
-      track.applyConstraints({ advanced: [{ zoom: caps.zoom.min || 1 }] }).catch(() => {});
+      const target = Math.min(Math.max(1, caps.zoom.min), caps.zoom.max);
+      track.applyConstraints({ advanced: [{ zoom: target }] }).catch(() => {});
     }
   } catch(_) { /* zoom não suportado neste dispositivo/navegador */ }
 }
