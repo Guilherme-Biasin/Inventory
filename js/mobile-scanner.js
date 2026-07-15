@@ -41,7 +41,7 @@ let _libsLoaded    = false;
 let _detected      = false;
 
 // Confirmação por votos consecutivos
-const CONFIRM_NEEDED = 3;      // precisa ler o mesmo valor 3x seguidas
+const CONFIRM_NEEDED = 3;       // precisa ler o mesmo valor 3x seguidas
 const CONFIRM_WINDOW_MS = 2500; // reseta se demorar mais que isso entre leituras
 let _lastValue    = null;
 let _voteCount    = 0;
@@ -101,8 +101,10 @@ async function openScanner(fieldId) {
         width:  { ideal: 1280 },
         height: { ideal: 720 },
         zoom:   { ideal: 1 }
-      },
-      area: { top: '25%', right: '10%', left: '10%', bottom: '25%' }
+      }
+      // 'area' removida — estava cortando códigos que aparecem perto da
+      // borda do quadro visual (ex: etiqueta de patrimônio). O quadro na
+      // tela já orienta o usuário; a Quagga agora varre o frame inteiro.
     },
     locator: { patchSize: 'small', halfSample: true },
     numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
@@ -187,7 +189,25 @@ function _onBarcodeDetected(result) {
   if (_detected) return;
   const code   = result?.codeResult?.code;
   const format = result?.codeResult?.format;
-  if (code) _registerVote(code.trim(), format);
+  if (!code) return;
+
+  // Filtro de qualidade: a Quagga expõe o "erro" de decodificação de
+  // cada barra lida (decodedCodes[].error). Leituras com muito ruído
+  // visual (reflexo, plástico, ângulo) tendem a ter erro alto mesmo
+  // quando o checksum "acerta" por coincidência. Descartamos leituras
+  // de baixa confiança ANTES de contarem como voto.
+  const avgError = _quaggaAvgError(result);
+  if (avgError > 0.12) return; // muito ruidosa, ignora este frame
+
+  _registerVote(code.trim(), format);
+}
+
+function _quaggaAvgError(result) {
+  const codes = result?.codeResult?.decodedCodes;
+  if (!Array.isArray(codes)) return 0;
+  const errors = codes.map(c => c.error).filter(e => typeof e === 'number');
+  if (!errors.length) return 0;
+  return errors.reduce((a, b) => a + b, 0) / errors.length;
 }
 
 // ── QR CODE via jsQR ──────────────────────────────────────────────
