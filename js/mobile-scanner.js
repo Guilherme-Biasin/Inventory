@@ -1,7 +1,7 @@
 // ─── mobile-scanner.js ───────────────────────────────────────────
-// QR Code + Código de Barras — iOS Safari + Android Chrome
-// iOS: @undecaf/barcode-detector-polyfill (ZBar WASM)
-// Android: BarcodeDetector nativa
+// QR Code + Código de Barras — funciona em iOS Safari e Android
+// Quagga2 (código de barras 1D) + jsQR (QR Code)
+// Ambos são JS puro, sem depender de BarcodeDetector/WASM experimental
 // ─────────────────────────────────────────────────────────────────
 
 // ── SIDEBAR MOBILE ────────────────────────────────────────────────
@@ -30,162 +30,156 @@ function _syncDarkIcon() {
 _syncDarkIcon();
 
 // ─────────────────────────────────────────────────────────────────
-//  SCANNER
+//  SCANNER — Quagga2 (barcodes) + jsQR (QR Code) em paralelo
 // ─────────────────────────────────────────────────────────────────
-let _stream      = null;
-let _scanTimer   = null;
-let _detector    = null;
-let _scanActive  = false;
-let _targetField = 'f_serie';
-let _polyfillReady = false;
+let _targetField   = 'f_serie';
+let _quaggaRunning = false;
+let _qrInterval    = null;
+let _libsLoaded    = false;
+let _detected      = false;
 
-// Pré-carrega os scripts do polyfill no <head> via type="module"
-// Isso garante que o import funcione corretamente no iOS Safari
-function _preloadPolyfill() {
-  if (_polyfillReady) return;
-  _polyfillReady = true;
-
-  // Injeta script de módulo para importar o polyfill
-  const s = document.createElement('script');
-  s.type = 'module';
-  s.textContent = `
-    import { BarcodeDetectorPolyfill } from 'https://cdn.jsdelivr.net/npm/@undecaf/barcode-detector-polyfill@0.9.23/dist/main.js';
-    window._BarcodeDetectorPolyfill = BarcodeDetectorPolyfill;
-    window.dispatchEvent(new Event('polyfill-ready'));
-  `;
-  document.head.appendChild(s);
-}
-
-// Aguarda o polyfill estar disponível (máx 8 segundos)
-function _waitPolyfill() {
+function _loadScript(src) {
   return new Promise((resolve, reject) => {
-    if (window._BarcodeDetectorPolyfill) { resolve(); return; }
-    const timeout = setTimeout(() => reject(new Error('Timeout ao carregar o leitor')), 8000);
-    window.addEventListener('polyfill-ready', () => {
-      clearTimeout(timeout);
-      resolve();
-    }, { once: true });
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload  = resolve;
+    s.onerror = () => reject(new Error('Falha ao baixar: ' + src));
+    document.head.appendChild(s);
   });
 }
 
-// Inicializa o detector correto: nativo (Android) ou polyfill (iOS)
-async function _initDetector() {
-  if (_detector) return; // já inicializado
-
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  const hasNative = 'BarcodeDetector' in window;
-
-  if (hasNative && !isIOS) {
-    // Android/Chrome: usa BarcodeDetector nativa
-    try {
-      const supported = await window.BarcodeDetector.getSupportedFormats();
-      _detector = new window.BarcodeDetector({ formats: supported });
-      console.log('[Scanner] BarcodeDetector nativa (Android)');
-      return;
-    } catch(e) {
-      console.warn('[Scanner] Nativa falhou, usando polyfill');
-    }
-  }
-
-  // iOS ou fallback: usa polyfill ZBar WASM
-  console.log('[Scanner] Carregando ZBar WASM polyfill...');
-  await _waitPolyfill();
-
-  const Cls = window._BarcodeDetectorPolyfill;
-  if (!Cls) throw new Error('Polyfill não carregou corretamente');
-
-  const supported = await Cls.getSupportedFormats();
-  _detector = new Cls({ formats: supported });
-  console.log('[Scanner] ZBar WASM polyfill pronto, formatos:', supported);
+async function _loadLibs() {
+  if (_libsLoaded) return;
+  await Promise.all([
+    _loadScript('https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js'),
+    _loadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js')
+  ]);
+  _libsLoaded = true;
 }
 
 // ── ABRIR SCANNER ────────────────────────────────────────────────
 async function openScanner(fieldId) {
   _targetField = fieldId || 'f_serie';
+  _detected = false;
 
-  _setHint('Inicializando câmera...');
+  _setHint('Carregando leitor...');
   document.getElementById('scanner-modal').classList.add('open');
 
   try {
-    // Inicializa detector (com timeout visual)
-    await _initDetector();
-
-    // Pede câmera traseira
-    _stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: 'environment' },
-        width:      { ideal: 1280 },
-        height:     { ideal: 720 },
-      }
-    });
-
-    const video = document.getElementById('scanner-video');
-    video.srcObject = _stream;
-    await new Promise(res => {
-      video.onloadedmetadata = res;
-      setTimeout(res, 2000); // fallback timeout
-    });
-    await video.play();
-
-    _setHint('Aponte para o código de barras ou QR Code');
-    _scanActive = true;
-    _scanLoop(video);
-
-  } catch(err) {
-    console.error('[Scanner] Erro:', err);
+    await _loadLibs();
+  } catch(e) {
     closeScanner();
-    let msg = '📷 Não foi possível iniciar o scanner.';
-    if (err.name === 'NotAllowedError' || err.message?.includes('Permission'))
-      msg = '📷 Permissão de câmera negada.\n\niOS: Configurações → Safari → Câmera → Permitir\nAndroid: Toque nos 3 pontos → Configurações → Permissões';
-    else if (err.name === 'NotFoundError')
-      msg = '📷 Câmera não encontrada.';
-    else if (err.message?.includes('Timeout') || err.message?.includes('Polyfill'))
-      msg = '📷 Erro ao carregar leitor. Verifique sua conexão e tente novamente.';
-    alert(msg);
+    alert('📷 Erro ao carregar o leitor. Verifique sua conexão e tente novamente.');
+    return;
   }
+
+  const container = document.getElementById('scanner-qr-container');
+  container.innerHTML = ''; // limpa scans anteriores
+
+  _setHint('Inicializando câmera...');
+
+  Quagga.init({
+    inputStream: {
+      name: 'Live',
+      type: 'LiveStream',
+      target: container,
+      constraints: {
+        facingMode: 'environment',
+        width:  { min: 640, ideal: 1280 },
+        height: { min: 480, ideal: 720 }
+      },
+      area: { top: '20%', right: '10%', left: '10%', bottom: '20%' }
+    },
+    locator: { patchSize: 'medium', halfSample: true },
+    numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
+    frequency: 10,
+    decoder: {
+      readers: [
+        'code_128_reader', 'ean_reader', 'ean_8_reader',
+        'code_39_reader', 'code_39_vin_reader', 'codabar_reader',
+        'upc_reader', 'upc_e_reader', 'i2of5_reader', 'code_93_reader'
+      ],
+      multiple: false
+    },
+    locate: true
+  }, (err) => {
+    if (err) {
+      console.error('[Quagga] init error:', err);
+      closeScanner();
+      let msg = '📷 Não foi possível acessar a câmera.';
+      if (err.name === 'NotAllowedError' || String(err).includes('Permission'))
+        msg = '📷 Permissão de câmera negada.\n\niOS: Configurações → Safari → Câmera → Permitir\nAndroid: Toque nos 3 pontos → Configurações → Permissões';
+      else if (err.name === 'NotFoundError')
+        msg = '📷 Câmera não encontrada.';
+      alert(msg);
+      return;
+    }
+    Quagga.start();
+    _quaggaRunning = true;
+    _setHint('Aponte para o código de barras ou QR Code');
+
+    // Estiliza o vídeo/canvas que o Quagga injeta para preencher o modal
+    _styleQuaggaVideo();
+
+    // Inicia leitura paralela de QR Code via jsQR
+    _startQrLoop(container);
+  });
+
+  Quagga.onDetected(_onBarcodeDetected);
 }
 
-// ── LOOP DE SCAN ─────────────────────────────────────────────────
-function _scanLoop(video) {
-  if (!_scanActive || !_detector) return;
+function _styleQuaggaVideo() {
+  const container = document.getElementById('scanner-qr-container');
+  const video  = container.querySelector('video');
+  const canvas = container.querySelector('canvas');
+  [video, canvas].forEach(el => {
+    if (!el) return;
+    el.style.width    = '100%';
+    el.style.height   = '100%';
+    el.style.objectFit = 'cover';
+    el.style.position = 'absolute';
+    el.style.top = '0'; el.style.left = '0';
+  });
+}
 
+function _onBarcodeDetected(result) {
+  if (_detected) return;
+  const code = result?.codeResult?.code;
+  if (code) _onDetected(code.trim());
+}
+
+// ── QR CODE via jsQR ──────────────────────────────────────────────
+function _startQrLoop(container) {
   const canvas = document.createElement('canvas');
   const ctx    = canvas.getContext('2d', { willReadFrequently: true });
 
-  const tick = async () => {
-    if (!_scanActive) return;
+  _qrInterval = setInterval(() => {
+    if (_detected) return;
+    const video = container.querySelector('video');
+    if (!video || video.readyState < 2 || !video.videoWidth) return;
 
-    if (video.readyState >= 2 && video.videoWidth > 0) {
-      canvas.width  = video.videoWidth;
-      canvas.height = video.videoHeight;
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Tenta 3 ângulos para pegar barcodes levemente inclinados
-      for (const angle of [0, 25, -25]) {
-        if (!_scanActive) return;
-        try {
-          ctx.save();
-          ctx.translate(canvas.width / 2, canvas.height / 2);
-          ctx.rotate((angle * Math.PI) / 180);
-          ctx.drawImage(video, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
-          ctx.restore();
-
-          const symbols = await _detector.detect(canvas);
-          if (symbols.length && symbols[0].rawValue) {
-            _onDetected(symbols[0].rawValue.trim());
-            return;
-          }
-        } catch (_) { /* NotFoundException é normal */ }
+    try {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const result = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'attemptBoth'
+      });
+      if (result && result.data) {
+        _onDetected(result.data.trim());
       }
-    }
-
-    _scanTimer = setTimeout(tick, 250);
-  };
-
-  _scanTimer = setTimeout(tick, 500); // aguarda câmera estabilizar
+    } catch(_) { /* ignora frame inválido */ }
+  }, 300);
 }
 
 function _onDetected(value) {
+  if (_detected) return;
+  _detected = true;
   closeScanner();
+
   const field = document.getElementById(_targetField);
   if (field) {
     field.value = value;
@@ -199,12 +193,13 @@ function _onDetected(value) {
 
 // ── FECHAR ────────────────────────────────────────────────────────
 function closeScanner() {
-  _scanActive = false;
-  if (_scanTimer) { clearTimeout(_scanTimer); _scanTimer = null; }
-  if (_scanStream) { /* alias */ }
-  if (_stream) { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
-  const video = document.getElementById('scanner-video');
-  if (video) { video.srcObject = null; video.load(); }
+  if (_qrInterval) { clearInterval(_qrInterval); _qrInterval = null; }
+  if (_quaggaRunning && window.Quagga) {
+    try { Quagga.stop(); } catch(_) {}
+    _quaggaRunning = false;
+  }
+  const container = document.getElementById('scanner-qr-container');
+  if (container) container.innerHTML = '';
   document.getElementById('scanner-modal')?.classList.remove('open');
 }
 
@@ -257,6 +252,5 @@ function _injectScanButton() {
   wrap.parentNode.insertBefore(hint, wrap.nextSibling);
 }
 
-// Pré-carrega o polyfill em background assim que o script carrega
-// (dá tempo de baixar o WASM antes do usuário abrir o scanner)
-setTimeout(_preloadPolyfill, 1000);
+// Pré-carrega as bibliotecas em background
+setTimeout(() => { _loadLibs().catch(()=>{}); }, 1200);

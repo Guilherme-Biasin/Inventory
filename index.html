@@ -356,13 +356,14 @@
     <div class="scanner-label">📷 Código de Barras ou QR Code</div>
     <div style="width:38px"></div>
   </div>
-  <video id="scanner-video" autoplay playsinline muted webkit-playsinline></video>
+  <!-- Quagga2 injeta o <video> e <canvas> aqui dinamicamente -->
+  <div id="scanner-qr-container" style="position:relative;width:100%;flex:1;overflow:hidden;background:#000"></div>
   <div class="scanner-frame">
     <div class="scanner-corner-bl"></div>
     <div class="scanner-corner-br"></div>
     <div class="scanner-line"></div>
   </div>
-  <div class="scanner-hint" id="scanner-hint-text">Inicializando câmera...</div>
+  <div class="scanner-hint" id="scanner-hint-text">Aponte para o código de barras ou QR Code</div>
   <div class="scanner-manual">
     <button class="scanner-manual-btn" onclick="closeScanner()"><i class="ti ti-keyboard"></i> Digitar manualmente</button>
   </div>
