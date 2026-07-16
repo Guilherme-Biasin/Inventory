@@ -205,6 +205,53 @@ const DB = {
     const { error } = await _sb.from('patrimonios').delete().eq('id', id);
     if (error) throw error;
   },
+
+  // ── IMPORTAÇÃO EM MASSA ──────────────────────────────────────
+  // Recebe array de itens já validados e insere todos.
+  // Retorna { sucesso, erros: [{linha, motivo}] }
+  async bulkCreateItems(rows) {
+    const user = await Auth.getUser();
+    let sucesso = 0;
+    const erros = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      try {
+        const { data: pat, error: pe } = await _sb
+          .from('patrimonios')
+          .insert({
+            patrimonio:    r.patrimonio,
+            nome:          r.nome,
+            serie:         r.serie,
+            categoria:     r.categoria || null,
+            status:        r.status    || null,
+            local_atual:   r.local_atual  || '',
+            usuario_atual: r.usuario_atual || '',
+            created_by:    user?.id
+          })
+          .select()
+          .single();
+        if (pe) throw pe;
+
+        // Movimentação inicial de entrada (registro histórico)
+        await _sb.from('movimentacoes').insert({
+          patrimonio_id:        pat.id,
+          tipo:                 'entrada',
+          data_mov:             r.data_mov || null,
+          quem_recebeu_retirou: 'Entrada',
+          usuario_atual:        r.usuario_atual || null,
+          local:                r.local_atual  || null,
+          obs_mov:              'Importação em massa',
+          created_by:           user?.id
+        });
+
+        sucesso++;
+      } catch(e) {
+        erros.push({ linha: i + 2, motivo: e.message }); // +2: linha 1 é cabeçalho
+      }
+    }
+    return { sucesso, erros };
+  },
  
   // ── Realtime: recebe callback quando qualquer patrimônio mudar
   subscribeItems(callback) {

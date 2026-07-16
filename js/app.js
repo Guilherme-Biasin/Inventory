@@ -134,7 +134,7 @@ function nav(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  const titles = {dashboard:'Dashboard',lista:'Patrimônios',cadastro:'Cadastro',config:'Personalizar',auditoria:'Auditoria',usuarios:'Usuários'};
+  const titles = {dashboard:'Dashboard',lista:'Patrimônios',cadastro:'Cadastro',config:'Personalizar',auditoria:'Auditoria',usuarios:'Usuários',importacao:'Importação'};
   document.getElementById('topbar-title').textContent = titles[p] || '';
   // Ativa o item de nav correto pelo data-nav attribute
   const navEl = document.querySelector(`.nav-item[data-nav="${p}"]`);
@@ -150,6 +150,10 @@ function nav(p) {
     renderConfig();
   }
   if (p === 'auditoria') renderAuditoria();
+  if (p === 'importacao') {
+    if (!can('cadastrar')) { showToast('Sem permissão para importar.','err'); return; }
+    renderImportacao();
+  }
   if (p === 'usuarios')  {
     if (!can('gerenciar_usuarios')) { showToast('Acesso restrito a administradores.','err'); return; }
     renderUsuarios();
@@ -194,6 +198,9 @@ function applyRoleUI() {
   // Mostra/oculta aba de Usuários na sidebar
   const navUsuarios = document.getElementById('nav-usuarios');
   if (navUsuarios) navUsuarios.style.display = can('gerenciar_usuarios') ? '' : 'none';
+
+  const navImport = document.getElementById('nav-importacao');
+  if (navImport) navImport.style.display = can('cadastrar') ? '' : 'none';
 
   // Botão "Novo Patrimônio" no topbar
   const btnNovo = document.getElementById('btn-novo-topbar');
@@ -855,6 +862,217 @@ async function adminResetPassword(userId, email) {
     showToast(`✅ Senha de ${email} alterada!`);
   } catch(e) { showToast('Erro: ' + e.message,'err'); }
   finally { hideLoading(); }
+}
+
+// ─── IMPORTAÇÃO EM MASSA ─────────────────────────────────────
+let _importRows = [];   // linhas validadas prontas para importar
+
+function renderImportacao() {
+  // Preenche a lista de valores válidos como referência visual
+  const catList  = S.cats.map(c => c.name).join(', ');
+  const statList = S.statusOpts.map(s => s.name).join(', ');
+  const locList  = S.locais.join(', ');
+  const el = document.getElementById('import-ref');
+  if (el) {
+    el.innerHTML = `
+      <div style="font-size:12.5px;color:var(--txt2);line-height:1.9">
+        <div><strong>Categorias válidas:</strong> ${esc(catList) || '<em>nenhuma</em>'}</div>
+        <div><strong>Status válidos:</strong> ${esc(statList) || '<em>nenhum</em>'}</div>
+        <div><strong>Locais válidos:</strong> ${esc(locList) || '<em>nenhum</em>'}</div>
+      </div>`;
+  }
+  // Limpa preview anterior
+  _importRows = [];
+  const prev = document.getElementById('import-preview');
+  if (prev) prev.innerHTML = '';
+  const btn = document.getElementById('import-confirm-btn');
+  if (btn) btn.style.display = 'none';
+  const fileInput = document.getElementById('import-file');
+  if (fileInput) fileInput.value = '';
+}
+
+// Baixa planilha modelo com cabeçalhos e uma linha de exemplo
+function downloadModelo() {
+  const exemplo = {
+    'Nº Patrimônio': '001',
+    'Nome': 'Notebook Dell Vostro',
+    'N° Série': 'SN-ABC-12345',
+    'Categoria': S.cats[0]?.name || 'Informática',
+    'Status': S.statusOpts[0]?.name || 'Em uso',
+    'Local Atual': S.locais[0] || 'TI',
+    'Usuário Atual': 'João Silva'
+  };
+  const ws = XLSX.utils.json_to_sheet([exemplo]);
+  ws['!cols'] = [{wch:16},{wch:26},{wch:18},{wch:18},{wch:16},{wch:16},{wch:20}];
+  // estiliza cabeçalho
+  const hStyle = {font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1E3A8A'}},alignment:{horizontal:'center'}};
+  ['A1','B1','C1','D1','E1','F1','G1'].forEach(a => { if(ws[a]) ws[a].s = hStyle; });
+
+  // Aba secundária com instruções/valores válidos
+  const ref = [
+    { 'Campo': 'Categoria', 'Valores aceitos': S.cats.map(c=>c.name).join(' | ') },
+    { 'Campo': 'Status',    'Valores aceitos': S.statusOpts.map(s=>s.name).join(' | ') },
+    { 'Campo': 'Local Atual','Valores aceitos': S.locais.join(' | ') },
+    { 'Campo': 'Nº Patrimônio', 'Valores aceitos': 'Obrigatório — texto ou número' },
+    { 'Campo': 'Nome',      'Valores aceitos': 'Obrigatório — texto' },
+    { 'Campo': 'N° Série',  'Valores aceitos': 'Obrigatório — texto' },
+    { 'Campo': 'Usuário Atual', 'Valores aceitos': 'Opcional — texto' },
+  ];
+  const wsRef = XLSX.utils.json_to_sheet(ref);
+  wsRef['!cols'] = [{wch:18},{wch:60}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Patrimonios');
+  XLSX.utils.book_append_sheet(wb, wsRef, 'Instruções');
+  XLSX.writeFile(wb, 'modelo_importacao_patrimonios.xlsx');
+}
+
+// Lê o arquivo escolhido e valida cada linha
+function handleImportFile(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      _validateImport(rows);
+    } catch(err) {
+      showToast('Erro ao ler arquivo: ' + err.message, 'err');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function _validateImport(rows) {
+  _importRows = [];
+  const preview = [];
+  // mapas nome→id (case-insensitive)
+  const catMap  = {}; S.cats.forEach(c => catMap[c.name.toLowerCase().trim()] = c.id);
+  const statMap = {}; S.statusOpts.forEach(s => statMap[s.name.toLowerCase().trim()] = s.id);
+  const locSet  = new Set(S.locais.map(l => l.toLowerCase().trim()));
+
+  rows.forEach((r, idx) => {
+    const linha = idx + 2;
+    const patrimonio = String(r['Nº Patrimônio'] ?? r['No Patrimônio'] ?? r['Patrimônio'] ?? '').trim();
+    const nome       = String(r['Nome'] ?? '').trim();
+    const serie      = String(r['N° Série'] ?? r['No Série'] ?? r['Série'] ?? r['Serie'] ?? '').trim();
+    const catNome    = String(r['Categoria'] ?? '').trim();
+    const statNome   = String(r['Status'] ?? '').trim();
+    const local      = String(r['Local Atual'] ?? r['Local'] ?? '').trim();
+    const usuario    = String(r['Usuário Atual'] ?? r['Usuario Atual'] ?? '').trim();
+
+    const erros = [];
+    if (!patrimonio) erros.push('Nº Patrimônio vazio');
+    if (!nome)       erros.push('Nome vazio');
+    if (!serie)      erros.push('N° Série vazio');
+
+    let catId = null, statId = null;
+    if (catNome) {
+      catId = catMap[catNome.toLowerCase()];
+      if (!catId) erros.push(`Categoria "${catNome}" não existe`);
+    } else erros.push('Categoria vazia');
+
+    if (statNome) {
+      statId = statMap[statNome.toLowerCase()];
+      if (!statId) erros.push(`Status "${statNome}" não existe`);
+    } else erros.push('Status vazio');
+
+    if (local && !locSet.has(local.toLowerCase())) {
+      erros.push(`Local "${local}" não existe`);
+    }
+
+    const valido = erros.length === 0;
+    if (valido) {
+      _importRows.push({
+        patrimonio, nome, serie,
+        categoria: catId, status: statId,
+        local_atual: local, usuario_atual: usuario,
+        data_mov: new Date().toISOString().slice(0,10)
+      });
+    }
+    preview.push({ linha, patrimonio, nome, serie, catNome, statNome, local, valido, erros });
+  });
+
+  _renderImportPreview(preview);
+}
+
+function _renderImportPreview(preview) {
+  const validos = preview.filter(p => p.valido).length;
+  const invalidos = preview.length - validos;
+
+  const el = document.getElementById('import-preview');
+  el.innerHTML = `
+    <div style="display:flex;gap:12px;margin:1rem 0">
+      <div class="stat" style="flex:1;padding:.75rem 1rem">
+        <div class="stat-label">Total de linhas</div><div class="stat-val">${preview.length}</div>
+      </div>
+      <div class="stat" style="flex:1;padding:.75rem 1rem">
+        <div class="stat-label">Válidas</div><div class="stat-val" style="color:#059669">${validos}</div>
+      </div>
+      <div class="stat" style="flex:1;padding:.75rem 1rem">
+        <div class="stat-label">Com erro</div><div class="stat-val" style="color:#dc2626">${invalidos}</div>
+      </div>
+    </div>
+    <div class="card"><div class="table-wrap" style="max-height:340px;overflow-y:auto">
+      <table><thead><tr>
+        <th style="width:50px">Linha</th><th>Nº</th><th>Nome</th><th>Série</th>
+        <th>Categoria</th><th>Status</th><th>Situação</th>
+      </tr></thead><tbody>
+      ${preview.map(p => `<tr style="${p.valido?'':'background:var(--danger-bg)'}">
+        <td>${p.linha}</td>
+        <td>${esc(p.patrimonio)}</td>
+        <td>${esc(p.nome)}</td>
+        <td>${esc(p.serie)}</td>
+        <td>${esc(p.catNome)}</td>
+        <td>${esc(p.statNome)}</td>
+        <td>${p.valido
+          ? '<span style="color:#059669;font-weight:600">✓ OK</span>'
+          : `<span style="color:#dc2626;font-size:11.5px" title="${esc(p.erros.join('; '))}">✗ ${esc(p.erros[0])}${p.erros.length>1?` (+${p.erros.length-1})`:''}</span>`}
+        </td>
+      </tr>`).join('')}
+      </tbody></table>
+    </div></div>`;
+
+  const btn = document.getElementById('import-confirm-btn');
+  if (validos > 0) {
+    btn.style.display = '';
+    btn.textContent = `Importar ${validos} ${validos===1?'patrimônio':'patrimônios'}`;
+    btn.disabled = false;
+  } else {
+    btn.style.display = 'none';
+  }
+  if (invalidos > 0) {
+    showToast(`${invalidos} linha(s) com erro serão ignoradas.`, 'err');
+  }
+}
+
+async function confirmImport() {
+  if (!can('cadastrar')) { showToast('Sem permissão para importar.','err'); return; }
+  if (!_importRows.length) { showToast('Nenhuma linha válida.','err'); return; }
+  if (!confirm(`Importar ${_importRows.length} patrimônio(s)? Esta ação criará os registros no banco.`)) return;
+
+  showLoading(`Importando ${_importRows.length} itens...`);
+  try {
+    const res = await DB.bulkCreateItems(_importRows);
+    hideLoading();
+    if (res.erros.length) {
+      showToast(`Importados: ${res.sucesso}. Falhas: ${res.erros.length}.`, 'err');
+      console.error('Erros de importação:', res.erros);
+    } else {
+      showToast(`✅ ${res.sucesso} patrimônios importados com sucesso!`);
+    }
+    // Recarrega dados e volta à lista
+    S.items = await DB.loadItems();
+    S.lastFiltered = [...S.items];
+    nav('lista');
+  } catch(e) {
+    hideLoading();
+    showToast('Erro na importação: ' + e.message, 'err');
+  }
 }
 
 // ─── EXPORTAR EXCEL ──────────────────────────────────────────

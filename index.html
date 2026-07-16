@@ -118,19 +118,20 @@
     <div class="sidebar-logo"><div class="logo-icon">💻</div>Inventory Guemat</div>
     <div class="nav-group">
       <div class="nav-label">Principal</div>
-      <div class="nav-item active" onclick="nav('dashboard')"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
-      <div class="nav-item" onclick="nav('lista')"><i class="ti ti-archive"></i> Patrimônios</div>
-      <div class="nav-item" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo Cadastro</div>
+      <div class="nav-item active" data-nav="dashboard" onclick="nav('dashboard')"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+      <div class="nav-item" data-nav="lista" onclick="nav('lista')"><i class="ti ti-archive"></i> Patrimônios</div>
+      <div class="nav-item" data-nav="cadastro" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo Cadastro</div>
     </div>
     <div class="nav-group">
       <div class="nav-label">Dados</div>
-      <div class="nav-item" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</div>
-      <div class="nav-item" onclick="nav('auditoria')"><i class="ti ti-shield-check"></i> Auditoria</div>
-      <div class="nav-item" id="nav-usuarios" onclick="nav('usuarios')"><i class="ti ti-users"></i> Usuários</div>
+      <div class="nav-item" data-nav="exportar" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</div>
+      <div class="nav-item" id="nav-importacao" data-nav="importacao" onclick="nav('importacao')"><i class="ti ti-upload"></i> Importar Excel</div>
+      <div class="nav-item" data-nav="auditoria" onclick="nav('auditoria')"><i class="ti ti-shield-check"></i> Auditoria</div>
+      <div class="nav-item" id="nav-usuarios" data-nav="usuarios" onclick="nav('usuarios')"><i class="ti ti-users"></i> Usuários</div>
     </div>
     <div class="nav-group">
       <div class="nav-label">Configurações</div>
-      <div class="nav-item" onclick="nav('config')"><i class="ti ti-settings"></i> Personalizar</div>
+      <div class="nav-item" data-nav="config" onclick="nav('config')"><i class="ti ti-settings"></i> Personalizar</div>
     </div>
     <div class="sidebar-footer">
       <div class="dark-toggle" onclick="toggleDark()">
@@ -226,6 +227,57 @@
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+      <!-- IMPORTAÇÃO -->
+      <div class="page" id="page-importacao">
+        <div class="page-header">
+          <div class="ph-title"><i class="ti ti-upload" style="color:var(--accent)"></i> Importar Patrimônios</div>
+        </div>
+
+        <div class="card" style="padding:1.5rem;margin-bottom:1rem">
+          <div style="display:flex;flex-wrap:wrap;gap:1.5rem;align-items:flex-start">
+            <div style="flex:1;min-width:280px">
+              <div style="font-size:14px;font-weight:700;color:var(--txt);margin-bottom:.5rem">
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;margin-right:6px">1</span>
+                Baixe o modelo
+              </div>
+              <p style="font-size:12.5px;color:var(--txt3);margin-bottom:.75rem;line-height:1.6">
+                Baixe a planilha modelo, preencha com seus patrimônios seguindo o exemplo e a aba de instruções.
+              </p>
+              <button class="btn btn-success" onclick="downloadModelo()"><i class="ti ti-download"></i> Baixar planilha modelo</button>
+            </div>
+
+            <div style="flex:1;min-width:280px">
+              <div style="font-size:14px;font-weight:700;color:var(--txt);margin-bottom:.5rem">
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;margin-right:6px">2</span>
+                Envie o arquivo preenchido
+              </div>
+              <p style="font-size:12.5px;color:var(--txt3);margin-bottom:.75rem;line-height:1.6">
+                Selecione o arquivo .xlsx preenchido. Você verá uma prévia antes de confirmar.
+              </p>
+              <label class="btn btn-primary" style="cursor:pointer">
+                <i class="ti ti-file-upload"></i> Escolher arquivo .xlsx
+                <input type="file" id="import-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImportFile(this)">
+              </label>
+            </div>
+          </div>
+
+          <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border)">
+            <div style="font-size:12px;font-weight:600;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem">
+              <i class="ti ti-info-circle" style="color:var(--accent)"></i> Valores aceitos nos campos
+            </div>
+            <div id="import-ref"></div>
+          </div>
+        </div>
+
+        <!-- Preview da importação -->
+        <div id="import-preview"></div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:1rem">
+          <button class="btn btn-primary" id="import-confirm-btn" style="display:none;padding:12px 24px" onclick="confirmImport()">
+            <i class="ti ti-database-import"></i> Importar
+          </button>
         </div>
       </div>
       <!-- USUÁRIOS -->
