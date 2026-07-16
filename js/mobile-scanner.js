@@ -1,7 +1,12 @@
 // ─── mobile-scanner.js ───────────────────────────────────────────
-// QR Code + Código de Barras — funciona em iOS Safari e Android
-// Quagga2 (código de barras 1D) + jsQR (QR Code)
-// Ambos são JS puro, sem depender de BarcodeDetector/WASM experimental
+// QR Code + Código de Barras — iOS Safari e Android
+// Arquitetura v4:
+//  • Câmera gerenciada manualmente (getUserMedia) — sem LiveStream
+//  • Loop próprio alternando: frame inteiro ↔ zoom digital 2x do centro
+//    (o zoom digital amplia códigos pequenos/distantes antes de decodificar)
+//  • Quagga.decodeSingle por frame (sem listeners acumulados)
+//  • jsQR em paralelo para QR Code
+//  • Votação adaptativa: 3 leituras iguais, ou 2 se qualidade excelente
 // ─────────────────────────────────────────────────────────────────
 
 // ── SIDEBAR MOBILE ────────────────────────────────────────────────
@@ -30,22 +35,28 @@ function _syncDarkIcon() {
 _syncDarkIcon();
 
 // ─────────────────────────────────────────────────────────────────
-//  SCANNER — Quagga2 (barcodes) + jsQR (QR Code) em paralelo
-//  Sistema de confirmação: só aceita após ler o MESMO código
-//  repetidamente, evitando falsos positivos de leitura rápida
+//  SCANNER
 // ─────────────────────────────────────────────────────────────────
-let _targetField   = 'f_serie';
-let _quaggaRunning = false;
-let _qrInterval    = null;
-let _libsLoaded    = false;
-let _detected      = false;
+let _stream       = null;
+let _video        = null;
+let _scanTimer    = null;
+let _busy         = false;
+let _detected     = false;
+let _scanActive   = false;
+let _frameToggle  = 0;      // alterna: 0 = frame inteiro, 1 = zoom 2x centro
+let _targetField  = 'f_serie';
+let _libsLoaded   = false;
 
-// Confirmação por votos consecutivos
-const CONFIRM_NEEDED = 3;       // precisa ler o mesmo valor 3x seguidas
-const CONFIRM_WINDOW_MS = 2500; // reseta se demorar mais que isso entre leituras
+// Votação adaptativa
+const CONFIRM_NEEDED    = 3;     // padrão: 3 leituras idênticas
+const CONFIRM_FAST      = 2;     // aceita com 2 se qualidade excelente
+const FAST_ERROR_MAX    = 0.06;  // limiar de "qualidade excelente"
+const REJECT_ERROR_MIN  = 0.12;  // acima disso, leitura descartada
+const CONFIRM_WINDOW_MS = 6000;  // janela longa: leituras raras ainda acumulam
 let _lastValue    = null;
 let _voteCount    = 0;
 let _lastVoteTime = 0;
+let _lastAvgErr   = 1;
 
 function _loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -70,10 +81,11 @@ async function _loadLibs() {
 // ── ABRIR SCANNER ────────────────────────────────────────────────
 async function openScanner(fieldId) {
   _targetField = fieldId || 'f_serie';
-  _detected = false;
-  _lastValue = null;
-  _voteCount = 0;
+  _detected    = false;
+  _lastValue   = null;
+  _voteCount   = 0;
   _lastVoteTime = 0;
+  _frameToggle = 0;
 
   _setHint('Carregando leitor...');
   document.getElementById('scanner-modal').classList.add('open');
@@ -86,164 +98,148 @@ async function openScanner(fieldId) {
     return;
   }
 
-  const container = document.getElementById('scanner-qr-container');
-  container.innerHTML = ''; // limpa scans anteriores
-
   _setHint('Inicializando câmera...');
 
-  Quagga.init({
-    inputStream: {
-      name: 'Live',
-      type: 'LiveStream',
-      target: container,
-      constraints: {
-        facingMode: 'environment',
-        width:  { ideal: 1920 },
-        height: { ideal: 1080 },
-        zoom:   { ideal: 1 }
-      }
-      // 'area' removida — estava cortando códigos que aparecem perto da
-      // borda do quadro visual (ex: etiqueta de patrimônio). O quadro na
-      // tela já orienta o usuário; a Quagga agora varre o frame inteiro.
-    },
-    // patchSize 'x-small' + halfSample:false — dá à Quagga resolução fina
-    // o suficiente para decodificar códigos pequenos/finos como etiquetas
-    // de patrimônio, ao custo de um pouco mais de processamento.
-    locator: { patchSize: 'x-small', halfSample: false },
-    numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
-    frequency: 10,
-    decoder: {
-      readers: [
-        'code_128_reader', 'ean_reader', 'ean_8_reader',
-        'code_39_reader', 'upc_reader', 'upc_e_reader', 'i2of5_reader'
-      ],
-      multiple: false
-    },
-    locate: true
-  }, (err) => {
-    if (err) {
-      console.error('[Quagga] init error:', err);
-      closeScanner();
-      let msg = '📷 Não foi possível acessar a câmera.';
-      if (err.name === 'NotAllowedError' || String(err).includes('Permission'))
-        msg = '📷 Permissão de câmera negada.\n\niOS: Configurações → Safari → Câmera → Permitir\nAndroid: Toque nos 3 pontos → Configurações → Permissões';
-      else if (err.name === 'NotFoundError')
-        msg = '📷 Câmera não encontrada.';
-      alert(msg);
-      return;
-    }
-    Quagga.start();
-    _quaggaRunning = true;
-    _setHint('Aponte para o código de barras ou QR Code');
-
-    // Estiliza o vídeo/canvas que o Quagga injeta para preencher o modal
-    _styleQuaggaVideo();
-
-    // Trava o zoom em 1x — evita o navegador trocar de lente (grande-angular)
-    // e dar aquele "salto" de zoom logo ao abrir a câmera
-    _lockZoom(container);
-
-    // Inicia leitura paralela de QR Code via jsQR
-    _startQrLoop(container);
-  });
-
-  // Remove listener anterior antes de registrar um novo — Quagga é singleton
-  // global e empilha listeners a cada chamada, o que fazia o contador de
-  // confirmação (votos) somar em dobro/triplo nas leituras seguintes
-  Quagga.offDetected(_onBarcodeDetected);
-  Quagga.onDetected(_onBarcodeDetected);
-}
-
-// Define zoom = 1 explicitamente na track de vídeo, se o navegador suportar
-// Define zoom = 1x explicitamente na track de vídeo, se o navegador suportar.
-// IMPORTANTE: usar zoom.min aqui estava errado — no iPhone o mínimo geralmente
-// corresponde à lente ultra grande-angular (0.5x), que mostra muito mais cena
-// ao redor e faz o código de barras aparecer pequeno demais para ser lido.
-// O alvo correto é 1x (mesmo padrão da câmera nativa), sempre respeitando
-// os limites reais de zoom suportados pelo dispositivo.
-function _lockZoom(container) {
   try {
-    const video = container.querySelector('video');
-    const track = video?.srcObject?.getVideoTracks?.()[0];
-    if (!track) return;
-    const caps = track.getCapabilities?.();
-    if (caps && caps.zoom) {
-      const target = Math.min(Math.max(1, caps.zoom.min), caps.zoom.max);
-      track.applyConstraints({ advanced: [{ zoom: target }] }).catch(() => {});
-    }
-  } catch(_) { /* zoom não suportado neste dispositivo/navegador */ }
-}
+    _stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    });
+  } catch(err) {
+    closeScanner();
+    let msg = '📷 Não foi possível acessar a câmera.';
+    if (err.name === 'NotAllowedError')
+      msg = '📷 Permissão de câmera negada.\n\niOS: Configurações → Safari → Câmera → Permitir\nAndroid: Configurações do navegador → Permissões';
+    else if (err.name === 'NotFoundError')
+      msg = '📷 Câmera não encontrada.';
+    alert(msg);
+    return;
+  }
 
-function _styleQuaggaVideo() {
+  // Monta o <video> dentro do container
   const container = document.getElementById('scanner-qr-container');
-  const video  = container.querySelector('video');
-  const canvas = container.querySelector('canvas');
-  [video, canvas].forEach(el => {
-    if (!el) return;
-    el.style.width    = '100%';
-    el.style.height   = '100%';
-    el.style.objectFit = 'cover';
-    el.style.position = 'absolute';
-    el.style.top = '0'; el.style.left = '0';
+  container.innerHTML = '';
+  _video = document.createElement('video');
+  _video.setAttribute('autoplay', '');
+  _video.setAttribute('muted', '');
+  _video.setAttribute('playsinline', '');
+  _video.setAttribute('webkit-playsinline', '');
+  _video.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;';
+  container.appendChild(_video);
+  _video.srcObject = _stream;
+
+  await new Promise(res => {
+    _video.onloadedmetadata = res;
+    setTimeout(res, 2500);
   });
+  try { await _video.play(); } catch(_) {}
+
+  // Trava zoom óptico em 1x se suportado (evita salto de lente)
+  try {
+    const track = _stream.getVideoTracks()[0];
+    const caps  = track.getCapabilities?.();
+    if (caps?.zoom) {
+      const t = Math.min(Math.max(1, caps.zoom.min), caps.zoom.max);
+      track.applyConstraints({ advanced: [{ zoom: t }] }).catch(() => {});
+    }
+  } catch(_) {}
+
+  _setHint('Aponte para o código de barras ou QR Code');
+  _scanActive = true;
+  _scanTimer = setInterval(_processFrame, 350);
 }
 
-function _onBarcodeDetected(result) {
-  if (_detected) return;
-  const code   = result?.codeResult?.code;
-  const format = result?.codeResult?.format;
-  if (!code) return;
+// ── PROCESSAMENTO DE FRAME ────────────────────────────────────────
+// Alterna entre duas visões do mesmo frame:
+//  0) frame inteiro (códigos próximos / grandes)
+//  1) centro recortado e ampliado 2x — ZOOM DIGITAL
+//     (códigos pequenos ou distantes ficam com o dobro de pixels,
+//      exatamente o que faltava para ler a etiqueta de patrimônio)
+const _workCanvas = document.createElement('canvas');
+const _workCtx    = _workCanvas.getContext('2d', { willReadFrequently: true });
 
-  // Filtro de qualidade: a Quagga expõe o "erro" de decodificação de
-  // cada barra lida (decodedCodes[].error). Leituras com muito ruído
-  // visual (reflexo, plástico, ângulo) tendem a ter erro alto mesmo
-  // quando o checksum "acerta" por coincidência. Descartamos leituras
-  // de baixa confiança ANTES de contarem como voto.
-  const avgError = _quaggaAvgError(result);
-  if (avgError > 0.12) return; // muito ruidosa, ignora este frame
+async function _processFrame() {
+  if (!_scanActive || _busy || _detected) return;
+  if (!_video || _video.readyState < 2 || !_video.videoWidth) return;
 
-  _registerVote(code.trim(), format);
+  _busy = true;
+  try {
+    const vw = _video.videoWidth, vh = _video.videoHeight;
+    const outW = 1280;
+    const mode = _frameToggle;
+    _frameToggle = (_frameToggle + 1) % 2;
+
+    if (mode === 0) {
+      // Frame inteiro, redimensionado para 1280 de largura
+      const outH = Math.round(vh * (outW / vw));
+      _workCanvas.width = outW; _workCanvas.height = outH;
+      _workCtx.drawImage(_video, 0, 0, vw, vh, 0, 0, outW, outH);
+    } else {
+      // Zoom digital 2x: recorta o centro (55% x 45%) e amplia
+      const cw = Math.round(vw * 0.55), ch = Math.round(vh * 0.45);
+      const cx = Math.round((vw - cw) / 2), cy = Math.round((vh - ch) / 2);
+      const outH = Math.round(ch * (outW / cw));
+      _workCanvas.width = outW; _workCanvas.height = outH;
+      _workCtx.imageSmoothingEnabled = true;
+      _workCtx.imageSmoothingQuality = 'high';
+      _workCtx.drawImage(_video, cx, cy, cw, ch, 0, 0, outW, outH);
+    }
+
+    // 1) Tenta QR Code (jsQR) — rápido, direto no ImageData
+    try {
+      const imgData = _workCtx.getImageData(0, 0, _workCanvas.width, _workCanvas.height);
+      const qr = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'dontInvert' });
+      if (qr && qr.data) {
+        _registerVote(qr.data.trim(), 'qr_code', 0);
+        _busy = false;
+        return;
+      }
+    } catch(_) {}
+
+    // 2) Tenta código de barras (Quagga.decodeSingle no canvas)
+    const dataUrl = _workCanvas.toDataURL('image/jpeg', 0.75);
+    await new Promise(resolve => {
+      Quagga.decodeSingle({
+        src: dataUrl,
+        numOfWorkers: 0,
+        locate: true,
+        inputStream: { size: 1280 },
+        locator: { patchSize: 'medium', halfSample: false },
+        decoder: {
+          readers: [
+            'code_128_reader', 'ean_reader', 'ean_8_reader',
+            'code_39_reader', 'upc_reader', 'upc_e_reader', 'i2of5_reader'
+          ],
+          multiple: false
+        }
+      }, (result) => {
+        const code   = result?.codeResult?.code;
+        const format = result?.codeResult?.format;
+        if (code) {
+          const avgErr = _avgError(result);
+          if (avgErr <= REJECT_ERROR_MIN) {
+            _registerVote(code.trim(), format, avgErr);
+          }
+        }
+        resolve();
+      });
+    });
+  } catch(_) { /* frame com problema, segue o loop */ }
+  _busy = false;
 }
 
-function _quaggaAvgError(result) {
+function _avgError(result) {
   const codes = result?.codeResult?.decodedCodes;
   if (!Array.isArray(codes)) return 0;
-  const errors = codes.map(c => c.error).filter(e => typeof e === 'number');
-  if (!errors.length) return 0;
-  return errors.reduce((a, b) => a + b, 0) / errors.length;
+  const errs = codes.map(c => c.error).filter(e => typeof e === 'number');
+  if (!errs.length) return 0;
+  return errs.reduce((a, b) => a + b, 0) / errs.length;
 }
 
-// ── QR CODE via jsQR ──────────────────────────────────────────────
-function _startQrLoop(container) {
-  const canvas = document.createElement('canvas');
-  const ctx    = canvas.getContext('2d', { willReadFrequently: true });
-
-  _qrInterval = setInterval(() => {
-    if (_detected) return;
-    const video = container.querySelector('video');
-    if (!video || video.readyState < 2 || !video.videoWidth) return;
-
-    canvas.width  = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    try {
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const result = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'attemptBoth'
-      });
-      if (result && result.data) {
-        _registerVote(result.data.trim(), 'qr_code');
-      }
-    } catch(_) { /* ignora frame inválido */ }
-  }, 300);
-}
-
-// ── VALIDAÇÃO DE CHECKSUM ─────────────────────────────────────────
-// EAN-13/EAN-8/UPC-A têm um dígito verificador matemático.
-// Sem validar isso, a Quagga pode "confirmar" 3 leituras erradas
-// diferentes que por acaso pareceram plausíveis. Validando o
-// checksum, leituras incorretas nunca chegam a ser contadas como voto.
+// ── CHECKSUM ──────────────────────────────────────────────────────
 function _isValidEAN13(str) {
   if (!/^\d{13}$/.test(str)) return false;
   const d = str.split('').map(Number);
@@ -264,52 +260,42 @@ function _isValidUPCA(str) {
   if (!/^\d{12}$/.test(str)) return false;
   return _isValidEAN13('0' + str);
 }
-
-// Retorna true se o valor "faz sentido" para o formato lido.
-// Formatos sem checksum conhecido (code_128, code_39, itf, qr_code)
-// passam direto — apenas exige um tamanho mínimo razoável.
 function _passesChecksum(value, format) {
   switch (format) {
-    case 'ean_13':  return _isValidEAN13(value);
-    case 'ean_8':    return _isValidEAN8(value);
-    case 'upc_a':    return _isValidUPCA(value);
-    case 'upc_e':    return value.length >= 6; // UPC-E não tem checksum simples de validar aqui
-    default:         return value.length >= 3; // code_128, code_39, itf, qr_code etc.
+    case 'ean_13': return _isValidEAN13(value);
+    case 'ean_8':  return _isValidEAN8(value);
+    case 'upc_a':  return _isValidUPCA(value);
+    case 'upc_e':  return value.length >= 6;
+    default:       return value.length >= 3;
   }
 }
 
-// ── SISTEMA DE CONFIRMAÇÃO POR VOTOS ─────────────────────────────
-// Só aceita um código depois de lê-lo IDENTICAMENTE várias vezes
-// seguidas, E somente se o valor passar na validação de checksum
-// (quando aplicável ao formato). Leituras que falham no checksum
-// são descartadas silenciosamente — nem chegam a virar voto.
-function _registerVote(value, format) {
+// ── VOTAÇÃO ADAPTATIVA ────────────────────────────────────────────
+// 3 leituras idênticas confirmam. Se a qualidade for excelente
+// (erro médio < 6%), 2 leituras bastam — acelera em boas condições
+// sem abrir mão da segurança em condições ruins.
+function _registerVote(value, format, avgErr) {
   if (_detected || !value) return;
-
-  // Filtra leituras matematicamente inválidas antes de tudo
-  if (!_passesChecksum(value, format)) {
-    return; // ignora este frame, não conta e não reseta a contagem atual
-  }
+  if (!_passesChecksum(value, format)) return;
 
   const now = Date.now();
-
   if (value !== _lastValue || (now - _lastVoteTime) > CONFIRM_WINDOW_MS) {
-    _lastValue = value;
-    _voteCount = 1;
+    _lastValue  = value;
+    _voteCount  = 1;
+    _lastAvgErr = avgErr;
   } else {
     _voteCount++;
+    _lastAvgErr = Math.min(_lastAvgErr, avgErr);
   }
   _lastVoteTime = now;
 
-  _setHint(`Confirmando código... (${_voteCount}/${CONFIRM_NEEDED})`);
+  const needed = (_lastAvgErr <= FAST_ERROR_MAX) ? CONFIRM_FAST : CONFIRM_NEEDED;
+  _setHint(`Confirmando código... (${Math.min(_voteCount, needed)}/${needed})`);
   _pulseFrame();
 
-  if (_voteCount >= CONFIRM_NEEDED) {
-    _onDetected(_lastValue);
-  }
+  if (_voteCount >= needed) _onDetected(_lastValue);
 }
 
-// Pisca a moldura verde brevemente a cada voto confirmado, dando feedback tátil visual
 function _pulseFrame() {
   const frame = document.querySelector('.scanner-frame');
   if (!frame) return;
@@ -320,7 +306,6 @@ function _pulseFrame() {
 function _onDetected(value) {
   if (_detected) return;
   _detected = true;
-  _setHint('✅ Código confirmado!');
   closeScanner();
 
   const field = document.getElementById(_targetField);
@@ -336,17 +321,16 @@ function _onDetected(value) {
 
 // ── FECHAR ────────────────────────────────────────────────────────
 function closeScanner() {
-  if (_qrInterval) { clearInterval(_qrInterval); _qrInterval = null; }
-  if (_quaggaRunning && window.Quagga) {
-    try { Quagga.offDetected(_onBarcodeDetected); } catch(_) {}
-    try { Quagga.stop(); } catch(_) {}
-    _quaggaRunning = false;
-  }
+  _scanActive = false;
+  if (_scanTimer) { clearInterval(_scanTimer); _scanTimer = null; }
+  if (_stream)    { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
+  if (_video)     { _video.srcObject = null; _video = null; }
   const container = document.getElementById('scanner-qr-container');
   if (container) container.innerHTML = '';
   document.getElementById('scanner-modal')?.classList.remove('open');
   _lastValue = null;
   _voteCount = 0;
+  _busy = false;
 }
 
 function _setHint(txt) {
