@@ -1,12 +1,11 @@
 // ─── mobile-scanner.js ───────────────────────────────────────────
-// QR Code + Código de Barras — iOS Safari e Android
-// Arquitetura v4:
-//  • Câmera gerenciada manualmente (getUserMedia) — sem LiveStream
-//  • Loop próprio alternando: frame inteiro ↔ zoom digital 2x do centro
-//    (o zoom digital amplia códigos pequenos/distantes antes de decodificar)
-//  • Quagga.decodeSingle por frame (sem listeners acumulados)
-//  • jsQR em paralelo para QR Code
-//  • Votação adaptativa: 3 leituras iguais, ou 2 se qualidade excelente
+// QR Code + Código de Barras — v5
+//  • Android/Chrome: BarcodeDetector NATIVA (mesma engine da câmera
+//    nativa — leitura instantânea de barcode e QR)
+//  • iOS/Safari: ZXing MultiFormatReader direto no canvas (sem
+//    conversão JPEG) + jsQR de reforço para QR Code
+//  • Alterna frame inteiro ↔ zoom digital 2x (códigos distantes)
+//  • Confirmação: 2 leituras idênticas + checksum matemático
 // ─────────────────────────────────────────────────────────────────
 
 // ── SIDEBAR MOBILE ────────────────────────────────────────────────
@@ -35,28 +34,30 @@ function _syncDarkIcon() {
 _syncDarkIcon();
 
 // ─────────────────────────────────────────────────────────────────
-//  SCANNER
+//  SCANNER v5
 // ─────────────────────────────────────────────────────────────────
-let _stream       = null;
-let _video        = null;
-let _scanTimer    = null;
-let _busy         = false;
-let _detected     = false;
-let _scanActive   = false;
-let _frameToggle  = 0;      // alterna: 0 = frame inteiro, 1 = zoom 2x centro
-let _targetField  = 'f_serie';
-let _libsLoaded   = false;
+let _stream      = null;
+let _video       = null;
+let _rafId       = null;
+let _busy        = false;
+let _detected    = false;
+let _scanActive  = false;
+let _frameToggle = 0;
+let _targetField = 'f_serie';
 
-// Votação adaptativa
-const CONFIRM_NEEDED    = 3;     // padrão: 3 leituras idênticas
-const CONFIRM_FAST      = 2;     // aceita com 2 se qualidade excelente
-const FAST_ERROR_MAX    = 0.06;  // limiar de "qualidade excelente"
-const REJECT_ERROR_MIN  = 0.12;  // acima disso, leitura descartada
-const CONFIRM_WINDOW_MS = 6000;  // janela longa: leituras raras ainda acumulam
+// Engine de decodificação
+let _engine        = null;   // 'native' | 'zxing'
+let _nativeDet     = null;   // BarcodeDetector nativa
+let _zxReader      = null;   // ZXing MultiFormatReader
+let _zxingLoaded   = false;
+let _jsqrLoaded    = false;
+
+// Confirmação: 2 leituras idênticas (engines nativas/ZXing são precisas)
+const CONFIRM_NEEDED    = 2;
+const CONFIRM_WINDOW_MS = 6000;
 let _lastValue    = null;
 let _voteCount    = 0;
 let _lastVoteTime = 0;
-let _lastAvgErr   = 1;
 
 function _loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -69,21 +70,70 @@ function _loadScript(src) {
   });
 }
 
-async function _loadLibs() {
-  if (_libsLoaded) return;
-  await Promise.all([
-    _loadScript('https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js'),
-    _loadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js')
+// ── INICIALIZAÇÃO DA ENGINE ───────────────────────────────────────
+async function _initEngine() {
+  if (_engine) return;
+
+  // 1) BarcodeDetector nativa (Android Chrome, Samsung Internet)
+  if ('BarcodeDetector' in window) {
+    try {
+      const supported = await window.BarcodeDetector.getSupportedFormats();
+      if (supported && supported.length) {
+        _nativeDet = new window.BarcodeDetector({ formats: supported });
+        _engine = 'native';
+        console.log('[Scanner] Engine: BarcodeDetector nativa —', supported.join(','));
+        return;
+      }
+    } catch(_) { /* cai para ZXing */ }
+  }
+
+  // 2) ZXing (iOS Safari e navegadores sem BarcodeDetector)
+  if (!_zxingLoaded) {
+    await _loadScript('https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js');
+    _zxingLoaded = true;
+  }
+  const Z = window.ZXing;
+  const hints = new Map();
+  hints.set(Z.DecodeHintType.TRY_HARDER, true);
+  hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [
+    Z.BarcodeFormat.QR_CODE,
+    Z.BarcodeFormat.EAN_13,  Z.BarcodeFormat.EAN_8,
+    Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39,
+    Z.BarcodeFormat.UPC_A,   Z.BarcodeFormat.UPC_E,
+    Z.BarcodeFormat.ITF,     Z.BarcodeFormat.DATA_MATRIX
   ]);
-  _libsLoaded = true;
+  _zxReader = new Z.MultiFormatReader();
+  _zxReader.setHints(hints);
+  _engine = 'zxing';
+  console.log('[Scanner] Engine: ZXing (canvas direto)');
+
+  // jsQR como reforço para QR difíceis no iOS
+  if (!_jsqrLoaded) {
+    _loadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js')
+      .then(() => { _jsqrLoaded = true; }).catch(()=>{});
+  }
+}
+
+// Converte enum de formato do ZXing para string padrão
+function _zxFormatName(fmt) {
+  const Z = window.ZXing;
+  if (!Z) return '';
+  switch (fmt) {
+    case Z.BarcodeFormat.EAN_13:  return 'ean_13';
+    case Z.BarcodeFormat.EAN_8:   return 'ean_8';
+    case Z.BarcodeFormat.UPC_A:   return 'upc_a';
+    case Z.BarcodeFormat.UPC_E:   return 'upc_e';
+    case Z.BarcodeFormat.QR_CODE: return 'qr_code';
+    default: return 'other';
+  }
 }
 
 // ── ABRIR SCANNER ────────────────────────────────────────────────
 async function openScanner(fieldId) {
   _targetField = fieldId || 'f_serie';
-  _detected    = false;
-  _lastValue   = null;
-  _voteCount   = 0;
+  _detected = false;
+  _lastValue = null;
+  _voteCount = 0;
   _lastVoteTime = 0;
   _frameToggle = 0;
 
@@ -91,7 +141,7 @@ async function openScanner(fieldId) {
   document.getElementById('scanner-modal').classList.add('open');
 
   try {
-    await _loadLibs();
+    await _initEngine();
   } catch(e) {
     closeScanner();
     alert('📷 Erro ao carregar o leitor. Verifique sua conexão e tente novamente.');
@@ -119,7 +169,6 @@ async function openScanner(fieldId) {
     return;
   }
 
-  // Monta o <video> dentro do container
   const container = document.getElementById('scanner-qr-container');
   container.innerHTML = '';
   _video = document.createElement('video');
@@ -137,7 +186,7 @@ async function openScanner(fieldId) {
   });
   try { await _video.play(); } catch(_) {}
 
-  // Trava zoom óptico em 1x se suportado (evita salto de lente)
+  // Trava zoom óptico em 1x (evita lente ultra-wide)
   try {
     const track = _stream.getVideoTracks()[0];
     const caps  = track.getCapabilities?.();
@@ -149,36 +198,47 @@ async function openScanner(fieldId) {
 
   _setHint('Aponte para o código de barras ou QR Code');
   _scanActive = true;
-  _scanTimer = setInterval(_processFrame, 350);
+  _scanLoop();
 }
 
-// ── PROCESSAMENTO DE FRAME ────────────────────────────────────────
-// Alterna entre duas visões do mesmo frame:
-//  0) frame inteiro (códigos próximos / grandes)
-//  1) centro recortado e ampliado 2x — ZOOM DIGITAL
-//     (códigos pequenos ou distantes ficam com o dobro de pixels,
-//      exatamente o que faltava para ler a etiqueta de patrimônio)
+// ── LOOP DE PROCESSAMENTO ─────────────────────────────────────────
+// requestAnimationFrame + throttle: processa um frame assim que o
+// anterior termina (engine nativa é tão rápida que roda quase em
+// tempo real; ZXing roda a ~4-6 fps sem travar a UI)
 const _workCanvas = document.createElement('canvas');
 const _workCtx    = _workCanvas.getContext('2d', { willReadFrequently: true });
+let _lastProcess  = 0;
 
-async function _processFrame() {
-  if (!_scanActive || _busy || _detected) return;
+function _scanLoop() {
+  if (!_scanActive) return;
+  _rafId = requestAnimationFrame(_scanLoop);
+
+  const now = performance.now();
+  const minGap = _engine === 'native' ? 120 : 200;
+  if (_busy || _detected || (now - _lastProcess) < minGap) return;
   if (!_video || _video.readyState < 2 || !_video.videoWidth) return;
 
+  _lastProcess = now;
+  _processFrame();
+}
+
+async function _processFrame() {
   _busy = true;
   try {
     const vw = _video.videoWidth, vh = _video.videoHeight;
-    const outW = 1280;
     const mode = _frameToggle;
     _frameToggle = (_frameToggle + 1) % 2;
 
+    // Resolução de trabalho: nativa aguenta full-res; ZXing usa 1100px
+    const outW = _engine === 'native' ? Math.min(vw, 1920) : 1100;
+
     if (mode === 0) {
-      // Frame inteiro, redimensionado para 1280 de largura
+      // Frame inteiro
       const outH = Math.round(vh * (outW / vw));
       _workCanvas.width = outW; _workCanvas.height = outH;
       _workCtx.drawImage(_video, 0, 0, vw, vh, 0, 0, outW, outH);
     } else {
-      // Zoom digital 2x: recorta o centro (55% x 45%) e amplia
+      // Zoom digital 2x — centro 55% x 45% ampliado
       const cw = Math.round(vw * 0.55), ch = Math.round(vh * 0.45);
       const cx = Math.round((vw - cw) / 2), cy = Math.round((vh - ch) / 2);
       const outH = Math.round(ch * (outW / cw));
@@ -188,55 +248,39 @@ async function _processFrame() {
       _workCtx.drawImage(_video, cx, cy, cw, ch, 0, 0, outW, outH);
     }
 
-    // 1) Tenta QR Code (jsQR) — rápido, direto no ImageData
-    try {
-      const imgData = _workCtx.getImageData(0, 0, _workCanvas.width, _workCanvas.height);
-      const qr = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'dontInvert' });
-      if (qr && qr.data) {
-        _registerVote(qr.data.trim(), 'qr_code', 0);
-        _busy = false;
-        return;
+    if (_engine === 'native') {
+      // ── BarcodeDetector nativa: barcode + QR em uma chamada
+      const codes = await _nativeDet.detect(_workCanvas);
+      if (codes.length && codes[0].rawValue) {
+        _registerVote(codes[0].rawValue.trim(), codes[0].format || 'other');
       }
-    } catch(_) {}
+    } else {
+      // ── ZXing direto no canvas (sem JPEG)
+      const Z = window.ZXing;
+      try {
+        const lum    = new Z.HTMLCanvasElementLuminanceSource(_workCanvas);
+        const bitmap = new Z.BinaryBitmap(new Z.HybridBinarizer(lum));
+        const result = _zxReader.decode(bitmap);
+        if (result) {
+          _registerVote(result.getText().trim(), _zxFormatName(result.getBarcodeFormat()));
+          _zxReader.reset();
+          _busy = false;
+          return;
+        }
+      } catch(_) { /* NotFoundException — normal */ }
+      _zxReader.reset();
 
-    // 2) Tenta código de barras (Quagga.decodeSingle no canvas)
-    const dataUrl = _workCanvas.toDataURL('image/jpeg', 0.75);
-    await new Promise(resolve => {
-      Quagga.decodeSingle({
-        src: dataUrl,
-        numOfWorkers: 0,
-        locate: true,
-        inputStream: { size: 1280 },
-        locator: { patchSize: 'medium', halfSample: false },
-        decoder: {
-          readers: [
-            'code_128_reader', 'ean_reader', 'ean_8_reader',
-            'code_39_reader', 'upc_reader', 'upc_e_reader', 'i2of5_reader'
-          ],
-          multiple: false
-        }
-      }, (result) => {
-        const code   = result?.codeResult?.code;
-        const format = result?.codeResult?.format;
-        if (code) {
-          const avgErr = _avgError(result);
-          if (avgErr <= REJECT_ERROR_MIN) {
-            _registerVote(code.trim(), format, avgErr);
-          }
-        }
-        resolve();
-      });
-    });
-  } catch(_) { /* frame com problema, segue o loop */ }
+      // Reforço p/ QR difíceis: jsQR com inversão, só no frame inteiro
+      if (mode === 0 && _jsqrLoaded && window.jsQR) {
+        try {
+          const img = _workCtx.getImageData(0, 0, _workCanvas.width, _workCanvas.height);
+          const qr = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+          if (qr && qr.data) _registerVote(qr.data.trim(), 'qr_code');
+        } catch(_) {}
+      }
+    }
+  } catch(_) { /* frame ruim, segue */ }
   _busy = false;
-}
-
-function _avgError(result) {
-  const codes = result?.codeResult?.decodedCodes;
-  if (!Array.isArray(codes)) return 0;
-  const errs = codes.map(c => c.error).filter(e => typeof e === 'number');
-  if (!errs.length) return 0;
-  return errs.reduce((a, b) => a + b, 0) / errs.length;
 }
 
 // ── CHECKSUM ──────────────────────────────────────────────────────
@@ -270,30 +314,24 @@ function _passesChecksum(value, format) {
   }
 }
 
-// ── VOTAÇÃO ADAPTATIVA ────────────────────────────────────────────
-// 3 leituras idênticas confirmam. Se a qualidade for excelente
-// (erro médio < 6%), 2 leituras bastam — acelera em boas condições
-// sem abrir mão da segurança em condições ruins.
-function _registerVote(value, format, avgErr) {
+// ── CONFIRMAÇÃO (2 leituras idênticas) ────────────────────────────
+function _registerVote(value, format) {
   if (_detected || !value) return;
   if (!_passesChecksum(value, format)) return;
 
   const now = Date.now();
   if (value !== _lastValue || (now - _lastVoteTime) > CONFIRM_WINDOW_MS) {
-    _lastValue  = value;
-    _voteCount  = 1;
-    _lastAvgErr = avgErr;
+    _lastValue = value;
+    _voteCount = 1;
   } else {
     _voteCount++;
-    _lastAvgErr = Math.min(_lastAvgErr, avgErr);
   }
   _lastVoteTime = now;
 
-  const needed = (_lastAvgErr <= FAST_ERROR_MAX) ? CONFIRM_FAST : CONFIRM_NEEDED;
-  _setHint(`Confirmando código... (${Math.min(_voteCount, needed)}/${needed})`);
+  _setHint(`Confirmando código... (${Math.min(_voteCount, CONFIRM_NEEDED)}/${CONFIRM_NEEDED})`);
   _pulseFrame();
 
-  if (_voteCount >= needed) _onDetected(_lastValue);
+  if (_voteCount >= CONFIRM_NEEDED) _onDetected(_lastValue);
 }
 
 function _pulseFrame() {
@@ -322,9 +360,9 @@ function _onDetected(value) {
 // ── FECHAR ────────────────────────────────────────────────────────
 function closeScanner() {
   _scanActive = false;
-  if (_scanTimer) { clearInterval(_scanTimer); _scanTimer = null; }
-  if (_stream)    { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
-  if (_video)     { _video.srcObject = null; _video = null; }
+  if (_rafId)  { cancelAnimationFrame(_rafId); _rafId = null; }
+  if (_stream) { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
+  if (_video)  { _video.srcObject = null; _video = null; }
   const container = document.getElementById('scanner-qr-container');
   if (container) container.innerHTML = '';
   document.getElementById('scanner-modal')?.classList.remove('open');
@@ -382,5 +420,5 @@ function _injectScanButton() {
   wrap.parentNode.insertBefore(hint, wrap.nextSibling);
 }
 
-// Pré-carrega as bibliotecas em background
-setTimeout(() => { _loadLibs().catch(()=>{}); }, 1200);
+// Pré-carrega a engine em background (ZXing/jsQR só baixam se necessário)
+setTimeout(() => { _initEngine().catch(()=>{}); }, 1200);
