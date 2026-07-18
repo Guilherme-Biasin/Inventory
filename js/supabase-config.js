@@ -103,6 +103,7 @@ const DB = {
       id:           p.id,
       patrimonio:   p.patrimonio,
       nome:         p.nome,
+      modelo:       p.modelo || '',
       serie:        p.serie,
       categoria:    p.categoria ? [p.categoria] : [],
       status:       p.status    ? [p.status]    : [],
@@ -131,6 +132,7 @@ const DB = {
       .insert({
         patrimonio:    item.patrimonio,
         nome:          item.nome,
+        modelo:        item.modelo || null,
         serie:         item.serie,
         categoria:     item.categoria?.[0] || null,
         status:        item.status?.[0]    || null,
@@ -166,6 +168,7 @@ const DB = {
       .update({
         patrimonio:  item.patrimonio,
         nome:        item.nome,
+        modelo:      item.modelo || null,
         serie:       item.serie,
         categoria:   item.categoria?.[0] || null,
         status:      item.status?.[0]    || null
@@ -222,6 +225,7 @@ const DB = {
           .insert({
             patrimonio:    r.patrimonio,
             nome:          r.nome,
+            modelo:        r.modelo || null,
             serie:         r.serie,
             categoria:     r.categoria || null,
             status:        r.status    || null,

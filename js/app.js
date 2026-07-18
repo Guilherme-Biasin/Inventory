@@ -239,11 +239,12 @@ function renderDash() {
     ? recent.map(i => `<tr>
         <td><strong>${i.patrimonio||'—'}</strong></td>
         <td>${i.nome||'—'}</td>
+        <td>${i.modelo||'—'}</td>
         <td>${i.serie||'—'}</td>
         <td>${catPills(i.categoria)}</td>
         <td>${statPills(i.status)}</td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="5">Nenhum patrimônio cadastrado</td></tr>';
+    : '<tr class="empty-row"><td colspan="6">Nenhum patrimônio cadastrado</td></tr>';
 }
 
 // ─── LISTA ───────────────────────────────────────────────────
@@ -261,6 +262,7 @@ function renderLista() {
   const filtered = S.items.filter(i => {
     if (srch  && !(i.patrimonio||'').toLowerCase().includes(srch)
               && !(i.nome||'').toLowerCase().includes(srch)
+              && !(i.modelo||'').toLowerCase().includes(srch)
               && !(i.serie||'').toLowerCase().includes(srch)) return false;
     if (catF  && !(i.categoria||[]).includes(catF))  return false;
     if (statF && !(i.status||[]).includes(statF))    return false;
@@ -268,11 +270,12 @@ function renderLista() {
   });
   S.lastFiltered = filtered;
   document.getElementById('lista-head').innerHTML =
-    '<th>Nº</th><th>Nome</th><th>N° Série</th><th>Categoria</th><th>Status</th><th>Local Atual</th><th>Usuário Atual</th><th>Movim.</th><th>Ações</th>';
+    '<th>Nº</th><th>Marca</th><th>Modelo</th><th>N° Série</th><th>Categoria</th><th>Status</th><th>Local Atual</th><th>Usuário Atual</th><th>Movim.</th><th>Ações</th>';
   document.getElementById('lista-tbody').innerHTML = filtered.length
     ? filtered.map(it => `<tr>
         <td><strong>${it.patrimonio||'—'}</strong></td>
         <td>${it.nome||'—'}</td>
+        <td>${it.modelo||'—'}</td>
         <td>${it.serie||'—'}</td>
         <td>${catPills(it.categoria)}</td>
         <td>${statPills(it.status)}</td>
@@ -281,7 +284,7 @@ function renderLista() {
         <td><span class="badge b-gray">${(it.historico||[]).length}</span></td>
         <td>${actionButtons(it.id)}</td>
       </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="9">Nenhum resultado encontrado</td></tr>';
+    : '<tr class="empty-row"><td colspan="10">Nenhum resultado encontrado</td></tr>';
 }
 
 // ─── FORMULÁRIO ──────────────────────────────────────────────
@@ -306,16 +309,18 @@ function renderForm() {
       <div class="form-grid">
         <div class="fg"><label class="flabel">Nº Patrimônio<span class="req">*</span></label>
           <input class="finput" id="f_patrimonio" value="${esc(it.patrimonio||'')}" required placeholder="Ex: 001"></div>
-        <div class="fg"><label class="flabel">Nome do Item<span class="req">*</span></label>
-          <input class="finput" id="f_nome" value="${esc(it.nome||'')}" required placeholder="Nome do item"></div>
+        <div class="fg"><label class="flabel">Marca<span class="req">*</span></label>
+          <input class="finput" id="f_nome" value="${esc(it.nome||'')}" required placeholder="Ex: Dell, Epson, Samsung"></div>
+        <div class="fg"><label class="flabel">Modelo<span class="req">*</span></label>
+          <input class="finput" id="f_modelo" value="${esc(it.modelo||'')}" required placeholder="Ex: Vostro 3500, L3250"></div>
+        <div class="fg"><label class="flabel">N° de Série<span class="req">*</span></label>
+          <input class="finput" id="f_serie" value="${esc(it.serie||'')}" required placeholder="Ex: SN-0001-XYZ"></div>
         <div class="fg"><label class="flabel">Categoria<span class="req">*</span></label>
           <select class="finput" id="f_categoria">
             <option value="">Selecione...</option>
             ${S.cats.map(x=>`<option value="${esc(x.id)}"${Array.isArray(it.categoria)&&it.categoria[0]===x.id?' selected':''}>${esc(x.name)}</option>`).join('')}
           </select></div>
-        <div class="fg"><label class="flabel">N° de Série<span class="req">*</span></label>
-          <input class="finput" id="f_serie" value="${esc(it.serie||'')}" required placeholder="Ex: SN-0001-XYZ"></div>
-        <div class="fg full"><label class="flabel">Status<span class="req">*</span></label>
+        <div class="fg"><label class="flabel">Status<span class="req">*</span></label>
           <select class="finput" id="f_status">
             <option value="">Selecione...</option>
             ${S.statusOpts.map(x=>`<option value="${esc(x.id)}"${Array.isArray(it.status)&&it.status[0]===x.id?' selected':''}>${esc(x.name)}</option>`).join('')}
@@ -328,7 +333,7 @@ function renderForm() {
     const it2 = S.items.find(x => x.id === S.editId) || {};
     h += `<div class="scard" style="background:var(--accent-bg);border-color:var(--accent)">
       <div style="font-size:13px;margin-bottom:.75rem;color:var(--accent-txt);font-weight:600">
-        <i class="ti ti-info-circle"></i> Movimentando:<br><strong>${esc(it2.patrimonio||'')} — ${esc(it2.nome||'')}</strong>
+        <i class="ti ti-info-circle"></i> Movimentando:<br><strong>${esc(it2.patrimonio||'')} — ${esc(it2.nome||'')} ${esc(it2.modelo||'')}</strong>
         <div style="margin-top:.5rem">${statPills(it2.status)}</div>
       </div>
     </div>`;
@@ -459,16 +464,20 @@ async function saveItem(e) {
       movMode = false; S.editId = null;
     } else {
       const patrimonio = document.getElementById('f_patrimonio').value.trim();
-      const nome       = document.getElementById('f_nome').value.trim();
+      const nome       = document.getElementById('f_nome').value.trim();      // Marca
+      const modelo     = document.getElementById('f_modelo').value.trim();
       const serie      = document.getElementById('f_serie').value.trim();
       const catVal     = document.getElementById('f_categoria').value;
       const statVal    = document.getElementById('f_status').value;
 
-      if (!patrimonio || !nome || !serie) { showToast('Preencha os campos obrigatórios.','err'); return; }
-      if (!catVal)  { showToast('Selecione uma categoria.','err'); return; }
-      if (!statVal) { showToast('Selecione um status.','err'); return; }
+      if (!patrimonio) { showToast('Preencha o Nº Patrimônio.','err'); return; }
+      if (!nome)       { showToast('Preencha a Marca.','err'); return; }
+      if (!modelo)     { showToast('Preencha o Modelo.','err'); return; }
+      if (!serie)      { showToast('Preencha o N° de Série.','err'); return; }
+      if (!catVal)     { showToast('Selecione uma categoria.','err'); return; }
+      if (!statVal)    { showToast('Selecione um status.','err'); return; }
 
-      const item = { patrimonio, nome, serie, categoria:[catVal], status:[statVal] };
+      const item = { patrimonio, nome, modelo, serie, categoria:[catVal], status:[statVal] };
 
       if (S.editId != null) {
         await DB.updateItem(S.editId, item);
@@ -895,7 +904,8 @@ function renderImportacao() {
 function downloadModelo() {
   const exemplo = {
     'Nº Patrimônio': '001',
-    'Nome': 'Notebook Dell Vostro',
+    'Marca': 'Dell',
+    'Modelo': 'Vostro 3500',
     'N° Série': 'SN-ABC-12345',
     'Categoria': S.cats[0]?.name || 'Informática',
     'Status': S.statusOpts[0]?.name || 'Em uso',
@@ -914,7 +924,8 @@ function downloadModelo() {
     { 'Campo': 'Status',    'Valores aceitos': S.statusOpts.map(s=>s.name).join(' | ') },
     { 'Campo': 'Local Atual','Valores aceitos': S.locais.join(' | ') },
     { 'Campo': 'Nº Patrimônio', 'Valores aceitos': 'Obrigatório — texto ou número' },
-    { 'Campo': 'Nome',      'Valores aceitos': 'Obrigatório — texto' },
+    { 'Campo': 'Marca',     'Valores aceitos': 'Obrigatório — texto' },
+    { 'Campo': 'Modelo',    'Valores aceitos': 'Obrigatório — texto' },
     { 'Campo': 'N° Série',  'Valores aceitos': 'Obrigatório — texto' },
     { 'Campo': 'Usuário Atual', 'Valores aceitos': 'Opcional — texto' },
   ];
@@ -958,7 +969,8 @@ function _validateImport(rows) {
   rows.forEach((r, idx) => {
     const linha = idx + 2;
     const patrimonio = String(r['Nº Patrimônio'] ?? r['No Patrimônio'] ?? r['Patrimônio'] ?? '').trim();
-    const nome       = String(r['Nome'] ?? '').trim();
+    const nome       = String(r['Marca'] ?? r['Nome'] ?? '').trim();
+    const modelo     = String(r['Modelo'] ?? '').trim();
     const serie      = String(r['N° Série'] ?? r['No Série'] ?? r['Série'] ?? r['Serie'] ?? '').trim();
     const catNome    = String(r['Categoria'] ?? '').trim();
     const statNome   = String(r['Status'] ?? '').trim();
@@ -967,7 +979,8 @@ function _validateImport(rows) {
 
     const erros = [];
     if (!patrimonio) erros.push('Nº Patrimônio vazio');
-    if (!nome)       erros.push('Nome vazio');
+    if (!nome)       erros.push('Marca vazia');
+    if (!modelo)     erros.push('Modelo vazio');
     if (!serie)      erros.push('N° Série vazio');
 
     let catId = null, statId = null;
@@ -988,13 +1001,13 @@ function _validateImport(rows) {
     const valido = erros.length === 0;
     if (valido) {
       _importRows.push({
-        patrimonio, nome, serie,
+        patrimonio, nome, modelo, serie,
         categoria: catId, status: statId,
         local_atual: local, usuario_atual: usuario,
         data_mov: new Date().toISOString().slice(0,10)
       });
     }
-    preview.push({ linha, patrimonio, nome, serie, catNome, statNome, local, valido, erros });
+    preview.push({ linha, patrimonio, nome, modelo, serie, catNome, statNome, local, valido, erros });
   });
 
   _renderImportPreview(preview);
@@ -1019,13 +1032,14 @@ function _renderImportPreview(preview) {
     </div>
     <div class="card"><div class="table-wrap" style="max-height:340px;overflow-y:auto">
       <table><thead><tr>
-        <th style="width:50px">Linha</th><th>Nº</th><th>Nome</th><th>Série</th>
+        <th style="width:50px">Linha</th><th>Nº</th><th>Marca</th><th>Modelo</th><th>Série</th>
         <th>Categoria</th><th>Status</th><th>Situação</th>
       </tr></thead><tbody>
       ${preview.map(p => `<tr style="${p.valido?'':'background:var(--danger-bg)'}">
         <td>${p.linha}</td>
         <td>${esc(p.patrimonio)}</td>
         <td>${esc(p.nome)}</td>
+        <td>${esc(p.modelo)}</td>
         <td>${esc(p.serie)}</td>
         <td>${esc(p.catNome)}</td>
         <td>${esc(p.statNome)}</td>
@@ -1080,7 +1094,7 @@ function openExportModal()   { document.getElementById('exp-modal').style.displa
 function closeExportModal(e) { if (e.target.id==='exp-modal') document.getElementById('exp-modal').style.display='none'; }
 function buildRow(it) {
   const last = (it.historico||[]).slice(-1)[0] || {};
-  return { 'Nº Patrimônio':it.patrimonio||'','Nome':it.nome||'','N° Série':it.serie||'',
+  return { 'Nº Patrimônio':it.patrimonio||'','Marca':it.nome||'','Modelo':it.modelo||'','N° Série':it.serie||'',
     'Categoria':(it.categoria||[]).map(id=>getCat(id).name).join(', '),
     'Status':(it.status||[]).map(id=>getStat(id).name).join(', '),
     'Quem Recebeu/Retirou':last.quem_recebeu_retirou||'',
@@ -1088,7 +1102,7 @@ function buildRow(it) {
     'Qtd. Movimentações':(it.historico||[]).length };
 }
 function buildHistRow(it,hv) {
-  return { 'Nº Patrimônio':it.patrimonio||'','Nome':it.nome||'','N° Série':it.serie||'',
+  return { 'Nº Patrimônio':it.patrimonio||'','Marca':it.nome||'','Modelo':it.modelo||'','N° Série':it.serie||'',
     'Data/Hora':hv.timestamp?new Date(hv.timestamp).toLocaleString('pt-BR'):'',
     'Tipo':hv.tipo||'','Data Movimentação':fmtDate(hv.data_mov),
     'Entrada/Saída':hv.quem_recebeu_retirou||'','Usuário Atual':hv.usuario_atual||'',
