@@ -7,11 +7,9 @@
 //  Server ESTOQUE_TI, no servidor da empresa.
 // ═══════════════════════════════════════════════════════════════
 
-// Vazio = mesma origem de quem serviu esta pagina. E o caso normal: a propria
-// API entrega o frontend. So preencha (ex.: 'http://192.168.0.220:3002') se um
-// dia a tela for hospedada em outro endereco — e nesse caso o servidor precisa
-// da variavel ORIGENS_PERMITIDAS.
-const API_URL = '';
+// O endereco da API vem de js/config.js, carregado ANTES deste arquivo: vazio
+// quando o proprio Node serve a tela, ou o endereco publico quando ela vem da
+// Vercel. Ver o porque naquele arquivo.
 
 const CHAVE_TOKEN = 'ig_token';
 

@@ -228,6 +228,11 @@ const server = http.createServer((req, res) => {
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // Com a tela na Vercel e a API aqui, cada POST dispara ANTES uma pergunta
+    // de permissao (preflight). Sem este cabecalho o navegador repergunta a
+    // cada poucos segundos, e cada pergunta e mais uma volta pelo tunel
+    // (~280ms) — dobrando o custo de salvar. Um dia de validade.
+    res.setHeader('Access-Control-Max-Age', '86400');
   }
   if(req.method === 'OPTIONS'){ res.writeHead(204); return res.end(); }
 

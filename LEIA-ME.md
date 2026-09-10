@@ -12,36 +12,47 @@ O sistema **saiu do Supabase** e agora roda inteiro na empresa: banco
 
 ## Produção
 
+Mesmo desenho do Gerente Assist: a tela vem da Vercel, a API fica na VM.
+
 | | Onde |
 |---|---|
-| Endereço | **https://inventory.guematpro.com** |
-| Tela e API | mesma origem — o Node entrega as duas |
+| Tela | **https://inventory.guematpro.com** (Vercel, publica no push) |
+| API | **https://inventory-api.guematpro.com** (VM, túnel Cloudflare) |
 | Máquina | VM do Gerente Assist, pasta `C:\guemat-estoque` |
 | Serviço | `InventoryGuemat` (NSSM), porta 3002 |
-| HTTPS | túnel Cloudflare → `localhost:3002` |
 | Banco | `ESTOQUE_TI` em `192.168.0.220` |
+| Desenvolvimento | `node server.js` → `localhost:3002` serve as duas |
 
-A Vercel **não** participa mais: até a migração ela publicava a tela estática que
-falava direto com o Supabase. Hoje a tela precisa da API na mesma origem, então
-o domínio aponta para o túnel e o projeto da Vercel foi desligado.
+Quem decide o endereço da API é [frontend/js/config.js](frontend/js/config.js),
+pelo domínio de onde a página veio — não há edição a cada deploy. É o único
+lugar a mexer se os subdomínios mudarem.
+
+O subdomínio é `inventory-api` e não `api.inventory` porque o certificado
+gratuito da Cloudflare cobre `*.guematpro.com`, ou seja **um** nível de
+subdomínio. Dois níveis ficariam sem HTTPS.
 
 O HTTPS não é preferência: o leitor de código de barras usa a câmera, e o
-navegador só libera a câmera em `https://` (ou `localhost`). Por `http://ip:3002`
-o leitor avisa o motivo e não abre.
+navegador só a libera em `https://` (ou `localhost`). Por `http://ip:3002` o
+leitor avisa o motivo e não abre.
 
-**Para atualizar** — o `git push` sozinho não muda nada em produção, porque as
-telas são servidas pelo próprio Node. Vale inclusive para mudança só de CSS:
+**Para atualizar:**
 
 ```bash
-git push origin main                      # no notebook
+git push origin main
 ```
+
+Isso publica **a tela** na hora (Vercel). Mudança na **API** exige, além do
+push, atualizar a VM:
+
 ```bash
-cd C:\guemat-estoque && git pull          # na VM
+cd C:\guemat-estoque && git pull
 ```
 ```bash
 C:\ferramentas\nssm.exe restart InventoryGuemat
 ```
 
+Como os dois lados sobem separados, dá para a tela estar numa versão e a API
+noutra. Ao mexer nos dois no mesmo commit, atualize a VM logo depois do push.
 Se o serviço não subir, o motivo está em `C:\guemat-estoque\api\log.txt`.
 
 ---
