@@ -504,6 +504,18 @@
   </div>
 </div>
 
+<!-- Modal: Confirmação de ação destrutiva -->
+<div id="confirm-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)_fecharConfirm(false)">
+  <div class="modal" style="max-width:430px">
+    <div class="modal-title"><i class="ti ti-alert-triangle" style="color:var(--danger-txt);margin-right:6px"></i><span id="cf-titulo">Confirmar</span></div>
+    <div id="cf-texto" style="margin-top:.875rem;font-size:13.5px;line-height:1.6;color:var(--txt2)"></div>
+    <div class="modal-footer" style="margin-top:1.25rem">
+      <button class="btn" onclick="_fecharConfirm(false)">Cancelar</button>
+      <button class="btn" id="cf-ok" onclick="_fecharConfirm(true)">Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Alterar minha senha -->
 <div id="change-password-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal" style="max-width:420px">

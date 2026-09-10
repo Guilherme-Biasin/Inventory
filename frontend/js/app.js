@@ -725,6 +725,38 @@ function showAuditDetail(id) {
   el.style.display = 'flex';
 }
 
+// ─── CONFIRMAÇÃO ─────────────────────────────────────────────
+// Substitui o confirm() do navegador em ações destrutivas: a caixa do
+// Windows não cabe o motivo, não deixa destacar o botão perigoso e não
+// se parece com o resto do sistema.
+//
+// Devolve uma promessa que resolve true/false, então quem chama continua
+// lendo como um if — só que com await.
+let _confirmResolve = null;
+
+function confirmar({ titulo, texto, botao = 'Confirmar' }) {
+  return new Promise(resolve => {
+    // Se já houver uma confirmação aberta, ela é respondida como "não"
+    // antes de abrir a nova — senão a promessa anterior ficaria pendurada
+    // para sempre e o clique seria engolido.
+    if (_confirmResolve) { _confirmResolve(false); }
+    _confirmResolve = resolve;
+    document.getElementById('cf-titulo').textContent = titulo;
+    document.getElementById('cf-texto').innerHTML    = texto;
+    const ok = document.getElementById('cf-ok');
+    ok.textContent = botao;
+    ok.style.cssText = 'background:var(--danger-txt);border-color:var(--danger-txt);color:#fff';
+    document.getElementById('confirm-modal').style.display = 'flex';
+  });
+}
+
+function _fecharConfirm(valor) {
+  document.getElementById('confirm-modal').style.display = 'none';
+  const resolve = _confirmResolve;
+  _confirmResolve = null;
+  if (resolve) resolve(valor);
+}
+
 // ─── SENHAS ──────────────────────────────────────────────────
 // Regra única, e escrita uma vez só: antes cada tela repetia o
 // próprio "mínimo de N caracteres" e elas podiam divergir da API.
@@ -798,9 +830,13 @@ function _renderUserRows(users) {
         <div class="actions-cell" style="gap:6px">
           <button class="btn btn-sm" onclick="openEditUser(${u.id},'${escJs(u.nome||'')}','${u.papel}')" title="Editar"><i class="ti ti-edit"></i></button>
           ${can('gerenciar_usuarios') ? `<button class="btn btn-sm" onclick="adminResetPassword(${u.id},'${escJs(u.login)}')" title="Redefinir senha" style="color:#d97706;border-color:#d97706"><i class="ti ti-key"></i></button>` : ''}
-          <button class="btn btn-sm" onclick="toggleAtivo(${u.id},${!u.ativo})" title="${u.ativo?'Desativar':'Ativar'}"
-            style="${u.ativo?'color:var(--danger-txt);border-color:var(--danger-txt)':'color:#059669;border-color:#059669'}">
+          <button class="btn btn-sm" onclick="toggleAtivo(${u.id},${!u.ativo})" title="${u.ativo?'Desativar (mantém a conta)':'Ativar'}"
+            style="${u.ativo?'color:#d97706;border-color:#d97706':'color:#059669;border-color:#059669'}">
             <i class="ti ti-${u.ativo?'user-off':'user-check'}"></i>
+          </button>
+          <button class="btn btn-sm" onclick="excluirUsuario(${u.id},'${escJs(u.login)}')" title="Excluir definitivamente"
+            style="color:var(--danger-txt);border-color:var(--danger-txt)${isMe?';opacity:.4;cursor:not-allowed':''}" ${isMe?'disabled':''}>
+            <i class="ti ti-trash"></i>
           </button>
         </div>
       </td>
@@ -834,6 +870,29 @@ async function toggleAtivo(id, ativo) {
   try {
     await DB.toggleUserAtivo(id, ativo);
     showToast(ativo ? '✅ Usuário ativado!' : '✅ Usuário desativado!');
+    renderUsuarios();
+  } catch(e) { showToast('Erro: ' + e.message, 'err'); }
+  finally    { hideLoading(); }
+}
+
+// Excluir é diferente de desativar, e a tela precisa dizer isso: desativar
+// tranca a entrada e pode ser desfeito num clique; excluir some com a linha e
+// libera o login para outra pessoa.
+async function excluirUsuario(id, login) {
+  const ok = await confirmar({
+    titulo: 'Excluir usuário',
+    texto: `Excluir <strong>${esc(login)}</strong> definitivamente?<br><br>
+      O histórico não se perde — auditoria e cadastros continuam mostrando quem fez o quê.
+      Mas o login fica livre para ser usado por outra pessoa.<br><br>
+      Se a intenção é só tirar o acesso, <strong>desativar</strong> é reversível.`,
+    botao: 'Excluir'
+  });
+  if (!ok) return;
+
+  showLoading('Excluindo...');
+  try {
+    await DB.excluirUsuario(id);
+    showToast(`✅ Usuário ${login} excluído.`);
     renderUsuarios();
   } catch(e) { showToast('Erro: ' + e.message, 'err'); }
   finally    { hideLoading(); }

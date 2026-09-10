@@ -213,6 +213,10 @@ const DB = {
 
   toggleUserAtivo(id, ativo){ return _post('/usuarios/ativo', { id, ativo }); },
 
+  // Apaga a linha do usuario. O historico sobrevive: auditoria e criado_por
+  // guardam o login como texto, nao como ligacao para a tabela de usuarios.
+  excluirUsuario(id){ return _post('/usuarios/excluir', { id }); },
+
   // A senha e definida por quem cadastra, no proprio formulario. Ela viaja
   // uma vez e o servidor guarda so o hash — nunca o texto.
   criarUsuario(login, papel, nome, senha){ return _post('/usuarios', { login, papel, nome, senha }); },

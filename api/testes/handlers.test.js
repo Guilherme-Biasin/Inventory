@@ -333,6 +333,34 @@ await teste('senha curta e recusada na redefinicao', async () => {
               'ao menos 4 caracteres');
 });
 
+await teste('excluir usuario apaga a linha e guarda o antes', async () => {
+  respostas = [[{ id: 4, login: 'bia', nome: 'Bia', papel: 'leitor', ativo: 1 }], [], []];
+  const r = await rota('POST', '/api/v1/usuarios/excluir').handler(qs(), { id: 4 }, ADMIN);
+  igual(r.ok, true, 'resultado');
+  const del = consultas.find(c => c.sql.startsWith('DELETE FROM app.usuario'));
+  if(!del) throw new Error('nao apagou');
+  const aud = consultas.find(c => c.sql.startsWith('INSERT INTO app.auditoria'));
+  if(!aud.entradas.antes.includes('bia')) throw new Error('auditoria sem o antes');
+});
+
+await teste('ninguem exclui a propria conta', async () => {
+  respostas = [[{ id: 1, login: 'admin', nome: 'A', papel: 'admin', ativo: 1 }]];
+  await lanca(() => rota('POST', '/api/v1/usuarios/excluir').handler(qs(), { id: 1 }, ADMIN),
+              'nao pode excluir a propria conta');
+});
+
+await teste('o unico admin ativo nao pode ser excluido', async () => {
+  respostas = [[{ id: 2, login: 'outro', nome: 'O', papel: 'admin', ativo: 1 }], [{ n: 0 }]];
+  await lanca(() => rota('POST', '/api/v1/usuarios/excluir').handler(qs(), { id: 2 }, ADMIN),
+              'unico administrador ativo');
+});
+
+await teste('excluir usuario inexistente avisa', async () => {
+  respostas = [[]];
+  await lanca(() => rota('POST', '/api/v1/usuarios/excluir').handler(qs(), { id: 99 }, ADMIN),
+              'usuario nao encontrado');
+});
+
 console.log('\n— LOGIN / SENHA —');
 
 await teste('login certo devolve token e papel', async () => {

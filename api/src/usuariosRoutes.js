@@ -176,13 +176,49 @@ async function redefinirSenha(q, body, usuario){
   return { ok: true };
 }
 
+// POST /api/v1/usuarios/excluir  { id }
+//
+// Diferente de desativar: a linha some da tabela e o login fica livre para ser
+// usado de novo. O HISTORICO NAO SE PERDE — auditoria, criado_por do patrimonio
+// e da movimentacao guardam o login como TEXTO, nao como ligacao para esta
+// tabela. Um bem cadastrado por quem ja saiu da empresa continua dizendo quem o
+// cadastrou.
+//
+// As travas sao as mesmas de desativar, pelo mesmo motivo: sem elas o unico
+// administrador conseguia se apagar e ninguem mais entrava para desfazer.
+async function excluir(q, body, usuario){
+  const id = parseInt(body && body.id, 10);
+  if(!Number.isFinite(id)) throw new Error('id de usuario invalido');
+
+  const p = await conexao(); const sql = tipos();
+  const alvo = await alvoValidado(p, sql, id, usuario);
+
+  if(alvo.souEu) throw new Error('voce nao pode excluir a propria conta');
+  if(alvo.papel === 'admin' && !(await outrosAdminsAtivos(p, sql, id))){
+    throw new Error('este e o unico administrador ativo — promova outro antes de excluir');
+  }
+
+  await p.request().input('id', sql.Int, id)
+    .query('DELETE FROM app.usuario WHERE usuario_id = @id');
+  invalidarCacheAtivos();
+
+  // Guarda o que foi apagado: e a unica copia que sobra de quem era esse login.
+  await auditar(usuario, {
+    tabela: 'usuario', registroId: id, acao: 'DELETE',
+    descricao: `Excluiu o usuario "${alvo.login}"`,
+    antes: { login: alvo.login, nome: alvo.nome, papel: alvo.papel, ativo: alvo.ativo }
+  });
+  return { ok: true };
+}
+
 // soAdmin: true => o servidor recusa mesmo que a tela mostre o botao
 const usuariosRoutes = [
   { method: 'GET',  path: '/api/v1/usuarios',            handler: listar,          soAdmin: true },
   { method: 'POST', path: '/api/v1/usuarios',            handler: criar,           soAdmin: true },
   { method: 'POST', path: '/api/v1/usuarios/atualizar',  handler: atualizar,       soAdmin: true },
   { method: 'POST', path: '/api/v1/usuarios/ativo',      handler: ativar,          soAdmin: true },
-  { method: 'POST', path: '/api/v1/usuarios/senha',      handler: redefinirSenha,  soAdmin: true }
+  { method: 'POST', path: '/api/v1/usuarios/senha',      handler: redefinirSenha,  soAdmin: true },
+  { method: 'POST', path: '/api/v1/usuarios/excluir',    handler: excluir,         soAdmin: true }
 ];
 
 module.exports = { usuariosRoutes };
