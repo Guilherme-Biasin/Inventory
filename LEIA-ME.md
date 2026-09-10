@@ -10,6 +10,42 @@ O sistema **saiu do Supabase** e agora roda inteiro na empresa: banco
 
 ---
 
+## Produção
+
+| | Onde |
+|---|---|
+| Endereço | **https://inventory.guematpro.com** |
+| Tela e API | mesma origem — o Node entrega as duas |
+| Máquina | VM do Gerente Assist, pasta `C:\guemat-estoque` |
+| Serviço | `InventoryGuemat` (NSSM), porta 3002 |
+| HTTPS | túnel Cloudflare → `localhost:3002` |
+| Banco | `ESTOQUE_TI` em `192.168.0.220` |
+
+A Vercel **não** participa mais: até a migração ela publicava a tela estática que
+falava direto com o Supabase. Hoje a tela precisa da API na mesma origem, então
+o domínio aponta para o túnel e o projeto da Vercel foi desligado.
+
+O HTTPS não é preferência: o leitor de código de barras usa a câmera, e o
+navegador só libera a câmera em `https://` (ou `localhost`). Por `http://ip:3002`
+o leitor avisa o motivo e não abre.
+
+**Para atualizar** — o `git push` sozinho não muda nada em produção, porque as
+telas são servidas pelo próprio Node. Vale inclusive para mudança só de CSS:
+
+```bash
+git push origin main                      # no notebook
+```
+```bash
+cd C:\guemat-estoque && git pull          # na VM
+```
+```bash
+C:\ferramentas\nssm.exe restart InventoryGuemat
+```
+
+Se o serviço não subir, o motivo está em `C:\guemat-estoque\api\log.txt`.
+
+---
+
 ## Como está organizado
 
 ```
