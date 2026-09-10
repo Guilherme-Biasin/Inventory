@@ -213,9 +213,9 @@ const DB = {
 
   toggleUserAtivo(id, ativo){ return _post('/usuarios/ativo', { id, ativo }); },
 
-  // Cria o usuario e devolve a senha provisoria sorteada pelo servidor. Ela
-  // aparece UMA vez na tela — nao fica guardada em lugar nenhum em texto.
-  criarUsuario(login, papel, nome){ return _post('/usuarios', { login, papel, nome }); },
+  // A senha e definida por quem cadastra, no proprio formulario. Ela viaja
+  // uma vez e o servidor guarda so o hash — nunca o texto.
+  criarUsuario(login, papel, nome, senha){ return _post('/usuarios', { login, papel, nome, senha }); },
 
   adminResetPassword(id, nova){ return _post('/usuarios/senha', { id, nova }); }
 };

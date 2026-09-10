@@ -262,11 +262,28 @@ await teste('salvar config usa MERGE e nao perde lista undefined', async () => {
 
 console.log('\n— USUARIOS —');
 
-await teste('criar usuario normaliza o login e sorteia senha', async () => {
+await teste('criar usuario normaliza o login e guarda a senha em hash', async () => {
   respostas = [[{ id: 5 }], []];
-  const r = await rota('POST', '/api/v1/usuarios').handler(qs(), { login: '  Alex.Guedes ', papel: 'editor' }, ADMIN);
+  const r = await rota('POST', '/api/v1/usuarios').handler(qs(),
+    { login: '  Alex.Guedes ', papel: 'editor', senha: '1234' }, ADMIN);
   igual(r.login, 'alex.guedes', 'login normalizado');
-  if(!r.senhaProvisoria || r.senhaProvisoria.length < 8) throw new Error('senha provisoria fraca');
+  if('senhaProvisoria' in r) throw new Error('nao deveria mais sortear senha');
+  const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.usuario'));
+  if(ins.entradas.hash === '1234') throw new Error('gravou a senha em texto puro');
+  if(!auth.verificarSenha('1234', ins.entradas.hash)) throw new Error('hash nao confere com a senha');
+});
+
+await teste('criar usuario sem senha e recusado', async () => {
+  await lanca(() => rota('POST', '/api/v1/usuarios').handler(qs(),
+    { login: 'ana', papel: 'leitor' }, ADMIN), 'ao menos 4 caracteres');
+  igual(consultas.length, 0, 'consultas disparadas');
+});
+
+await teste('senha de 4 caracteres e aceita — qualquer caractere serve', async () => {
+  respostas = [[{ id: 6 }], []];
+  const r = await rota('POST', '/api/v1/usuarios').handler(qs(),
+    { login: 'bia', papel: 'leitor', senha: 'ab c' }, ADMIN);
+  igual(r.login, 'bia', 'criado');
 });
 
 await teste('login com espaco ou acento e recusado', async () => {
@@ -282,7 +299,7 @@ await teste('papel fora da lista e recusado', async () => {
 await teste('login repetido avisa em portugues', async () => {
   const dup = new Error('dup'); dup.number = 2627;
   respostas = [dup];
-  await lanca(() => rota('POST', '/api/v1/usuarios').handler(qs(), { login: 'admin', papel: 'admin' }, ADMIN),
+  await lanca(() => rota('POST', '/api/v1/usuarios').handler(qs(), { login: 'admin', papel: 'admin', senha: '1234' }, ADMIN),
               'ja existe');
 });
 
@@ -313,7 +330,7 @@ await teste('listar usuarios converte ativo 0/1 em booleano', async () => {
 
 await teste('senha curta e recusada na redefinicao', async () => {
   await lanca(() => rota('POST', '/api/v1/usuarios/senha').handler(qs(), { id: 2, nova: '123' }, ADMIN),
-              'ao menos 6 caracteres');
+              'ao menos 4 caracteres');
 });
 
 console.log('\n— LOGIN / SENHA —');

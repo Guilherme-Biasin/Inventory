@@ -151,6 +151,7 @@
         <button class="btn mobile-dark-btn" onclick="toggleDark()" title="Modo escuro"><i class="ti ti-moon" id="mobile-dark-icon"></i></button>
         <button class="btn" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> <span class="btn-label">Exportar Excel</span></button>
         <button class="btn btn-primary" id="btn-novo-topbar" onclick="nav('cadastro')"><i class="ti ti-plus"></i> <span class="btn-label">Novo Patrimônio</span></button>
+        <button class="btn" onclick="openChangePassword()" title="Alterar minha senha"><i class="ti ti-key"></i></button>
         <div class="user-badge" onclick="doLogout()" title="Clique para sair">
           <i class="ti ti-user" style="font-size:15px"></i>
           <span id="user-nome">—</span>
@@ -464,16 +465,30 @@
     <div class="modal-title"><i class="ti ti-user-plus" style="color:var(--accent);margin-right:6px"></i>Novo Usuário</div>
     <div style="display:flex;flex-direction:column;gap:.875rem;margin-top:1rem">
       <div>
-        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Usuário <span style="color:#dc2626">*</span></label>
+        <label class="campo-lbl">Nome completo</label>
+        <input class="f-input" id="inv-nome" placeholder="Ex: Alex Guedes" style="width:100%">
+      </div>
+      <div>
+        <label class="campo-lbl">Usuário <span class="campo-req">*</span></label>
         <input class="f-input" id="inv-login" placeholder="ex: alex.guedes" style="width:100%" autocapitalize="none" spellcheck="false">
-        <div style="font-size:11.5px;color:var(--txt3);margin-top:4px">Letras, números, ponto, hífen ou underline — de 3 a 50 caracteres.</div>
+        <div class="campo-dica">Letras, números, ponto, hífen ou underline — de 3 a 50 caracteres.</div>
       </div>
       <div>
-        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Nome</label>
-        <input class="f-input" id="inv-nome" placeholder="Nome completo" style="width:100%">
+        <label class="campo-lbl">Senha <span class="campo-req">*</span></label>
+        <div class="senha-campo">
+          <input class="f-input" id="inv-senha" type="password" placeholder="mínimo 4 caracteres" autocomplete="new-password">
+          <button type="button" class="senha-olho" onclick="toggleSenha('inv-senha', this)" aria-label="Mostrar senha"><i class="ti ti-eye"></i></button>
+        </div>
       </div>
       <div>
-        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Nível de acesso</label>
+        <label class="campo-lbl">Confirmar senha <span class="campo-req">*</span></label>
+        <div class="senha-campo">
+          <input class="f-input" id="inv-senha2" type="password" placeholder="repita a senha" autocomplete="new-password">
+          <button type="button" class="senha-olho" onclick="toggleSenha('inv-senha2', this)" aria-label="Mostrar senha"><i class="ti ti-eye"></i></button>
+        </div>
+      </div>
+      <div>
+        <label class="campo-lbl">Nível de acesso</label>
         <select class="f-input" id="inv-papel" style="width:100%">
           <option value="leitor">👁️ Leitor — somente visualização</option>
           <option value="editor">✏️ Editor — pode cadastrar e editar</option>
@@ -481,13 +496,76 @@
         </select>
       </div>
       <div id="inv-result" style="display:none"></div>
-      <div style="font-size:12px;color:var(--txt3);background:var(--bg2);padding:.75rem;border-radius:8px">
-        <i class="ti ti-info-circle"></i> Uma senha temporária será gerada. Passe ao usuário para o primeiro acesso.
-      </div>
     </div>
     <div class="modal-footer" style="margin-top:1.25rem">
       <button class="btn" onclick="document.getElementById('invite-modal').style.display='none'">Cancelar</button>
       <button class="btn btn-primary" onclick="doInviteUser()"><i class="ti ti-user-plus"></i> Criar Usuário</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Alterar minha senha -->
+<div id="change-password-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title"><i class="ti ti-key" style="color:var(--accent);margin-right:6px"></i>Alterar minha senha</div>
+    <div style="display:flex;flex-direction:column;gap:.875rem;margin-top:1rem">
+      <div>
+        <label class="campo-lbl">Senha atual <span class="campo-req">*</span></label>
+        <div class="senha-campo">
+          <input class="f-input" id="cp-current" type="password" autocomplete="current-password">
+          <button type="button" class="senha-olho" onclick="toggleSenha('cp-current', this)" aria-label="Mostrar senha"><i class="ti ti-eye"></i></button>
+        </div>
+      </div>
+      <div>
+        <label class="campo-lbl">Nova senha <span class="campo-req">*</span></label>
+        <div class="senha-campo">
+          <input class="f-input" id="cp-new" type="password" placeholder="mínimo 4 caracteres" autocomplete="new-password">
+          <button type="button" class="senha-olho" onclick="toggleSenha('cp-new', this)" aria-label="Mostrar senha"><i class="ti ti-eye"></i></button>
+        </div>
+      </div>
+      <div>
+        <label class="campo-lbl">Confirmar nova senha <span class="campo-req">*</span></label>
+        <div class="senha-campo">
+          <input class="f-input" id="cp-confirm" type="password" placeholder="repita a nova senha" autocomplete="new-password">
+          <button type="button" class="senha-olho" onclick="toggleSenha('cp-confirm', this)" aria-label="Mostrar senha"><i class="ti ti-eye"></i></button>
+        </div>
+      </div>
+      <div id="cp-err" style="display:none;background:var(--danger-bg);color:var(--danger-txt);padding:9px 12px;border-radius:8px;font-size:13px"></div>
+      <div id="cp-ok"  style="display:none;background:var(--success-bg);color:var(--success-txt);padding:9px 12px;border-radius:8px;font-size:13px"></div>
+    </div>
+    <div class="modal-footer" style="margin-top:1.25rem">
+      <button class="btn" onclick="document.getElementById('change-password-modal').style.display='none'">Cancelar</button>
+      <button class="btn btn-primary" onclick="doChangePassword()"><i class="ti ti-device-floppy"></i> Alterar senha</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Redefinir senha de outro usuário (admin) -->
+<div id="reset-password-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title"><i class="ti ti-key" style="color:#d97706;margin-right:6px"></i>Redefinir senha</div>
+    <input type="hidden" id="rp-id">
+    <div style="display:flex;flex-direction:column;gap:.875rem;margin-top:1rem">
+      <div style="font-size:13px;color:var(--txt2)">Nova senha para <strong id="rp-login">—</strong>.</div>
+      <div>
+        <label class="campo-lbl">Nova senha <span class="campo-req">*</span></label>
+        <div class="senha-campo">
+          <input class="f-input" id="rp-senha" type="password" placeholder="mínimo 4 caracteres" autocomplete="new-password">
+          <button type="button" class="senha-olho" onclick="toggleSenha('rp-senha', this)" aria-label="Mostrar senha"><i class="ti ti-eye"></i></button>
+        </div>
+      </div>
+      <div>
+        <label class="campo-lbl">Confirmar nova senha <span class="campo-req">*</span></label>
+        <div class="senha-campo">
+          <input class="f-input" id="rp-senha2" type="password" placeholder="repita a nova senha" autocomplete="new-password">
+          <button type="button" class="senha-olho" onclick="toggleSenha('rp-senha2', this)" aria-label="Mostrar senha"><i class="ti ti-eye"></i></button>
+        </div>
+      </div>
+      <div id="rp-err" style="display:none;background:var(--danger-bg);color:var(--danger-txt);padding:9px 12px;border-radius:8px;font-size:13px"></div>
+    </div>
+    <div class="modal-footer" style="margin-top:1.25rem">
+      <button class="btn" onclick="document.getElementById('reset-password-modal').style.display='none'">Cancelar</button>
+      <button class="btn btn-primary" onclick="doAdminResetPassword()"><i class="ti ti-device-floppy"></i> Redefinir</button>
     </div>
   </div>
 </div>

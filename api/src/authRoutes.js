@@ -94,7 +94,8 @@ async function eu(q, body, usuario){
 async function trocarSenha(q, body, usuario){
   const atual = (body && body.atual) || '';
   const nova  = (body && body.nova)  || '';
-  if(nova.length < 6) throw new Error('a nova senha precisa ter ao menos 6 caracteres');
+  // Mesmo minimo do cadastro (SENHA_MIN em usuariosRoutes.js).
+  if(nova.length < 4) throw new Error('a nova senha precisa ter ao menos 4 caracteres');
 
   const p = await conexao(); const sql = tipos();
   const r = await p.request()

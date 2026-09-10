@@ -725,6 +725,31 @@ function showAuditDetail(id) {
   el.style.display = 'flex';
 }
 
+// ─── SENHAS ──────────────────────────────────────────────────
+// Regra única, e escrita uma vez só: antes cada tela repetia o
+// próprio "mínimo de N caracteres" e elas podiam divergir da API.
+const SENHA_MIN = 4;
+
+// Alterna entre esconder e mostrar a senha do campo indicado.
+// Digitar senha às cegas é digitar errado — e quando é o cadastro de
+// outra pessoa, o erro só aparece quando ela tenta entrar.
+function toggleSenha(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const estavaVisivel = el.type === 'text';
+  el.type = estavaVisivel ? 'password' : 'text';
+  btn.innerHTML = `<i class="ti ti-${estavaVisivel ? 'eye' : 'eye-off'}"></i>`;
+  btn.setAttribute('aria-label', estavaVisivel ? 'Mostrar senha' : 'Ocultar senha');
+  el.focus();
+}
+
+// Devolve a mensagem de erro, ou null se a dupla está válida.
+function validarSenha(senha, confirmacao) {
+  if (senha.length < SENHA_MIN) return `A senha precisa ter ao menos ${SENHA_MIN} caracteres.`;
+  if (senha !== confirmacao)    return 'As senhas não coincidem.';
+  return null;
+}
+
 // ─── USUÁRIOS ────────────────────────────────────────────────
 const PAPEL_LABELS = { admin:'👑 Admin', editor:'✏️ Editor', leitor:'👁️ Leitor' };
 const PAPEL_COLORS = { admin:'#7c3aed', editor:'#2563eb', leitor:'#059669' };
@@ -815,30 +840,35 @@ async function toggleAtivo(id, ativo) {
 }
 
 async function openInviteUser() {
-  document.getElementById('inv-login').value = '';
-  document.getElementById('inv-nome').value  = '';
+  ['inv-login','inv-nome','inv-senha','inv-senha2'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = '';
+    if (el.type === 'text' && id.startsWith('inv-senha')) el.type = 'password';
+  });
   document.getElementById('inv-papel').value = 'leitor';
   document.getElementById('inv-result').style.display = 'none';
   document.getElementById('invite-modal').style.display = 'flex';
 }
 
 async function doInviteUser() {
-  const login = document.getElementById('inv-login').value.trim();
-  const nome  = document.getElementById('inv-nome').value.trim();
-  const papel = document.getElementById('inv-papel').value;
+  const login  = document.getElementById('inv-login').value.trim();
+  const nome   = document.getElementById('inv-nome').value.trim();
+  const papel  = document.getElementById('inv-papel').value;
+  const senha  = document.getElementById('inv-senha').value;
+  const senha2 = document.getElementById('inv-senha2').value;
+
   if (!login) { showToast('Informe o usuário.','err'); return; }
+  const erroSenha = validarSenha(senha, senha2);
+  if (erroSenha) { showToast(erroSenha,'err'); return; }
+
   showLoading('Criando usuário...');
   try {
-    const res = await DB.criarUsuario(login, papel, nome);
+    const res = await DB.criarUsuario(login, papel, nome, senha);
     hideLoading();
-    // Mostra senha temporária
     const r = document.getElementById('inv-result');
     r.style.display = 'block';
     r.innerHTML = `<div style="background:var(--success-bg);color:var(--success-txt);padding:1rem;border-radius:8px;font-size:13px">
-      ✅ Usuário criado!<br>
-      <strong>Usuário:</strong> ${esc(res.login)}<br>
-      <strong>Senha temporária:</strong> <code style="background:rgba(0,0,0,.15);padding:2px 6px;border-radius:4px">${esc(res.senhaProvisoria)}</code><br>
-      <small>Passe essas credenciais ao usuário para o primeiro acesso.</small>
+      ✅ Usuário <strong>${esc(res.login)}</strong> criado com a senha que você definiu.
     </div>`;
     renderUsuarios();
   } catch(e) {
@@ -849,9 +879,10 @@ async function doInviteUser() {
 
 // ─── ALTERAR SENHA ───────────────────────────────────────────
 function openChangePassword() {
-  document.getElementById('cp-current').value = '';
-  document.getElementById('cp-new').value     = '';
-  document.getElementById('cp-confirm').value  = '';
+  ['cp-current','cp-new','cp-confirm'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = ''; el.type = 'password';
+  });
   document.getElementById('cp-err').style.display = 'none';
   document.getElementById('cp-ok').style.display  = 'none';
   document.getElementById('change-password-modal').style.display = 'flex';
@@ -865,14 +896,8 @@ async function doChangePassword() {
   const ok      = document.getElementById('cp-ok');
   err.style.display = 'none'; ok.style.display = 'none';
 
-  if (!nova || nova.length < 6) {
-    err.textContent = 'A nova senha deve ter pelo menos 6 caracteres.';
-    err.style.display = 'block'; return;
-  }
-  if (nova !== confirm) {
-    err.textContent = 'As senhas não coincidem.';
-    err.style.display = 'block'; return;
-  }
+  const erroSenha = validarSenha(nova, confirm);
+  if (erroSenha) { err.textContent = erroSenha; err.style.display = 'block'; return; }
 
   showLoading('Alterando senha...');
   try {
@@ -892,15 +917,39 @@ async function doChangePassword() {
 }
 
 // Admin reseta senha de outro usuário
-async function adminResetPassword(userId, login) {
-  const nova = prompt(`Nova senha para ${login} (mínimo 6 caracteres):`);
-  if (!nova || nova.length < 6) { showToast('Senha muito curta.','err'); return; }
+// Abre o modal. Era um prompt() do navegador: mostrava a senha em
+// texto puro enquanto se digitava, não confirmava, e a caixa do
+// Windows não tem nada a ver com o resto do sistema.
+function adminResetPassword(userId, login) {
+  document.getElementById('rp-id').value = userId;
+  document.getElementById('rp-login').textContent = login;
+  ['rp-senha','rp-senha2'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = ''; el.type = 'password';
+  });
+  document.getElementById('rp-err').style.display = 'none';
+  document.getElementById('reset-password-modal').style.display = 'flex';
+}
+
+async function doAdminResetPassword() {
+  const id     = document.getElementById('rp-id').value;
+  const login  = document.getElementById('rp-login').textContent;
+  const senha  = document.getElementById('rp-senha').value;
+  const senha2 = document.getElementById('rp-senha2').value;
+  const err    = document.getElementById('rp-err');
+  err.style.display = 'none';
+
+  const erroSenha = validarSenha(senha, senha2);
+  if (erroSenha) { err.textContent = erroSenha; err.style.display = 'block'; return; }
+
   showLoading('Alterando senha...');
   try {
-    await DB.adminResetPassword(userId, nova);
+    await DB.adminResetPassword(id, senha);
+    document.getElementById('reset-password-modal').style.display = 'none';
     showToast(`✅ Senha de ${login} alterada!`);
-  } catch(e) { showToast('Erro: ' + e.message,'err'); }
-  finally { hideLoading(); }
+  } catch(e) {
+    err.textContent = e.message; err.style.display = 'block';
+  } finally { hideLoading(); }
 }
 
 // ─── IMPORTAÇÃO EM MASSA ─────────────────────────────────────

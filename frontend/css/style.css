@@ -1356,3 +1356,65 @@ input[type=radio]:disabled {
 }
 
 .chk-row:hover { background:var(--hover); }
+
+/* ── CAMPO DE SENHA COM OLHO ──────────────────────────────────
+   Senha digitada às cegas é senha digitada errado — e em cadastro
+   de outra pessoa o erro só aparece quando ela tenta entrar. O
+   botão do olho fica DENTRO do campo, à direita, e alterna entre
+   escondido e visível.
+
+   O padding-right abre espaço para o botão não cobrir o texto
+   quando a senha é longa. */
+.senha-campo {
+    position:relative;
+    display:block;
+}
+
+.senha-campo .f-input {
+    width:100%;
+    padding-right:36px;
+}
+
+.senha-olho {
+    position:absolute;
+    right:4px;
+    top:50%;
+    transform:translateY(-50%);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:28px;
+    height:28px;
+    padding:0;
+    border:none;
+    border-radius:6px;
+    background:none;
+    color:var(--txt3);
+    font-size:15px;
+    cursor:pointer;
+    transition:color .12s,background .12s;
+}
+
+.senha-olho:hover {
+    color:var(--accent);
+    background:var(--hover);
+}
+
+/* Rótulo e dica dos campos dos modais. Estavam repetidos como
+   estilo embutido em cada <label>; virar classe deixou o HTML
+   legível e garante que todos mudem juntos. */
+.campo-lbl {
+    display:block;
+    margin-bottom:4px;
+    font-size:12.5px;
+    font-weight:500;
+    color:var(--txt2);
+}
+
+.campo-dica {
+    margin-top:4px;
+    font-size:11.5px;
+    color:var(--txt3);
+}
+
+.campo-req { color:var(--danger-txt); }

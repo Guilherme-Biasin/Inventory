@@ -7,6 +7,12 @@ const { invalidarCacheAtivos } = require('./authRoutes');
 
 const PAPEIS = ['admin', 'editor', 'leitor'];
 
+// Tamanho minimo da senha. Vale para criacao e para redefinicao, e e o mesmo
+// numero que a tela cobra (SENHA_MIN em frontend/js/app.js) — se um dia mudar,
+// mude nos dois. Nao ha exigencia de maiuscula, numero ou simbolo: e um
+// sistema interno, e regra complicada demais empurra a senha para o post-it.
+const SENHA_MIN = 4;
+
 // O login vira parte de URL, etiqueta e auditoria. Restringir o formato evita
 // espaco no meio, acentos que o teclado do celular troca e maiuscula/minuscula
 // virando dois usuarios diferentes.
@@ -35,16 +41,17 @@ async function listar(){
   return r.recordset.map(u => ({ ...u, ativo: !!u.ativo }));
 }
 
-// POST /api/v1/usuarios  { login, nome, papel, senha? }
-// Sem senha no corpo, a API sorteia uma provisoria e devolve na resposta — e a
-// unica vez em que ela aparece. Nunca fica guardada em texto.
+// POST /api/v1/usuarios  { login, nome, papel, senha }
+// A senha vem do formulario de cadastro. Antes a API sorteava uma provisoria e
+// o admin tinha que criar o usuario e so depois trocar a senha — dois passos
+// para uma coisa so.
 async function criar(q, body, usuario){
   const login = normalizarLogin(body && body.login);
   const papel = validarPapel(body && body.papel);
   const nome  = String((body && body.nome) || '').trim().slice(0, 100) || null;
 
-  const senha = (body && body.senha) || ('Trocar@' + Math.random().toString(36).slice(2, 10));
-  if(String(senha).length < 6) throw new Error('a senha precisa ter ao menos 6 caracteres');
+  const senha = String((body && body.senha) || '');
+  if(senha.length < SENHA_MIN) throw new Error(`a senha precisa ter ao menos ${SENHA_MIN} caracteres`);
 
   const p = await conexao(); const sql = tipos();
   try {
@@ -63,7 +70,7 @@ async function criar(q, body, usuario){
       descricao: `Criou o usuario "${login}" com papel ${papel}`,
       depois: { login, nome, papel }
     });
-    return { id: r.recordset[0].id, login, senhaProvisoria: senha };
+    return { id: r.recordset[0].id, login };
   } catch(e){
     if(e && (e.number === 2601 || e.number === 2627)) throw new Error(`o login "${login}" ja existe`);
     throw e;
@@ -151,7 +158,7 @@ async function redefinirSenha(q, body, usuario){
   const id = parseInt(body && body.id, 10);
   if(!Number.isFinite(id)) throw new Error('id de usuario invalido');
   const nova = String((body && body.nova) || '');
-  if(nova.length < 6) throw new Error('a senha precisa ter ao menos 6 caracteres');
+  if(nova.length < SENHA_MIN) throw new Error(`a senha precisa ter ao menos ${SENHA_MIN} caracteres`);
 
   const p = await conexao(); const sql = tipos();
   const alvo = await alvoValidado(p, sql, id, usuario);

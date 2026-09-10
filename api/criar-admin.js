@@ -19,8 +19,8 @@ const auth = require('./src/auth');
     console.error('Uso: node criar-admin.js <login> <senha> ["Nome"]');
     process.exit(1);
   }
-  if(senha.length < 6){
-    console.error('A senha precisa ter ao menos 6 caracteres.');
+  if(senha.length < 4){
+    console.error('A senha precisa ter ao menos 4 caracteres.');
     process.exit(1);
   }
   const alvo = String(login).trim().toLowerCase();
