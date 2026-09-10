@@ -99,8 +99,8 @@
     <div class="login-err" id="l-err"></div>
     <form onsubmit="doLogin(event)">
       <div class="login-fg">
-        <label class="login-lbl">E-mail</label>
-        <input class="login-input" id="l-email" type="email" required placeholder="seu@email.com" autocomplete="email">
+        <label class="login-lbl">Usuário</label>
+        <input class="login-input" id="l-login" required placeholder="seu.usuario" autocomplete="username" autocapitalize="none" spellcheck="false">
       </div>
       <div class="login-fg">
         <label class="login-lbl">Senha</label>
@@ -153,8 +153,8 @@
         <button class="btn btn-primary" id="btn-novo-topbar" onclick="nav('cadastro')"><i class="ti ti-plus"></i> <span class="btn-label">Novo Patrimônio</span></button>
         <div class="user-badge" onclick="doLogout()" title="Clique para sair">
           <i class="ti ti-user" style="font-size:15px"></i>
-          <span id="user-email">—</span>
-          <span id="role-badge" style="font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,.1)"></span>
+          <span id="user-nome">—</span>
+          <span id="papel-badge" style="font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,.1)"></span>
           <i class="ti ti-logout" style="font-size:14px;opacity:.6"></i>
         </div>
       </div>
@@ -170,7 +170,7 @@
             <button class="btn btn-sm btn-ghost" onclick="nav('lista')">Ver todos →</button>
           </div>
           <div class="table-wrap">
-            <table><thead><tr><th>Nº</th><th>Nome</th><th>N° Série</th><th>Categoria</th><th>Status</th></tr></thead>
+            <table><thead><tr><th>Nº</th><th>Marca</th><th>Modelo</th><th>N° Série</th><th>Categoria</th><th>Status</th></tr></thead>
             <tbody id="dash-tbody"></tbody></table>
           </div>
         </div>
@@ -186,7 +186,7 @@
           </div>
         </div>
         <div class="filter-bar">
-          <input class="f-input" id="srch" placeholder="🔍  Buscar nome, nº ou série..." oninput="renderLista()" style="flex:1;min-width:180px">
+          <input class="f-input" id="srch" placeholder="🔍  Buscar marca, modelo, nº ou série..." oninput="renderLista()" style="flex:1;min-width:180px">
           <select class="f-input" id="fcat" onchange="renderLista()"><option value="">Todas as categorias</option></select>
           <select class="f-input" id="fstat" onchange="renderLista()"><option value="">Todos os status</option></select>
         </div>
@@ -444,7 +444,7 @@
       </div>
       <div>
         <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Nível de acesso</label>
-        <select class="f-input" id="eu-role" style="width:100%">
+        <select class="f-input" id="eu-papel" style="width:100%">
           <option value="admin">👑 Admin — acesso total</option>
           <option value="editor">✏️ Editor — pode cadastrar e editar</option>
           <option value="leitor">👁️ Leitor — somente visualização</option>
@@ -464,8 +464,9 @@
     <div class="modal-title"><i class="ti ti-user-plus" style="color:var(--accent);margin-right:6px"></i>Novo Usuário</div>
     <div style="display:flex;flex-direction:column;gap:.875rem;margin-top:1rem">
       <div>
-        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">E-mail <span style="color:#dc2626">*</span></label>
-        <input class="f-input" id="inv-email" type="email" placeholder="email@empresa.com" style="width:100%">
+        <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Usuário <span style="color:#dc2626">*</span></label>
+        <input class="f-input" id="inv-login" placeholder="ex: alex.guedes" style="width:100%" autocapitalize="none" spellcheck="false">
+        <div style="font-size:11.5px;color:var(--txt3);margin-top:4px">Letras, números, ponto, hífen ou underline — de 3 a 50 caracteres.</div>
       </div>
       <div>
         <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Nome</label>
@@ -473,7 +474,7 @@
       </div>
       <div>
         <label style="font-size:12.5px;font-weight:500;color:var(--txt2);display:block;margin-bottom:4px">Nível de acesso</label>
-        <select class="f-input" id="inv-role" style="width:100%">
+        <select class="f-input" id="inv-papel" style="width:100%">
           <option value="leitor">👁️ Leitor — somente visualização</option>
           <option value="editor">✏️ Editor — pode cadastrar e editar</option>
           <option value="admin">👑 Admin — acesso total</option>
@@ -502,10 +503,8 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<!-- Supabase CDN -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="js/supabase-config.js"></script>
+<script src="js/api-config.js"></script>
 <script src="js/app.js"></script>
 <script src="js/mobile-scanner.js"></script>
 </body>

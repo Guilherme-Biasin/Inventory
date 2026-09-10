@@ -130,6 +130,21 @@ function _zxFormatName(fmt) {
 
 // ── ABRIR SCANNER ────────────────────────────────────────────────
 async function openScanner(fieldId) {
+  // A câmera só é liberada em "contexto seguro": https:// ou localhost.
+  // Aberto pelo IP da rede (http://192.168.0.x:3002) o navegador nem cria
+  // navigator.mediaDevices — e o erro que chegava era o genérico "não foi
+  // possível acessar a câmera", que manda a pessoa procurar permissão nas
+  // configurações do celular, onde não há nada de errado. A checagem vem
+  // antes de tudo para não baixar o leitor à toa.
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert('📷 O leitor de código de barras precisa de HTTPS.\n\n' +
+          'Esta página está aberta em ' + location.protocol + '//' + location.host + '.\n' +
+          'Por segurança, o navegador só libera a câmera em endereços https:// ' +
+          '(ou em localhost, na própria máquina).\n\n' +
+          'Peça ao TI o endereço https do sistema.');
+    return;
+  }
+
   _targetField = fieldId || 'f_serie';
   _detected = false;
   _lastValue = null;

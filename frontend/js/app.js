@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-//  app.js — Inventory Guemat  (Supabase edition)
+//  app.js — Inventory Guemat
+//  Fala com a API em api-config.js (Node + SQL Server ESTOQUE_TI).
 // ═══════════════════════════════════════════════════════════════
 
 // ── Estado global
@@ -7,7 +8,7 @@ let S = {
   items: [], cats: [], pessoas: [], locais: [],
   statusOpts: [], vinculos: { entrada:{statusIds:[],localIds:[]}, saida:{statusIds:[],localIds:[]} },
   editId: null, dark: false, lastFiltered: [],
-  role: 'leitor'   // 'admin' | 'editor' | 'leitor'  — carregado após login
+  papel: 'leitor'  // 'admin' | 'editor' | 'leitor'  — vem do login
 };
 
 // Dark mode persiste localmente (preferência visual por usuário)
@@ -38,9 +39,12 @@ async function appInit() {
   Auth.onAuthChange(async user => {
     if (user) {
       showScreen('app');
-      document.getElementById('user-email').textContent = user.email;
-      await loadAll();
+      document.getElementById('user-nome').textContent = user.nome || user.login;
+      await loadAll(user);
     } else {
+      // Encerra o observador de mudanças: sem isto ele continuaria consultando
+      // a API depois do logout e cairia em 401 a cada 20 segundos.
+      DB.unsubscribeItems();
       showScreen('login');
     }
   });
@@ -51,12 +55,12 @@ function showScreen(which) {
   document.getElementById('screen-app').style.display   = which === 'app'   ? 'block' : 'none';
 }
 
-async function loadAll() {
+async function loadAll(user) {
   showLoading('Carregando dados...');
   try {
-    // Carrega perfil do usuário para obter o role
-    const profile = await DB.getMyProfile();
-    S.role = profile?.role || 'leitor';
+    // O papel já veio na conferência de sessão feita pelo Auth — não precisa
+    // de uma segunda ida ao servidor só para lê-lo.
+    S.papel = user?.papel || 'leitor';
 
     const [cfg, items] = await Promise.all([DB.loadConfig(), DB.loadItems()]);
     S.cats       = cfg.cats;
@@ -68,7 +72,7 @@ async function loadAll() {
     S.lastFiltered = [...items];
 
     // Aplica permissões na UI
-    applyRoleUI();
+    applyPapelUI();
     renderDash();
 
     DB.subscribeItems(async () => {
@@ -100,7 +104,7 @@ async function persistConfig() {
 // ─── LOGIN ────────────────────────────────────────────────────
 async function doLogin(e) {
   e.preventDefault();
-  const email = document.getElementById('l-email').value.trim();
+  const login = document.getElementById('l-login').value.trim();
   const pass  = document.getElementById('l-pass').value;
   const btn   = document.getElementById('l-btn');
   const err   = document.getElementById('l-err');
@@ -108,10 +112,12 @@ async function doLogin(e) {
   btn.disabled = true;
   btn.textContent = 'Entrando...';
   try {
-    await Auth.login(email, pass);
+    await Auth.login(login, pass);
     // onAuthChange cuida do resto
   } catch(ex) {
-    err.textContent = 'Email ou senha incorretos.';
+    // Mostra o motivo real: "muitas tentativas — tente em 10 min" é diferente
+    // de senha errada, e o usuário precisa saber qual dos dois aconteceu.
+    err.textContent = ex.message || 'Usuário ou senha incorretos.';
     err.style.display = 'block';
     btn.disabled = false;
     btn.textContent = 'Entrar';
@@ -167,12 +173,30 @@ function fmtDate(d)  { if (!d) return '—'; try { return new Date(d+'T12:00').t
 function fmtDT(ts)   { if (!ts) return '—'; try { return new Date(ts).toLocaleString('pt-BR'); } catch(e) { return ts; } }
 function catPills(arr)  { return (arr||[]).map(id => { const c=getCat(id);  return `<span class="cat-pill" style="background:${c.color}22;color:${c.color}">${c.name}</span>`; }).join('')||'—'; }
 function statPills(arr) { return (arr||[]).map(id => { const s=getStat(id); return `<span class="cat-pill" style="background:${s.color}22;color:${s.color}">${s.name}</span>`; }).join('')||'—'; }
-function esc(str) { return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
+    .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Para valores que entram DENTRO de um onclick, como
+// onclick="editar('${escJs(nome)}')".
+//
+// Só esc() não bastava: o navegador desfaz as entidades HTML ANTES de o
+// JavaScript ser lido, então um nome como O'Brien virava 'O'Brien' e o botão
+// quebrava. A barra invertida sobrevive a essa volta e mantém a aspa dentro do
+// texto. Escapar a própria barra vem primeiro, senão um nome terminado em "\"
+// escaparia a aspa de fechamento.
+function escJs(str) {
+  return esc(String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+}
 
 // ─── PERMISSÕES ──────────────────────────────────────────────
-const ROLES = { admin:3, editor:2, leitor:1 };
+// Espelho do que o SERVIDOR já aplica (server.js, tabela PODE). Aqui é só
+// para esconder botão: a decisão que vale é a da API.
+const NIVEL = { admin:3, editor:2, leitor:1 };
 function can(action) {
-  const r = ROLES[S.role] || 1;
+  const r = NIVEL[S.papel] || 1;
   switch(action) {
     case 'gerenciar_usuarios': return r >= 3;   // só admin
     case 'cadastrar':          return r >= 2;   // admin + editor
@@ -185,14 +209,12 @@ function can(action) {
   }
 }
 
-function applyRoleUI() {
-  // Badge de role no topbar
-  const badge = document.getElementById('role-badge');
-  const labels = { admin:'👑 Admin', editor:'✏️ Editor', leitor:'👁️ Leitor' };
-  const colors = { admin:'#7c3aed', editor:'#2563eb', leitor:'#059669' };
+function applyPapelUI() {
+  // Badge do papel no topbar
+  const badge = document.getElementById('papel-badge');
   if (badge) {
-    badge.textContent = labels[S.role] || S.role;
-    badge.style.color = colors[S.role] || '#888';
+    badge.textContent = PAPEL_LABELS[S.papel] || S.papel;
+    badge.style.color = PAPEL_COLORS[S.papel] || '#888';
   }
 
   // Mostra/oculta aba de Usuários na sidebar
@@ -212,7 +234,7 @@ function applyRoleUI() {
   // Exportar — sempre visível para todos
 }
 
-// Aplica disabled em botões de ação de um item conforme role
+// Aplica disabled em botões de ação de um item conforme o papel
 function actionButtons(id) {
   const edOk  = can('editar');
   const movOk = can('movimentar');
@@ -358,6 +380,11 @@ function renderForm() {
         <select class="finput" id="f_local_atual"><option value="">Selecione...</option>
           ${S.locais.map(l=>`<option${(!movMode && it.local_atual===l)?' selected':''}>${esc(l)}</option>`).join('')}
         </select></div>
+      ${movMode ? `<div class="fg"><label class="flabel">Status</label>
+        <select class="finput" id="f_status">
+          <option value="">— manter o atual —</option>
+          ${S.statusOpts.map(x=>`<option value="${esc(x.id)}"${Array.isArray(it.status)&&it.status[0]===x.id?' selected':''}>${esc(x.name)}</option>`).join('')}
+        </select></div>` : ''}
       <div class="fg full"><label class="flabel">Observações da Movimentação</label>
         <textarea class="finput" id="f_obs_mov" rows="4" style="resize:vertical" placeholder="Descreva esta movimentação..."></textarea></div>
     </div>
@@ -381,7 +408,8 @@ function renderForm() {
             ${hv.data_mov ? `<span>Data: <strong>${fmtDate(hv.data_mov)}</strong>&nbsp;·&nbsp;</span>` : ''}
             ${hv.quem_recebeu_retirou ? `<span><strong>${esc(hv.quem_recebeu_retirou)}</strong>&nbsp;·&nbsp;</span>` : ''}
             ${hv.usuario_atual ? `<span>Usuário: <strong>${esc(hv.usuario_atual)}</strong>&nbsp;·&nbsp;</span>` : ''}
-            ${hv.local ? `<span>Local: <strong>${esc(hv.local)}</strong></span>` : ''}
+            ${hv.local ? `<span>Local: <strong>${esc(hv.local)}</strong>&nbsp;·&nbsp;</span>` : ''}
+            ${hv.status ? `<span>Status: ${statPills([hv.status])}</span>` : ''}
             ${hv.obs_mov ? `<div style="margin-top:3px;color:var(--txt2)">📝 ${esc(hv.obs_mov)}</div>` : ''}
           </div>
         </div>`).join('');
@@ -410,7 +438,8 @@ function onEntradaSaidaChange() {
   if (statSel) {
     const allowedStat = cfg?.statusIds?.length ? cfg.statusIds : null;
     const prevVal = statSel.value;
-    statSel.innerHTML = '<option value="">Selecione...</option>' +
+    const vazio = movMode ? '— manter o atual —' : 'Selecione...';
+    statSel.innerHTML = `<option value="">${vazio}</option>` +
       S.statusOpts.filter(s => !allowedStat || allowedStat.includes(s.id))
         .map(s => `<option value="${esc(s.id)}"${prevVal===s.id?' selected':''}>${esc(s.name)}</option>`).join('');
     if (allowedStat && !Array.from(statSel.options).some(o => o.value === prevVal)) statSel.value = '';
@@ -454,7 +483,8 @@ async function saveItem(e) {
   const local               = document.getElementById('f_local_atual')?.value || '';
   const usuario_atual       = document.getElementById('f_usuario_atual')?.value || '';
   const obs_mov             = document.getElementById('f_obs_mov')?.value || '';
-  const mov = { data_mov, quem_recebeu_retirou, local, usuario_atual, obs_mov };
+  const status              = document.getElementById('f_status')?.value || '';
+  const mov = { data_mov, quem_recebeu_retirou, local, usuario_atual, obs_mov, status };
 
   showLoading('Salvando...');
   try {
@@ -569,9 +599,9 @@ function renderVinculos() {
     const sel = (v[tipo]?.[field]) || [];
     return items.map((item,i) => {
       const id = idFn(item,i); const lbl = labelFn(item); const chk = sel.includes(id)?'checked':'';
-      return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px">
-        <input type="checkbox" ${chk} onchange="toggleVinculo('${tipo}','${field}','${id}',this.checked)"
-          style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer"> ${esc(lbl)}</label>`;
+      return `<label class="chk-row">
+        <input type="checkbox" ${chk} onchange="toggleVinculo('${tipo}','${field}','${id}',this.checked)">
+        ${esc(lbl)}</label>`;
     }).join('') || '<div style="color:var(--txt3);font-size:12.5px">Nenhuma opção cadastrada</div>';
   }
   el.innerHTML = `<div class="card" style="padding:1.25rem">
@@ -622,7 +652,7 @@ async function renderAuditoria() {
   } catch(e) {
     el.innerHTML = `<tr><td colspan="5" style="color:var(--danger-txt);padding:1rem;font-size:13px">
       <strong>Erro ao carregar auditoria:</strong> ${esc(e.message)}<br>
-      <span style="font-size:12px;color:var(--txt3)">Verifique se rodou o setup_auditoria.sql no Supabase.</span>
+      <span style="font-size:12px;color:var(--txt3)">Se a tabela não existir, rode api/sql/02_schema.sql no banco ESTOQUE_TI.</span>
     </td></tr>`;
   }
 }
@@ -631,17 +661,17 @@ function _renderAuditRows(logs) {
   const el = document.getElementById('audit-body'); if (!el) return;
   const srch = _auditFiltro.toLowerCase();
   const filtered = srch
-    ? logs.filter(r => (r.descricao||'').toLowerCase().includes(srch) || (r.user_email||'').toLowerCase().includes(srch))
+    ? logs.filter(r => (r.descricao||'').toLowerCase().includes(srch) || (r.usuario||'').toLowerCase().includes(srch))
     : logs;
 
   const iconMap = { INSERT:'ti-plus', UPDATE:'ti-edit', DELETE:'ti-trash' };
   const colorMap = { INSERT:'#059669', UPDATE:'#d97706', DELETE:'#dc2626' };
   const labelMap = { INSERT:'Cadastro', UPDATE:'Edição', DELETE:'Exclusão' };
-  const tabelaMap = { patrimonios:'Patrimônio', movimentacoes:'Movimentação', config:'Configuração' };
+  const tabelaMap = { patrimonio:'Patrimônio', movimentacao:'Movimentação', config:'Configuração', usuario:'Usuário' };
 
   el.innerHTML = filtered.length ? filtered.map(r => `
     <tr>
-      <td style="white-space:nowrap;color:var(--txt3);font-size:12px">${_fmtDTAudit(r.created_at)}</td>
+      <td style="white-space:nowrap;color:var(--txt3);font-size:12px">${_fmtDTAudit(r.criado_em)}</td>
       <td>
         <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:11.5px;font-weight:600;background:${colorMap[r.acao]}22;color:${colorMap[r.acao]}">
           <i class="ti ${iconMap[r.acao]||'ti-circle'}"></i> ${labelMap[r.acao]||r.acao}
@@ -649,7 +679,7 @@ function _renderAuditRows(logs) {
         <span style="font-size:11px;color:var(--txt3);margin-left:5px">${tabelaMap[r.tabela]||r.tabela}</span>
       </td>
       <td style="font-size:13px">${esc(r.descricao||'—')}</td>
-      <td style="font-size:12px;color:var(--txt2)">${esc(r.user_email||'—')}</td>
+      <td style="font-size:12px;color:var(--txt2)">${esc(r.usuario||'—')}</td>
       <td>
         ${r.dados_antes||r.dados_depois ? `<button class="btn btn-sm btn-ghost" onclick="showAuditDetail(${r.id})" style="font-size:11px">
           <i class="ti ti-eye"></i> Ver
@@ -696,8 +726,8 @@ function showAuditDetail(id) {
 }
 
 // ─── USUÁRIOS ────────────────────────────────────────────────
-const ROLE_LABELS = { admin:'👑 Admin', editor:'✏️ Editor', leitor:'👁️ Leitor' };
-const ROLE_COLORS = { admin:'#7c3aed', editor:'#2563eb', leitor:'#059669' };
+const PAPEL_LABELS = { admin:'👑 Admin', editor:'✏️ Editor', leitor:'👁️ Leitor' };
+const PAPEL_COLORS = { admin:'#7c3aed', editor:'#2563eb', leitor:'#059669' };
 
 async function renderUsuarios() {
   const el = document.getElementById('usuarios-body');
@@ -715,16 +745,19 @@ async function renderUsuarios() {
 
 function _renderUserRows(users) {
   const el = document.getElementById('usuarios-body'); if (!el) return;
-  const myId = users.find(u => u.email === document.getElementById('user-email')?.textContent)?.id;
+  // Compara pelo login, que é a identidade de verdade. Antes isto batia o
+  // texto exibido no topbar — se dois usuários tivessem o mesmo nome de
+  // exibição, o crachá "você" aparecia na linha errada.
+  const meuLogin = Auth.getUser()?.login;
 
   el.innerHTML = users.map(u => {
-    const isMe   = u.id === myId;
-    const rcolor = ROLE_COLORS[u.role] || '#888';
-    const rlabel = ROLE_LABELS[u.role] || u.role;
+    const isMe   = u.login === meuLogin;
+    const rcolor = PAPEL_COLORS[u.papel] || '#888';
+    const rlabel = PAPEL_LABELS[u.papel] || u.papel;
     return `<tr style="${!u.ativo?'opacity:.5':''}">
       <td>
         <div style="font-weight:600;font-size:13px">${esc(u.nome || '—')}</div>
-        <div style="font-size:11.5px;color:var(--txt3)">${esc(u.email)}</div>
+        <div style="font-size:11.5px;color:var(--txt3)">${esc(u.login)}</div>
         ${isMe?`<span style="font-size:10px;background:#22c55e22;color:#16a34a;padding:1px 6px;border-radius:10px">você</span>`:''}
       </td>
       <td>
@@ -735,12 +768,12 @@ function _renderUserRows(users) {
           ${u.ativo ? '✓ Ativo' : '✗ Inativo'}
         </span>
       </td>
-      <td style="font-size:12px;color:var(--txt3)">${_fmtDTAudit(u.created_at)}</td>
+      <td style="font-size:12px;color:var(--txt3)">${_fmtDTAudit(u.criado_em)}</td>
       <td>
         <div class="actions-cell" style="gap:6px">
-          <button class="btn btn-sm" onclick="openEditUser('${u.id}','${esc(u.nome||'')}','${u.role}')" title="Editar"><i class="ti ti-edit"></i></button>
-          ${can('gerenciar_usuarios') ? `<button class="btn btn-sm" onclick="adminResetPassword('${u.id}','${esc(u.email)}')" title="Redefinir senha" style="color:#d97706;border-color:#d97706"><i class="ti ti-key"></i></button>` : ''}
-          <button class="btn btn-sm" onclick="toggleAtivo('${u.id}',${!u.ativo})" title="${u.ativo?'Desativar':'Ativar'}"
+          <button class="btn btn-sm" onclick="openEditUser(${u.id},'${escJs(u.nome||'')}','${u.papel}')" title="Editar"><i class="ti ti-edit"></i></button>
+          ${can('gerenciar_usuarios') ? `<button class="btn btn-sm" onclick="adminResetPassword(${u.id},'${escJs(u.login)}')" title="Redefinir senha" style="color:#d97706;border-color:#d97706"><i class="ti ti-key"></i></button>` : ''}
+          <button class="btn btn-sm" onclick="toggleAtivo(${u.id},${!u.ativo})" title="${u.ativo?'Desativar':'Ativar'}"
             style="${u.ativo?'color:var(--danger-txt);border-color:var(--danger-txt)':'color:#059669;border-color:#059669'}">
             <i class="ti ti-${u.ativo?'user-off':'user-check'}"></i>
           </button>
@@ -750,21 +783,20 @@ function _renderUserRows(users) {
   }).join('') || '<tr class="empty-row"><td colspan="5">Nenhum usuário</td></tr>';
 }
 
-function openEditUser(id, nome, role) {
-  document.getElementById('eu-id').value   = id;
-  document.getElementById('eu-nome').value = nome;
-  document.getElementById('eu-role').value = role;
+function openEditUser(id, nome, papel) {
+  document.getElementById('eu-id').value    = id;
+  document.getElementById('eu-nome').value  = nome;
+  document.getElementById('eu-papel').value = papel;
   document.getElementById('user-modal').style.display = 'flex';
 }
 
 async function saveEditUser() {
-  const id   = document.getElementById('eu-id').value;
-  const nome = document.getElementById('eu-nome').value.trim();
-  const role = document.getElementById('eu-role').value;
+  const id    = document.getElementById('eu-id').value;
+  const nome  = document.getElementById('eu-nome').value.trim();
+  const papel = document.getElementById('eu-papel').value;
   showLoading('Salvando...');
   try {
-    await DB.updateUserRole(id, role);
-    if (nome) await DB.updateUserNome(id, nome);
+    await DB.updateUser(id, nome, papel);
     showToast('✅ Usuário atualizado!');
     document.getElementById('user-modal').style.display = 'none';
     renderUsuarios();
@@ -783,29 +815,29 @@ async function toggleAtivo(id, ativo) {
 }
 
 async function openInviteUser() {
-  document.getElementById('inv-email').value = '';
+  document.getElementById('inv-login').value = '';
   document.getElementById('inv-nome').value  = '';
-  document.getElementById('inv-role').value  = 'leitor';
+  document.getElementById('inv-papel').value = 'leitor';
   document.getElementById('inv-result').style.display = 'none';
   document.getElementById('invite-modal').style.display = 'flex';
 }
 
 async function doInviteUser() {
-  const email = document.getElementById('inv-email').value.trim();
+  const login = document.getElementById('inv-login').value.trim();
   const nome  = document.getElementById('inv-nome').value.trim();
-  const role  = document.getElementById('inv-role').value;
-  if (!email) { showToast('Informe o e-mail.','err'); return; }
+  const papel = document.getElementById('inv-papel').value;
+  if (!login) { showToast('Informe o usuário.','err'); return; }
   showLoading('Criando usuário...');
   try {
-    const res = await DB.inviteUser(email, role, nome);
+    const res = await DB.criarUsuario(login, papel, nome);
     hideLoading();
     // Mostra senha temporária
     const r = document.getElementById('inv-result');
     r.style.display = 'block';
     r.innerHTML = `<div style="background:var(--success-bg);color:var(--success-txt);padding:1rem;border-radius:8px;font-size:13px">
       ✅ Usuário criado!<br>
-      <strong>E-mail:</strong> ${esc(email)}<br>
-      <strong>Senha temporária:</strong> <code style="background:rgba(0,0,0,.15);padding:2px 6px;border-radius:4px">${res.tempPass}</code><br>
+      <strong>Usuário:</strong> ${esc(res.login)}<br>
+      <strong>Senha temporária:</strong> <code style="background:rgba(0,0,0,.15);padding:2px 6px;border-radius:4px">${esc(res.senhaProvisoria)}</code><br>
       <small>Passe essas credenciais ao usuário para o primeiro acesso.</small>
     </div>`;
     renderUsuarios();
@@ -844,31 +876,29 @@ async function doChangePassword() {
 
   showLoading('Alterando senha...');
   try {
-    // Reautentica para validar senha atual
-    const user = await Auth.getUser();
-    await Auth.login(user.email, current);
-    await Auth.changePassword(nova);
+    // A senha atual vai junto e é conferida no SERVIDOR. Antes a tela fazia um
+    // login novo só para validar — o que, com o freio de tentativas da API,
+    // travaria a conta de quem errasse a senha atual cinco vezes.
+    await Auth.changePassword(current, nova);
     ok.textContent = '✅ Senha alterada com sucesso!';
     ok.style.display = 'block';
     setTimeout(() => {
       document.getElementById('change-password-modal').style.display = 'none';
     }, 1800);
   } catch(e) {
-    err.textContent = e.message.includes('Invalid') || e.message.includes('invalid')
-      ? 'Senha atual incorreta.' : 'Erro: ' + e.message;
+    err.textContent = e.message;
     err.style.display = 'block';
   } finally { hideLoading(); }
 }
 
 // Admin reseta senha de outro usuário
-async function adminResetPassword(userId, email) {
-  const nova = prompt(`Nova senha para ${email} (mínimo 6 caracteres):`);
+async function adminResetPassword(userId, login) {
+  const nova = prompt(`Nova senha para ${login} (mínimo 6 caracteres):`);
   if (!nova || nova.length < 6) { showToast('Senha muito curta.','err'); return; }
   showLoading('Alterando senha...');
   try {
-    const { error } = await _sb.auth.admin.updateUserById(userId, { password: nova });
-    if (error) throw error;
-    showToast(`✅ Senha de ${email} alterada!`);
+    await DB.adminResetPassword(userId, nova);
+    showToast(`✅ Senha de ${login} alterada!`);
   } catch(e) { showToast('Erro: ' + e.message,'err'); }
   finally { hideLoading(); }
 }
@@ -1106,7 +1136,8 @@ function buildHistRow(it,hv) {
     'Data/Hora':hv.timestamp?new Date(hv.timestamp).toLocaleString('pt-BR'):'',
     'Tipo':hv.tipo||'','Data Movimentação':fmtDate(hv.data_mov),
     'Entrada/Saída':hv.quem_recebeu_retirou||'','Usuário Atual':hv.usuario_atual||'',
-    'Local':hv.local||'','Observações':hv.obs_mov||'' };
+    'Local':hv.local||'','Status':hv.status?getStat(hv.status).name:'',
+    'Observações':hv.obs_mov||'' };
 }
 function styleSheet(ws) {
   const hStyle = {font:{bold:true,color:{rgb:'FFFFFF'},sz:11},fill:{fgColor:{rgb:'1E3A8A'}},alignment:{horizontal:'center',vertical:'center',wrapText:true}};

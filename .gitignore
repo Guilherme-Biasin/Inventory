@@ -1,0 +1,11 @@
+# Dependencias da API — reinstale com "npm install" dentro de api/
+node_modules/
+
+# Segredos e configuracao local (ver api/config/.gitignore)
+api/config/db.json
+api/config/auth.secret
+
+# Lixo de editor / sistema
+Thumbs.db
+desktop.ini
+.DS_Store

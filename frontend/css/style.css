@@ -881,13 +881,25 @@ html.dark .modal {
     transition:border-color .12s,background .12s;
 }
 
+/* Hover discreto: o mesmo cinza de realce das outras listas do sistema.
+   Antes pintava o bloco inteiro com --accent-bg, que e AZUL (#1e3a8a no
+   tema escuro) — destoava do laranja da marca e chamava mais atencao
+   que o botao de confirmar. */
 .exp-opt:hover {
-    border-color:var(--accent);
-    background:var(--accent-bg);
+    border-color:var(--border2);
+    background:var(--hover);
 }
 
-.exp-opt input[type=radio] {
-    accent-color:var(--accent);
+/* A opcao escolhida se distingue pela borda e pelo proprio radio, nao
+   por um bloco de cor. O fundo e um vestigio de laranja, o suficiente
+   para achar a linha de relance sem competir com o resto da tela. */
+.exp-opt:has(input:checked) {
+    border-color:var(--accent);
+    background:rgba(255,145,0,.06);
+}
+
+.exp-opt:has(input:checked) .exp-opt-label {
+    font-weight:600;
 }
 
 .exp-opt-info {
@@ -1245,3 +1257,102 @@ html.dark .modal {
     .form-grid { gap: .75rem; }
     .topbar { padding: 0 .625rem; }
 }
+/* ── CHECKBOX E RADIO ─────────────────────────────────────────
+   O controle nativo é desenhado pelo sistema operacional: sai azul
+   do Windows no tema claro, some no tema escuro e tem tamanho
+   diferente em cada navegador. accent-color só troca a cor de
+   dentro — a caixa continua sendo a do sistema.
+
+   Aqui o controle é desenhado do zero: appearance:none apaga o
+   nativo e o resto monta a caixa com a mesma linguagem do resto do
+   sistema (cantos arredondados, borda fina, laranja da marca).
+   As regras valem para TODO checkbox e radio da aplicação, então
+   qualquer tela nova já nasce com o mesmo visual. */
+
+input[type=checkbox],
+input[type=radio] {
+    appearance:none;
+    -webkit-appearance:none;
+    /* Sem o flex-shrink a caixa é esmagada quando o texto do lado é
+       longo — dentro de um flex ela é o item que cede primeiro. */
+    flex-shrink:0;
+    width:18px;
+    height:18px;
+    margin:0;
+    border:1.5px solid var(--border2);
+    background:var(--bg);
+    cursor:pointer;
+    position:relative;
+    transition:background .12s,border-color .12s,box-shadow .12s;
+}
+
+input[type=checkbox] { border-radius:5px; }
+input[type=radio]    { border-radius:50%; }
+
+input[type=checkbox]:hover:not(:disabled),
+input[type=radio]:hover:not(:disabled) {
+    border-color:var(--accent);
+}
+
+input[type=checkbox]:checked,
+input[type=radio]:checked {
+    background:var(--accent);
+    border-color:var(--accent);
+}
+
+/* A marca do check são duas bordas de um retângulo giradas 45°.
+   Desenhar assim evita depender da fonte de ícones: se o Tabler
+   demorar a carregar, o "✓" já está lá. */
+input[type=checkbox]:checked::after {
+    content:"";
+    position:absolute;
+    left:5px;
+    top:1.5px;
+    width:4px;
+    height:8px;
+    border:solid #fff;
+    border-width:0 2px 2px 0;
+    transform:rotate(45deg);
+}
+
+input[type=radio]:checked::after {
+    content:"";
+    position:absolute;
+    inset:3.5px;
+    border-radius:50%;
+    background:#fff;
+}
+
+/* Anel de foco só para quem navega pelo teclado. Com :focus (sem o
+   -visible) o anel piscava a cada clique de mouse. */
+input[type=checkbox]:focus-visible,
+input[type=radio]:focus-visible {
+    outline:none;
+    box-shadow:0 0 0 3px rgba(255,145,0,.3);
+}
+
+input[type=checkbox]:disabled,
+input[type=radio]:disabled {
+    opacity:.45;
+    cursor:not-allowed;
+}
+
+/* Linha clicável de um checkbox (usada nos Vínculos de Entrada/Saída).
+   O alvo do clique é a linha inteira, não só a caixinha de 18px. */
+.chk-row {
+    display:flex;
+    align-items:center;
+    gap:9px;
+    padding:7px 9px;
+    /* Puxa de volta o padding lateral para o texto continuar alinhado
+       com os títulos da coluna. */
+    margin:0 -9px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:13px;
+    color:var(--txt);
+    user-select:none;
+    transition:background .12s;
+}
+
+.chk-row:hover { background:var(--hover); }

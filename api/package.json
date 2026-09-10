@@ -1,0 +1,14 @@
+{
+  "name": "inventory-guemat-api",
+  "version": "1.0.0",
+  "description": "API do Inventory Guemat (estoque de TI). Banco: SQL Server ESTOQUE_TI.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node testes/handlers.test.js"
+  },
+  "dependencies": {
+    "mssql": "^11.0.1"
+  },
+  "license": "UNLICENSED"
+}
