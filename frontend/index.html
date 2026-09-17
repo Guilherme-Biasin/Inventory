@@ -121,6 +121,7 @@
       <div class="nav-label">Principal</div>
       <div class="nav-item active" data-nav="dashboard" onclick="nav('dashboard')"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
       <div class="nav-item" data-nav="lista" onclick="nav('lista')"><i class="ti ti-archive"></i> Patrimônios</div>
+      <div class="nav-item" data-nav="almoxarifado" onclick="nav('almoxarifado')"><i class="ti ti-packages"></i> Almoxarifado</div>
       <div class="nav-item" data-nav="cadastro" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo Cadastro</div>
     </div>
     <div class="nav-group">
@@ -152,7 +153,7 @@
         <span class="selo-ambiente" data-selo-ambiente></span>
         <button class="btn mobile-dark-btn" onclick="toggleDark()" title="Modo escuro"><i class="ti ti-moon" id="mobile-dark-icon"></i></button>
         <button class="btn" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> <span class="btn-label">Exportar Excel</span></button>
-        <button class="btn btn-primary" id="btn-novo-topbar" onclick="nav('cadastro')"><i class="ti ti-plus"></i> <span class="btn-label">Novo Patrimônio</span></button>
+        <button class="btn btn-primary" id="btn-novo-topbar" onclick="novoRegistro()"><i class="ti ti-plus"></i> <span class="btn-label" id="btn-novo-label">Novo Patrimônio</span></button>
         <button class="btn" onclick="openChangePassword()" title="Alterar minha senha"><i class="ti ti-key"></i></button>
         <div class="user-badge" onclick="doLogout()" title="Clique para sair">
           <i class="ti ti-user" style="font-size:15px"></i>
@@ -196,11 +197,44 @@
         <div class="card"><div class="table-wrap"><table><thead><tr id="lista-head"></tr></thead><tbody id="lista-tbody"></tbody></table></div></div>
       </div>
 
+      <!-- ALMOXARIFADO -->
+      <div class="page" id="page-almoxarifado">
+        <div class="page-header">
+          <div class="ph-title">Almoxarifado</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-success" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+            <button class="btn btn-primary" onclick="novoAlmox()"><i class="ti ti-plus"></i> Novo</button>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <input class="f-input" id="srch-almox" placeholder="🔍  Buscar item, modelo ou série..." oninput="renderAlmox()" style="flex:1;min-width:180px">
+          <select class="f-input" id="fcat-almox" onchange="renderAlmox()"><option value="">Todas as categorias</option></select>
+          <select class="f-input" id="fsaldo-almox" onchange="renderAlmox()">
+            <option value="">Todos os itens</option>
+            <option value="com">Com saldo</option>
+            <option value="sem">Sem saldo</option>
+            <option value="vencendo">Vencendo em 30 dias</option>
+            <option value="vencido">Com lote vencido</option>
+          </select>
+        </div>
+        <div class="card"><div class="table-wrap"><table><thead><tr id="almox-head"></tr></thead><tbody id="almox-tbody"></tbody></table></div></div>
+      </div>
+
       <!-- CADASTRO -->
       <div class="page" id="page-cadastro">
         <div class="page-header">
           <div class="ph-title" id="form-title">Novo Patrimônio</div>
           <button class="btn btn-ghost" onclick="cancelEdit()"><i class="ti ti-arrow-left"></i> Voltar</button>
+        </div>
+        <!-- O que está sendo cadastrado. Fica escondido ao editar ou movimentar:
+             ali o tipo já está decidido pelo item que se abriu. -->
+        <div id="tipo-cadastro" class="tipo-switch">
+          <button type="button" class="tipo-opt" data-tipo="patrimonio" onclick="trocarTipoCadastro('patrimonio')">
+            <i class="ti ti-device-laptop"></i> Patrimônio
+          </button>
+          <button type="button" class="tipo-opt" data-tipo="almoxarifado" onclick="trocarTipoCadastro('almoxarifado')">
+            <i class="ti ti-packages"></i> Almoxarifado
+          </button>
         </div>
         <div class="alert" id="form-alert"></div>
         <div id="form-wrap"></div>
@@ -235,7 +269,18 @@
       <!-- IMPORTAÇÃO -->
       <div class="page" id="page-importacao">
         <div class="page-header">
-          <div class="ph-title"><i class="ti ti-upload" style="color:var(--accent)"></i> Importar Patrimônios</div>
+          <div class="ph-title"><i class="ti ti-upload" style="color:var(--accent)"></i> <span id="import-titulo">Importar Patrimônios</span></div>
+        </div>
+
+        <!-- Mesmo seletor do cadastro: a planilha e as regras são diferentes
+             para cada um, então trocar aqui recomeça a importação. -->
+        <div id="tipo-import" class="tipo-switch">
+          <button type="button" class="tipo-opt" data-tipo="patrimonio" onclick="trocarTipoImport('patrimonio')">
+            <i class="ti ti-device-laptop"></i> Patrimônio
+          </button>
+          <button type="button" class="tipo-opt" data-tipo="almoxarifado" onclick="trocarTipoImport('almoxarifado')">
+            <i class="ti ti-packages"></i> Almoxarifado
+          </button>
         </div>
 
         <div class="card" style="padding:1.5rem;margin-bottom:1rem">
@@ -329,6 +374,7 @@
         <div class="page-header"><div class="ph-title">Personalizar Sistema</div></div>
         <div class="tab-bar">
           <div class="stab active" onclick="switchTab('tc')">Categorias</div>
+          <div class="stab" onclick="switchTab('ta')">Categorias do almoxarifado</div>
           <div class="stab" onclick="switchTab('tp')">Pessoas</div>
           <div class="stab" onclick="switchTab('tl')">Locais</div>
           <div class="stab" onclick="switchTab('ts')">Opções de Status</div>
@@ -342,6 +388,20 @@
               <input class="f-input" id="ncat" placeholder="Nome da categoria" style="width:200px">
               <input type="color" id="ncat-color" value="#2563eb" style="width:38px;height:34px;border-radius:7px;border:1px solid var(--border2);padding:2px;cursor:pointer;background:var(--bg)">
               <button class="btn btn-primary btn-sm" onclick="addCat()"><i class="ti ti-plus"></i> Adicionar</button>
+            </div>
+          </div>
+        </div>
+        <div id="ta" class="stab-panel" style="display:none">
+          <div class="card" style="padding:1.25rem">
+            <div style="font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:.25rem">Categorias do almoxarifado</div>
+            <div style="font-size:12px;color:var(--txt3);margin-bottom:.75rem">
+              Material de consumo: bobina, etiqueta, saco plástico, tinta, toner. Lista separada da dos patrimônios.
+            </div>
+            <div class="tag-cloud" id="cat-almox-cloud"></div>
+            <div class="add-row">
+              <input class="f-input" id="ncat-almox" placeholder="Nome da categoria" style="width:200px">
+              <input type="color" id="ncat-almox-color" value="#0891b2" style="width:38px;height:34px;border-radius:7px;border:1px solid var(--border2);padding:2px;cursor:pointer;background:var(--bg)">
+              <button class="btn btn-primary btn-sm" onclick="addCatAlmox()"><i class="ti ti-plus"></i> Adicionar</button>
             </div>
           </div>
         </div>
@@ -393,6 +453,9 @@
       <label class="exp-opt"><input type="radio" name="exptype" value="filtrado"><div class="exp-opt-info"><div class="exp-opt-label">Somente itens filtrados</div><div class="exp-opt-desc">Exporta apenas os resultados do filtro atual</div></div></label>
       <label class="exp-opt"><input type="radio" name="exptype" value="categorias"><div class="exp-opt-info"><div class="exp-opt-label">Uma aba por categoria</div><div class="exp-opt-desc">Exporta com abas separadas por tipo</div></div></label>
       <label class="exp-opt"><input type="radio" name="exptype" value="historico"><div class="exp-opt-info"><div class="exp-opt-label">Histórico de movimentações</div><div class="exp-opt-desc">Exporta todas as movimentações</div></div></label>
+      <label class="exp-opt"><input type="radio" name="exptype" value="almox"><div class="exp-opt-info"><div class="exp-opt-label">Almoxarifado — saldo por item</div><div class="exp-opt-desc">Itens de consumo com saldo e validade mais próxima</div></div></label>
+      <label class="exp-opt"><input type="radio" name="exptype" value="almox-lotes"><div class="exp-opt-info"><div class="exp-opt-label">Almoxarifado — lote a lote</div><div class="exp-opt-desc">Cada entrada com validade, quantidade e quanto ainda resta</div></div></label>
+      <label class="exp-opt"><input type="radio" name="exptype" value="almox-historico"><div class="exp-opt-info"><div class="exp-opt-label">Almoxarifado — movimentações</div><div class="exp-opt-desc">Todas as entradas e saídas do almoxarifado</div></div></label>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="document.getElementById('exp-modal').style.display='none'">Cancelar</button>

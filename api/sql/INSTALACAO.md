@@ -27,6 +27,7 @@ em algum momento, rode todos os `04+` na ordem.
 | Migração | Quando precisa |
 |---|---|
 | `04_migracao_status_mov.sql` | Se o `02` foi rodado antes de a tela de movimentação ganhar o campo Status |
+| `05_almoxarifado.sql` | Cria a aba **Almoxarifado**: tabelas de item e movimentação (lotes) e a lista de categorias própria. Sem ela a aba abre explicando que falta rodar isto — o resto do sistema continua funcionando |
 
 > **Antes de rodar o 01**: troque o texto `TROQUE_ESTA_SENHA` pela senha real
 > do `estoque_rw`. É essa senha que vai para o `db.json` do passo 3. Não salve

@@ -54,13 +54,14 @@ require.cache[dbPath] = {
 };
 
 const { patrimoniosRoutes } = require(path.join(API, 'src/patrimoniosRoutes'));
+const { almoxarifadoRoutes } = require(path.join(API, 'src/almoxarifadoRoutes'));
 const { configRoutes }      = require(path.join(API, 'src/configRoutes'));
 const { usuariosRoutes }    = require(path.join(API, 'src/usuariosRoutes'));
 const { auditoriaRoutes }   = require(path.join(API, 'src/auditoria'));
 const { authRoutes, sessaoValida, invalidarCacheAtivos } = require(path.join(API, 'src/authRoutes'));
 const auth                  = require(path.join(API, 'src/auth'));
 
-const todas = [...authRoutes, ...configRoutes, ...patrimoniosRoutes, ...auditoriaRoutes, ...usuariosRoutes];
+const todas = [...authRoutes, ...configRoutes, ...patrimoniosRoutes, ...almoxarifadoRoutes, ...auditoriaRoutes, ...usuariosRoutes];
 const rota = (metodo, caminho) => {
   const r = todas.find(x => x.method === metodo && x.path === caminho);
   if(!r) throw new Error('rota nao registrada: ' + metodo + ' ' + caminho);
@@ -111,10 +112,13 @@ await teste('listar junta historico com o patrimonio certo', async () => {
   igual(r[0].historico[0].data_mov, '2026-01-05', 'data_mov como texto');
 });
 
-await teste('carimbo monta o resumo', async () => {
-  respostas = [[{ qtd_pat: 3, max_pat: new Date('2026-03-01T00:00:00'), qtd_mov: 7, max_mov: null }]];
+await teste('carimbo monta o resumo, com o almoxarifado junto', async () => {
+  // A 1a resposta e da conferencia "as tabelas do almoxarifado existem?".
+  respostas = [[{ n: 2 }],
+               [{ qtd_pat: 3, max_pat: new Date('2026-03-01T00:00:00'), qtd_mov: 7, max_mov: null,
+                  qtd_alm: 4, max_alm: new Date('2026-03-02T00:00:00'), qtd_alm_mov: 9, max_alm_mov: null }]];
   const r = await rota('GET', '/api/v1/carimbo').handler(qs(), null, ADMIN);
-  if(!/^3\|\d+\|7\|$/.test(r.carimbo)) throw new Error('carimbo estranho: ' + r.carimbo);
+  if(!/^3\|\d+\|7\|\|4\|\d+\|9\|$/.test(r.carimbo)) throw new Error('carimbo estranho: ' + r.carimbo);
 });
 
 await teste('criar abre transacao, insere os dois e confirma', async () => {
@@ -297,13 +301,187 @@ await teste('listar devolve o status de cada movimentacao', async () => {
   igual(r[0].historico[0].status, 's3', 'status no historico');
 });
 
+console.log('\n— ALMOXARIFADO —');
+
+// Configuracao e itens existentes que a conferencia da importacao le primeiro.
+const CFG_ALMOX = [{ cats_almox: '[{"id":"a1","name":"Bobina","color":"#2563eb"}]' }];
+const linhaAlmox = (linha, item) => ({ linha, item, categoria: 'bobina', modelo: '80mm',
+  serie: 'S' + item, quantidade: '10', validade: '2027-03-31' });
+
+await teste('listar monta saldo, lotes e validade mais proxima', async () => {
+  respostas = [
+    [{ id: 1, item: 'Bobina 80mm', categoria: 'a1', modelo: '80mm', serie: null, obs: null }],
+    [{ id: 10, almox_id: 1, tipo: 'entrada', data_mov: '2026-01-10', validade: '2027-06-30',
+       quantidade: '10', lote_id: null, usuario: null, obs_mov: null, criado_em: new Date('2026-01-10') },
+     { id: 11, almox_id: 1, tipo: 'entrada', data_mov: '2026-02-10', validade: '2026-12-31',
+       quantidade: '5', lote_id: null, usuario: null, obs_mov: null, criado_em: new Date('2026-02-10') },
+     { id: 12, almox_id: 1, tipo: 'saida', data_mov: '2026-03-01', validade: null,
+       quantidade: '4', lote_id: 10, usuario: 'Ana', obs_mov: null, criado_em: new Date('2026-03-01') }]
+  ];
+  const r = await rota('GET', '/api/v1/almoxarifado').handler(qs(), null, ADMIN);
+  igual(r[0].saldo, 11, 'saldo do item (10 + 5 - 4)');
+  igual(r[0].lotes.map(l => l.saldo), [6, 5], 'saldo de cada lote');
+  igual(r[0].validadeProxima, '2026-12-31', 'lote que vence primeiro');
+  igual(r[0].historico.length, 3, 'historico completo');
+});
+
+await teste('criar item abre transacao e ja grava a primeira entrada', async () => {
+  respostas = [[{ id: 7 }], [{ id: 70 }]];
+  const r = await rota('POST', '/api/v1/almoxarifado').handler(qs(), {
+    item: { item: ' Toner HP 26A ', categoria: 'a1', modelo: 'CF226A', serie: 'SN9', obs: 'caixa lacrada' },
+    mov:  { quantidade: '3', validade: '2027-01-31', usuario: 'Ana' }
+  }, ADMIN);
+  igual(r.id, 7, 'id devolvido');
+  const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.almoxarifado ('));
+  igual(ins.entradas.item, 'Toner HP 26A', 'nome sem espacos');
+  const mov = consultas.find(c => c.sql.startsWith('INSERT INTO app.almoxarifado_mov'));
+  igual([mov.entradas.tipo, mov.entradas.qtd, mov.entradas.val], ['entrada', 3, '2027-01-31'], 'lote de entrada');
+});
+
+await teste('criar sem quantidade e recusado antes de tocar no banco', async () => {
+  await lanca(() => rota('POST', '/api/v1/almoxarifado').handler(qs(), {
+    item: { item: 'Etiqueta' }, mov: {}
+  }, ADMIN), 'informe a quantidade');
+  igual(consultas.length, 0, 'consultas disparadas');
+});
+
+await teste('item repetido e serie repetida viram frases diferentes', async () => {
+  const dupItem = new Error("Violation of UNIQUE KEY constraint 'ux_almox_item'"); dupItem.number = 2601;
+  respostas = [dupItem];
+  await lanca(() => rota('POST', '/api/v1/almoxarifado').handler(qs(), {
+    item: { item: 'Bobina 80mm' }, mov: { quantidade: '1' }
+  }, ADMIN), 'ja existe um item de almoxarifado chamado "Bobina 80mm"');
+
+  const dupSerie = new Error("Violation of UNIQUE KEY constraint 'ux_almox_serie'"); dupSerie.number = 2601;
+  respostas = [dupSerie];
+  await lanca(() => rota('POST', '/api/v1/almoxarifado').handler(qs(), {
+    item: { item: 'Outro', serie: 'SN1' }, mov: { quantidade: '1' }
+  }, ADMIN), 'numero de serie "SN1"');
+});
+
+await teste('saida abate do lote escolhido', async () => {
+  respostas = [[{ item: 'Bobina 80mm' }], [{ entrada: '10', saidas: '4' }], [{ id: 99 }], []];
+  await rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
+    almoxId: 1, mov: { tipo: 'saida', quantidade: '6', loteId: 10, usuario: 'Ana' }
+  }, ADMIN);
+  const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.almoxarifado_mov'));
+  igual([ins.entradas.tipo, ins.entradas.qtd, ins.entradas.lote], ['saida', 6, 10], 'saida no lote 10');
+  igual(ins.entradas.val, null, 'saida nao carrega validade');
+});
+
+await teste('saida maior que o lote e recusada dizendo quanto tem', async () => {
+  respostas = [[{ item: 'Bobina 80mm' }], [{ entrada: '10', saidas: '4' }]];
+  await lanca(() => rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
+    almoxId: 1, mov: { tipo: 'saida', quantidade: '7', loteId: 10 }
+  }, ADMIN), 'apenas 6 em estoque');
+  if(consultas.some(c => c.sql.startsWith('INSERT'))) throw new Error('gravou a saida mesmo assim');
+});
+
+await teste('saida sem lote e saida em lote de outro item sao recusadas', async () => {
+  respostas = [[{ item: 'Bobina' }]];
+  await lanca(() => rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
+    almoxId: 1, mov: { tipo: 'saida', quantidade: '1' }
+  }, ADMIN), 'escolha de qual lote');
+
+  respostas = [[{ item: 'Bobina' }], [{ entrada: null, saidas: '0' }]];
+  await lanca(() => rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
+    almoxId: 1, mov: { tipo: 'saida', quantidade: '1', loteId: 555 }
+  }, ADMIN), 'lote nao encontrado');
+});
+
+await teste('quantidade zero, negativa ou com virgula', async () => {
+  respostas = [[{ item: 'Bobina' }]];
+  await lanca(() => rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
+    almoxId: 1, mov: { tipo: 'entrada', quantidade: '0' }
+  }, ADMIN), 'quantidade maior que zero');
+
+  respostas = [[{ item: 'Bobina' }], [{ id: 5 }], []];
+  await rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
+    almoxId: 1, mov: { tipo: 'entrada', quantidade: '2,5' }
+  }, ADMIN);
+  const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.almoxarifado_mov'));
+  igual(ins.entradas.qtd, 2.5, 'virgula decimal do Excel');
+});
+
+await teste('entrada sem data usa a data de hoje', async () => {
+  respostas = [[{ item: 'Bobina' }], [{ id: 6 }], []];
+  await rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
+    almoxId: 1, mov: { tipo: 'entrada', quantidade: '1' }
+  }, ADMIN);
+  const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.almoxarifado_mov'));
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(ins.entradas.data)) throw new Error('data vazia: ' + ins.entradas.data);
+});
+
+await teste('importar: planilha certa grava item + lote numa transacao', async () => {
+  respostas = [CFG_ALMOX, [], [{ id: 1 }], [{ id: 11 }], [{ id: 2 }], [{ id: 22 }], []];
+  const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
+    rows: [linhaAlmox(2, 'Bobina 80mm'), linhaAlmox(3, 'Bobina 57mm')]
+  }, ADMIN);
+  igual([r.gravado, r.sucesso], [true, 2], 'gravou os dois');
+  igual(consultas.filter(c => c.sql.startsWith('INSERT INTO app.almoxarifado_mov')).length, 2, 'um lote por item');
+});
+
+await teste('importar: erro em uma linha nao grava nada', async () => {
+  respostas = [CFG_ALMOX, []];
+  const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
+    rows: [linhaAlmox(2, 'Bobina 80mm'), Object.assign(linhaAlmox(3, 'X'), { quantidade: '0' })]
+  }, ADMIN);
+  igual([r.gravado, r.erros.length, r.erros[0].campo], [false, 1, 'Quantidade'], 'erro de quantidade');
+  if(consultas.some(c => c.sql.startsWith('INSERT'))) throw new Error('gravou mesmo com erro');
+});
+
+await teste('importar: item repetido manda registrar entrada no que existe', async () => {
+  respostas = [CFG_ALMOX, [{ item: 'Bobina 80mm', serie: null }]];
+  const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
+    rows: [linhaAlmox(2, 'Bobina 80mm')]
+  }, ADMIN);
+  if(!r.erros[0].correcao.includes('entrada')) throw new Error('correcao nao orienta: ' + r.erros[0].correcao);
+});
+
+await teste('importar: validade invalida e categoria inexistente sao explicadas', async () => {
+  respostas = [CFG_ALMOX, []];
+  const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
+    rows: [Object.assign(linhaAlmox(2, 'Item A'), { validade: '31/03/2027', categoria: 'Papel' })]
+  }, ADMIN);
+  igual(r.erros.map(e => e.campo).sort(), ['Categoria', 'Validade'], 'campos');
+  if(!r.erros.find(e => e.campo === 'Categoria').correcao.includes('Bobina')) throw new Error('nao listou as categorias validas');
+});
+
+await teste('importar: simular nao grava', async () => {
+  respostas = [CFG_ALMOX, []];
+  const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
+    rows: [linhaAlmox(2, 'Item A')], simular: true
+  }, ADMIN);
+  igual([r.gravado, r.erros.length], [false, 0], 'conferido sem gravar');
+  if(consultas.some(c => c.sql.startsWith('INSERT'))) throw new Error('simulacao gravou');
+});
+
+await teste('excluir item leva o historico junto (cascade)', async () => {
+  respostas = [[{ item: 'Bobina 80mm', categoria: 'a1', modelo: null, serie: null, obs: null }], []];
+  const r = await rota('POST', '/api/v1/almoxarifado/excluir').handler(qs(), { id: 1 }, ADMIN);
+  igual(r.ok, true, 'excluiu');
+  if(!consultas.some(c => c.sql.startsWith('DELETE FROM app.almoxarifado'))) throw new Error('nao apagou');
+});
+
+await teste('rotas do almoxarifado exigem as mesmas permissoes do patrimonio', async () => {
+  const perm = (m, p) => rota(m, p).permissao;
+  igual(perm('POST', '/api/v1/almoxarifado'), 'cadastrar', 'criar');
+  igual(perm('POST', '/api/v1/almoxarifado/atualizar'), 'editar', 'atualizar');
+  igual(perm('POST', '/api/v1/almoxarifado/movimentacoes'), 'movimentar', 'movimentar');
+  igual(perm('POST', '/api/v1/almoxarifado/excluir'), 'excluir', 'excluir');
+  igual(perm('POST', '/api/v1/almoxarifado/importar'), 'cadastrar', 'importar');
+});
+
 console.log('\n— CONFIG —');
 
 await teste('config devolve listas mesmo com JSON corrompido', async () => {
-  respostas = [[{ cats: '[{"id":"c1"}]', pessoas: null, locais: 'nao e json',
+  // A 1a resposta e da conferencia "a coluna cats_almox existe?" (migracao 05).
+  respostas = [[{ n: 1 }],
+               [{ cats: '[{"id":"c1"}]', cats_almox: 'quebrado', pessoas: null, locais: 'nao e json',
                   status_opts: '[]', vinculos: null }]];
   const r = await rota('GET', '/api/v1/config').handler(qs(), null, ADMIN);
   igual(r.cats.length, 1, 'cats');
+  igual(r.catsAlmox, [], 'categorias do almoxarifado corrompidas');
   igual(r.pessoas, [], 'pessoas nulo');
   igual(r.locais, [], 'locais corrompido');
   igual(r.vinculos.entrada.statusIds, [], 'vinculos padrao');

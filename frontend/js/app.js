@@ -8,7 +8,13 @@ let S = {
   items: [], cats: [], pessoas: [], locais: [],
   statusOpts: [], vinculos: { entrada:{statusIds:[],localIds:[]}, saida:{statusIds:[],localIds:[]} },
   editId: null, dark: false, lastFiltered: [],
-  papel: 'leitor'  // 'admin' | 'editor' | 'leitor'  — vem do login
+  papel: 'leitor',  // 'admin' | 'editor' | 'leitor'  — vem do login
+
+  // ALMOXARIFADO (material de consumo). Lista própria, categorias próprias e
+  // saldo por lote — ver o bloco ALMOXARIFADO mais abaixo.
+  almox: [], catsAlmox: [], lastFilteredAlmox: [], almoxErro: null,
+  editAlmoxId: null,
+  tipoCadastro: 'patrimonio'   // o que o seletor do topo do Cadastro está mostrando
 };
 
 // Dark mode persiste localmente (preferência visual por usuário)
@@ -64,12 +70,19 @@ async function loadAll(user) {
 
     const [cfg, items] = await Promise.all([DB.loadConfig(), DB.loadItems()]);
     S.cats       = cfg.cats;
+    S.catsAlmox  = cfg.catsAlmox || [];
     S.pessoas    = cfg.pessoas;
     S.locais     = cfg.locais;
     S.statusOpts = cfg.statusOpts;
     S.vinculos   = cfg.vinculos;
     S.items      = items;
     S.lastFiltered = [...items];
+
+    // O almoxarifado carrega à parte, e uma falha dele NÃO derruba o resto: as
+    // tabelas só existem depois da migração 05, e sem isto uma API atualizada
+    // contra um banco antigo deixaria o sistema inteiro sem abrir. A aba
+    // Almoxarifado mostra o motivo; patrimônio continua funcionando.
+    await recarregarAlmox();
 
     // Aplica permissões na UI
     applyPapelUI();
@@ -79,9 +92,11 @@ async function loadAll(user) {
       const fresh = await DB.loadItems();
       S.items = fresh;
       S.lastFiltered = [...fresh];
+      await recarregarAlmox();
       const page = document.querySelector('.page.active')?.id;
-      if (page === 'page-dashboard') renderDash();
-      if (page === 'page-lista')     renderLista();
+      if (page === 'page-dashboard')    renderDash();
+      if (page === 'page-lista')        renderLista();
+      if (page === 'page-almoxarifado') renderAlmox();
     });
   } catch(e) {
     showToast('Erro ao carregar dados: ' + e.message, 'err');
@@ -91,11 +106,25 @@ async function loadAll(user) {
   }
 }
 
+// Busca a lista do almoxarifado guardando o motivo quando falha, em vez de
+// deixar a exceção subir e parar o carregamento das outras telas.
+async function recarregarAlmox() {
+  try {
+    S.almox = await DB.loadAlmox();
+    S.lastFilteredAlmox = [...S.almox];
+    S.almoxErro = null;
+  } catch (e) {
+    S.almox = []; S.lastFilteredAlmox = [];
+    S.almoxErro = e.message;
+    console.error('almoxarifado:', e);
+  }
+}
+
 // Persiste apenas config (items salvos direto no banco via DB.*)
 async function persistConfig() {
   try {
     await DB.saveConfig({
-      cats: S.cats, pessoas: S.pessoas, locais: S.locais,
+      cats: S.cats, catsAlmox: S.catsAlmox, pessoas: S.pessoas, locais: S.locais,
       statusOpts: S.statusOpts, vinculos: S.vinculos
     });
   } catch(e) { showToast('Erro ao salvar configuração: ' + e.message, 'err'); }
@@ -140,16 +169,24 @@ function nav(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  const titles = {dashboard:'Dashboard',lista:'Patrimônios',cadastro:'Cadastro',config:'Personalizar',auditoria:'Auditoria',usuarios:'Usuários',importacao:'Importação'};
+  const titles = {dashboard:'Dashboard',lista:'Patrimônios',almoxarifado:'Almoxarifado',cadastro:'Cadastro',config:'Personalizar',auditoria:'Auditoria',usuarios:'Usuários',importacao:'Importação'};
   document.getElementById('topbar-title').textContent = titles[p] || '';
   // Ativa o item de nav correto pelo data-nav attribute
   const navEl = document.querySelector(`.nav-item[data-nav="${p}"]`);
   if (navEl) navEl.classList.add('active');
   if (p === 'dashboard') renderDash();
   if (p === 'lista')     { populateFilters(); renderLista(); }
+  if (p === 'almoxarifado') { populateFiltersAlmox(); renderAlmox(); }
+  // O botão do topo cadastra o que a aba aberta mostra: estando no
+  // almoxarifado, "Novo Patrimônio" abriria o formulário errado.
+  const rotulo = document.getElementById('btn-novo-label');
+  if (rotulo) rotulo.textContent = p === 'almoxarifado' ? 'Novo Item' : 'Novo Patrimônio';
   if (p === 'cadastro')  {
     if (!can('cadastrar')) { showToast('Sem permissão para cadastrar.','err'); return; }
-    S.editId = null; movMode = false; renderForm();
+    // Quem chegou por "Editar" ou "Movimentar" já escolheu o item; só o
+    // "Novo" do menu começa do zero.
+    if (S.editId == null && S.editAlmoxId == null) { movMode = false; movModeAlmox = false; }
+    renderForm();
   }
   if (p === 'config')    {
     if (!can('config')) { showToast('Sem permissão para configurações.','err'); return; }
@@ -267,7 +304,11 @@ function renderDash() {
     <div class="stat"><div class="stat-label">Total Patrimônios</div><div class="stat-val">${total}</div><div class="stat-sub">itens cadastrados</div></div>
     <div class="stat"><div class="stat-label">Categorias</div><div class="stat-val">${S.cats.length}</div><div class="stat-sub">tipos cadastrados</div></div>
     <div class="stat"><div class="stat-label">Movimentações</div><div class="stat-val" style="color:#d97706">${totalMov}</div><div class="stat-sub">registros no histórico</div></div>
-    <div class="stat"><div class="stat-label">Pessoas</div><div class="stat-val" style="color:#7c3aed">${S.pessoas.length}</div><div class="stat-sub">cadastradas</div></div>`;
+    <div class="stat"><div class="stat-label">Pessoas</div><div class="stat-val" style="color:#7c3aed">${S.pessoas.length}</div><div class="stat-sub">cadastradas</div></div>
+    <div class="stat" onclick="nav('almoxarifado')" style="cursor:pointer" title="Abrir o almoxarifado">
+      <div class="stat-label">Almoxarifado</div>
+      <div class="stat-val" style="color:#0891b2">${S.almox.length}</div>
+      <div class="stat-sub">${alertaValidade()}</div></div>`;
   const recent = [...S.items].slice(-5).reverse();
   document.getElementById('dash-tbody').innerHTML = recent.length
     ? recent.map(i => `<tr>
@@ -279,6 +320,20 @@ function renderDash() {
         <td>${statPills(i.status)}</td>
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="6">Nenhum patrimônio cadastrado</td></tr>';
+}
+
+// Resumo de validade para o cartão do Dashboard. Vencido na frente: é o que
+// precisa de ação hoje.
+function alertaValidade() {
+  let vencidos = 0, perto = 0;
+  S.almox.forEach(it => (it.lotes || []).forEach(l => {
+    if (!(l.saldo > 0) || !l.validade) return;
+    const d = diasAte(l.validade);
+    if (d < 0) vencidos++; else if (d <= 30) perto++;
+  }));
+  if (vencidos) return `${vencidos} lote(s) vencido(s)`;
+  if (perto)    return `${perto} lote(s) vencendo em 30 dias`;
+  return 'itens de consumo';
 }
 
 // ─── LISTA ───────────────────────────────────────────────────
@@ -326,6 +381,12 @@ let msState = {};
 let movMode = false;
 
 function renderForm() {
+  atualizarTipoSwitch();
+  // O seletor Patrimônio | Almoxarifado do topo manda aqui. renderForm continua
+  // sendo a única porta de entrada porque o leitor de código de barras se
+  // pendura nela (mobile-scanner.js) — os dois formulários têm o campo f_serie.
+  if (S.tipoCadastro === 'almoxarifado') return renderFormAlmox();
+
   msState = {};
   const it     = S.editId != null ? (S.items.find(x => x.id === S.editId) || {}) : {};
   const isEdit = S.editId != null;
@@ -467,9 +528,33 @@ function onEntradaSaidaChange() {
   }
 }
 
-function editItem(id)          { S.editId = id; movMode = false; nav('cadastro'); }
-function novaMovimentacao(id)  { S.editId = id; movMode = true;  nav('cadastro'); }
-function cancelEdit()          { S.editId = null; movMode = false; nav('lista'); }
+// Botão "Novo" do topo: segue a aba em que a pessoa está.
+function novoRegistro() {
+  if (document.querySelector('.page.active')?.id === 'page-almoxarifado') return novoAlmox();
+  S.tipoCadastro = 'patrimonio'; S.editId = null; movMode = false;
+  nav('cadastro');
+}
+
+function editItem(id)          { S.editId = id; movMode = false; S.tipoCadastro = 'patrimonio'; nav('cadastro'); }
+function novaMovimentacao(id)  { S.editId = id; movMode = true;  S.tipoCadastro = 'patrimonio'; nav('cadastro'); }
+
+function cancelEdit() {
+  const voltarPara = S.tipoCadastro === 'almoxarifado' ? 'almoxarifado' : 'lista';
+  S.editId = null; S.editAlmoxId = null;
+  movMode = false; movModeAlmox = false;
+  nav(voltarPara);
+}
+
+// O seletor só aparece em cadastro NOVO: ao editar ou movimentar, o tipo já
+// está decidido pelo item que se abriu, e trocá-lo ali só geraria confusão.
+function atualizarTipoSwitch() {
+  const el = document.getElementById('tipo-cadastro');
+  if (!el) return;
+  const novo = S.editId == null && S.editAlmoxId == null && !movMode && !movModeAlmox;
+  el.style.display = novo ? '' : 'none';
+  el.querySelectorAll('.tipo-opt').forEach(b =>
+    b.classList.toggle('active', b.dataset.tipo === S.tipoCadastro));
+}
 
 async function delItem(id) {
   if (!can('excluir')) { showToast('Sem permissão para excluir patrimônios.','err'); return; }
@@ -550,11 +635,11 @@ function switchTab(id) {
   document.querySelectorAll('.stab-panel').forEach(p => p.style.display='none');
   document.querySelectorAll('.stab').forEach(t => t.classList.remove('active'));
   document.getElementById(id).style.display = 'block';
-  const map = {tc:0,tp:1,tl:2,ts:3,tv:4};
+  const map = {tc:0,ta:1,tp:2,tl:3,ts:4,tv:5};
   document.querySelectorAll('.stab')[map[id]]?.classList.add('active');
   renderConfig();
 }
-function renderConfig() { renderCats(); renderPessoas(); renderLocais(); renderStatOpts(); renderVinculos(); }
+function renderConfig() { renderCats(); renderCatsAlmox(); renderPessoas(); renderLocais(); renderStatOpts(); renderVinculos(); }
 
 function renderCats() {
   const el = document.getElementById('cat-cloud'); if (!el) return;
@@ -1024,24 +1109,519 @@ async function doAdminResetPassword() {
   } finally { hideLoading(); }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  ALMOXARIFADO — material de consumo (bobina, etiqueta, toner...)
+//
+//  Diferença para o patrimônio: aqui o que importa é QUANTIDADE, e ela vem
+//  em LOTES. Cada entrada é um lote com a sua validade; cada saída diz de
+//  qual lote saiu. A API já devolve saldo, lotes e histórico prontos — esta
+//  tela não recalcula nada, só mostra.
+// ═══════════════════════════════════════════════════════════════
+
+// Número na tela: 12 e não "12.00"; 2,5 com vírgula, como se escreve aqui.
+function fmtQtd(n) {
+  const v = Number(n || 0);
+  return (Math.round(v * 100) / 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+}
+
+function getCatAlmox(id) { return S.catsAlmox.find(c => c.id === id) || { name: id || '—', color: '#888888' }; }
+
+function catAlmoxPill(id) {
+  if (!id) return '—';
+  const c = getCatAlmox(id), cor = corSegura(c.color);
+  return `<span class="cat-pill" style="background:${cor}22;color:${cor}">${esc(c.name)}</span>`;
+}
+
+// Dias até a validade. Negativo = já venceu.
+function diasAte(data) {
+  if (!data) return null;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const d = new Date(data + 'T12:00');
+  if (isNaN(d)) return null;
+  return Math.round((d - hoje) / 86400000);
+}
+
+// Etiqueta de validade: vencido (vermelho), 30 dias ou menos (âmbar), o resto
+// verde. O prazo curto é o que interessa — material vencido no estoque é
+// dinheiro perdido, e ninguém vai conferir data por data numa lista.
+function validadePill(data) {
+  if (!data) return '<span style="color:var(--txt3)">sem validade</span>';
+  const d = diasAte(data);
+  const txt = fmtDate(data);
+  if (d == null) return esc(data);
+  if (d < 0)   return `<span class="val-pill val-vencido" title="Venceu há ${-d} dia(s)">${esc(txt)}</span>`;
+  if (d <= 30) return `<span class="val-pill val-perto" title="Vence em ${d} dia(s)">${esc(txt)}</span>`;
+  return `<span class="val-pill val-ok">${esc(txt)}</span>`;
+}
+
+function saldoPill(saldo) {
+  const cor = saldo > 0 ? '#059669' : '#dc2626';
+  return `<strong style="color:${cor}">${esc(fmtQtd(saldo))}</strong>`;
+}
+
+// ─── LISTA ───────────────────────────────────────────────────
+function populateFiltersAlmox() {
+  const fc = document.getElementById('fcat-almox'); if (!fc) return;
+  const v = fc.value;
+  fc.innerHTML = '<option value="">Todas as categorias</option>' +
+    S.catsAlmox.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  fc.value = v;
+}
+
+function renderAlmox() {
+  const tb = document.getElementById('almox-tbody'); if (!tb) return;
+
+  // Banco sem a migração 05: a aba explica o que fazer em vez de ficar vazia
+  // sem motivo aparente.
+  if (S.almoxErro) {
+    document.getElementById('almox-head').innerHTML = '<th>Almoxarifado</th>';
+    tb.innerHTML = `<tr><td style="padding:1rem;font-size:13px;color:var(--danger-txt)">
+      <strong>Não consegui carregar o almoxarifado:</strong> ${esc(S.almoxErro)}<br>
+      <span style="font-size:12px;color:var(--txt3)">Se a mensagem fala em objeto ou coluna que não existe, falta rodar
+      <code>api/sql/05_almoxarifado.sql</code> no banco ESTOQUE_TI e reiniciar o serviço da API.</span>
+    </td></tr>`;
+    return;
+  }
+
+  const srch  = (document.getElementById('srch-almox').value || '').toLowerCase();
+  const catF  = document.getElementById('fcat-almox').value;
+  const sitF  = document.getElementById('fsaldo-almox').value;
+
+  const filtrados = S.almox.filter(it => {
+    if (srch && !(it.item || '').toLowerCase().includes(srch)
+             && !(it.modelo || '').toLowerCase().includes(srch)
+             && !(it.serie || '').toLowerCase().includes(srch)) return false;
+    if (catF && it.categoria !== catF) return false;
+    if (sitF === 'com' && !(it.saldo > 0)) return false;
+    if (sitF === 'sem' && it.saldo > 0) return false;
+    if (sitF === 'vencendo' || sitF === 'vencido') {
+      // Só conta lote que ainda tem saldo: lote zerado que venceu não é
+      // problema de ninguém.
+      const dias = (it.lotes || []).filter(l => l.saldo > 0 && l.validade).map(l => diasAte(l.validade));
+      if (!dias.length) return false;
+      const menor = Math.min(...dias);
+      if (sitF === 'vencido'  && !(menor < 0)) return false;
+      if (sitF === 'vencendo' && !(menor >= 0 && menor <= 30)) return false;
+    }
+    return true;
+  });
+
+  S.lastFilteredAlmox = filtrados;
+
+  document.getElementById('almox-head').innerHTML =
+    '<th>Item</th><th>Categoria</th><th>Modelo</th><th>N° Série</th><th>Saldo</th><th>Validade + próxima</th><th>Lotes</th><th>Última mov.</th><th>Ações</th>';
+
+  tb.innerHTML = filtrados.length ? filtrados.map(it => {
+    const ultima = (it.historico || []).slice(-1)[0];
+    const lotesAtivos = (it.lotes || []).filter(l => l.saldo > 0).length;
+    return `<tr>
+      <td><strong>${esc(it.item || '—')}</strong></td>
+      <td>${catAlmoxPill(it.categoria)}</td>
+      <td>${esc(it.modelo || '—')}</td>
+      <td>${esc(it.serie || '—')}</td>
+      <td>${saldoPill(it.saldo)}</td>
+      <td>${validadePill(it.validadeProxima)}</td>
+      <td><span class="badge b-gray">${lotesAtivos}</span></td>
+      <td style="font-size:12px;color:var(--txt2)">${ultima
+        ? esc((ultima.tipo === 'saida' ? '📤 −' : '📥 +') + fmtQtd(ultima.quantidade) + ' · ' + fmtDate(ultima.data_mov))
+        : '—'}</td>
+      <td>${acoesAlmox(it.id)}</td>
+    </tr>`;
+  }).join('') : '<tr class="empty-row"><td colspan="9">Nenhum item encontrado</td></tr>';
+}
+
+function acoesAlmox(id) {
+  const edOk  = can('editar');
+  const movOk = can('movimentar');
+  const delOk = can('excluir');
+  const dis   = (ok, tip) => !ok ? `disabled title="${esc(tip)}" style="opacity:.4;cursor:not-allowed"` : '';
+  return `<div class="actions-cell">
+    <button class="btn btn-sm" onclick="${edOk ? `editAlmox(${id})` : ''}" ${dis(edOk, 'Sem permissão para editar')} title="${edOk ? 'Editar' : 'Sem permissão'}"><i class="ti ti-edit"></i></button>
+    <button class="btn btn-sm btn-warn" onclick="${movOk ? `movimentarAlmox(${id})` : ''}" ${dis(movOk, 'Sem permissão para movimentar')} title="${movOk ? 'Entrada ou saída' : 'Sem permissão'}"><i class="ti ti-transfer"></i></button>
+    <button class="btn btn-sm" style="${delOk ? 'border-color:var(--danger-txt);color:var(--danger-txt)' : 'opacity:.4;cursor:not-allowed'}" onclick="${delOk ? `delAlmox(${id})` : ''}" ${dis(delOk, 'Sem permissão para excluir')} title="${delOk ? 'Excluir' : 'Sem permissão'}"><i class="ti ti-trash"></i></button>
+  </div>`;
+}
+
+// ─── NAVEGAÇÃO ENTRE AS TELAS ────────────────────────────────
+function novoAlmox() {
+  if (!can('cadastrar')) { showToast('Sem permissão para cadastrar.', 'err'); return; }
+  S.editAlmoxId = null; movModeAlmox = false; S.tipoCadastro = 'almoxarifado';
+  nav('cadastro');
+}
+function editAlmox(id)       { S.editAlmoxId = id; movModeAlmox = false; S.tipoCadastro = 'almoxarifado'; nav('cadastro'); }
+function movimentarAlmox(id) { S.editAlmoxId = id; movModeAlmox = true;  S.tipoCadastro = 'almoxarifado'; nav('cadastro'); }
+
+// Seletor Patrimônio | Almoxarifado do topo do cadastro.
+function trocarTipoCadastro(tipo) {
+  S.tipoCadastro = tipo;
+  S.editId = null; S.editAlmoxId = null;
+  movMode = false; movModeAlmox = false;
+  renderForm();
+}
+
+async function delAlmox(id) {
+  if (!can('excluir')) { showToast('Sem permissão para excluir.', 'err'); return; }
+  const it = S.almox.find(x => x.id === id) || {};
+  const ok = await confirmar({
+    titulo: 'Excluir item do almoxarifado',
+    texto: `Excluir <strong>${esc(it.item || '')}</strong>?<br><br>
+      Todo o histórico vai junto: os lotes, as entradas e as saídas.
+      O saldo de ${esc(fmtQtd(it.saldo))} deixa de existir no sistema.<br><br>
+      Isso não pode ser desfeito.`,
+    botao: 'Excluir'
+  });
+  if (!ok) return;
+
+  showLoading('Excluindo...');
+  try {
+    await DB.deleteAlmox(id);
+    S.almox = S.almox.filter(x => x.id !== id);
+    showToast('Item excluído.');
+    renderAlmox();
+  } catch (e) { showToast('Erro ao excluir: ' + e.message, 'err'); }
+  finally    { hideLoading(); }
+}
+
+// ─── FORMULÁRIO ──────────────────────────────────────────────
+let movModeAlmox = false;
+
+function renderFormAlmox() {
+  const it     = S.editAlmoxId != null ? (S.almox.find(x => x.id === S.editAlmoxId) || {}) : {};
+  const isEdit = S.editAlmoxId != null;
+  document.getElementById('form-title').textContent = movModeAlmox
+    ? 'Entrada ou Saída'
+    : (isEdit ? 'Editar Item' : 'Novo Item de Almoxarifado');
+
+  let h = '<form onsubmit="saveAlmox(event)"><div class="form-two-col">';
+
+  if (!movModeAlmox) {
+    h += `<div class="scard">
+      <div class="scard-title"><i class="ti ti-clipboard-list"></i> Dados do Item
+        <span style="font-size:11px;font-weight:400;color:var(--txt3)">— preenchidos no cadastro, editáveis</span>
+      </div>
+      <div class="form-grid">
+        <div class="fg"><label class="flabel">Item<span class="req">*</span></label>
+          <input class="finput" id="a_item" value="${esc(it.item || '')}" required placeholder="Ex: Bobina 80mm"></div>
+        <div class="fg"><label class="flabel">Categoria<span class="req">*</span></label>
+          <select class="finput" id="a_categoria">
+            <option value="">Selecione...</option>
+            ${S.catsAlmox.map(c => `<option value="${esc(c.id)}"${it.categoria === c.id ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}
+          </select></div>
+        <div class="fg"><label class="flabel">Modelo</label>
+          <input class="finput" id="a_modelo" value="${esc(it.modelo || '')}" placeholder="Ex: 80mm x 40m"></div>
+        <div class="fg"><label class="flabel">N° de Série</label>
+          <input class="finput" id="f_serie" value="${esc(it.serie || '')}" placeholder="Ex: SN-0001-XYZ"></div>
+        <div class="fg full"><label class="flabel">Observações de cadastro</label>
+          <textarea class="finput" id="a_obs" rows="3" style="resize:vertical" placeholder="Fornecedor, onde fica guardado, o que for útil lembrar...">${esc(it.obs || '')}</textarea></div>
+      </div>
+    </div>`;
+  } else {
+    h += `<div class="scard" style="background:var(--accent-bg);border-color:var(--accent)">
+      <div style="font-size:13px;margin-bottom:.75rem;color:var(--accent-txt);font-weight:600">
+        <i class="ti ti-info-circle"></i> Movimentando:<br>
+        <strong>${esc(it.item || '')} ${it.modelo ? '— ' + esc(it.modelo) : ''}</strong>
+        <div style="margin-top:.5rem;font-weight:500">Saldo atual: ${saldoPill(it.saldo)}</div>
+      </div>
+    </div>`;
+  }
+
+  // No cadastro é sempre ENTRADA: o item nasce com o primeiro lote. A escolha
+  // entrada/saída só faz sentido depois, em cima de um item que já existe.
+  // Quem vence primeiro no topo: é o que deve sair antes, e numa lista de dez
+  // lotes ninguém vai comparar data por data.
+  const lotesComSaldo = (it.lotes || []).filter(l => l.saldo > 0)
+    .sort((a, b) => (a.validade || '9999-12-31').localeCompare(b.validade || '9999-12-31'));
+  h += `<div class="${movModeAlmox ? 'scard' : 'mov-card'}">
+    <div class="scard-title"><i class="ti ti-transfer"></i> Dados da Movimentação
+      <span style="font-size:11px;font-weight:400;color:var(--txt3)">— ${movModeAlmox ? 'entrada soma, saída desconta do lote escolhido' : 'esta é a primeira entrada do item'}</span>
+    </div>
+    <div class="form-grid">
+      <div class="fg"><label class="flabel">Data de Movimentação</label>
+        <input class="finput" type="date" id="a_data_mov" value="${esc(hojeCampo())}"></div>
+      <div class="fg"><label class="flabel">Entrada ou Saída?</label>
+        ${movModeAlmox
+          ? `<select class="finput" id="a_tipo" onchange="onTipoAlmoxChange()">
+               <option value="entrada">📥 Entrada</option>
+               <option value="saida">📤 Saída</option>
+             </select>`
+          : `<input class="finput" value="📥 Entrada" disabled title="O item nasce com a primeira entrada">`}
+      </div>
+      <div class="fg"><label class="flabel">Quantidade<span class="req">*</span></label>
+        <input class="finput" id="a_qtd" type="text" inputmode="decimal" placeholder="Ex: 12" required></div>
+      <div class="fg" id="fg-validade"><label class="flabel">Data de Validade</label>
+        <input class="finput" type="date" id="a_validade">
+        <div style="font-size:11px;color:var(--txt3);margin-top:3px">Deixe em branco se o material não vence.</div></div>
+      <div class="fg" id="fg-lote" style="display:none"><label class="flabel">De qual lote sai?<span class="req">*</span></label>
+        <select class="finput" id="a_lote">
+          ${lotesComSaldo.length
+            ? lotesComSaldo.map(l => `<option value="${l.id}">${esc(rotuloLote(l))}</option>`).join('')
+            : '<option value="">Nenhum lote com saldo</option>'}
+        </select>
+        <div style="font-size:11px;color:var(--txt3);margin-top:3px">Os que vencem primeiro aparecem no topo.</div></div>
+      <div class="fg"><label class="flabel">Usuário</label>
+        <input class="finput" id="a_usuario" list="lista-pessoas" placeholder="Quem retirou ou recebeu"></div>
+      <datalist id="lista-pessoas">${S.pessoas.map(p => `<option value="${esc(p)}"></option>`).join('')}</datalist>
+      <div class="fg full"><label class="flabel">Observações da Movimentação</label>
+        <textarea class="finput" id="a_obs_mov" rows="3" style="resize:vertical" placeholder="Nota fiscal, motivo da retirada..."></textarea></div>
+    </div>
+  </div>`;
+
+  h += '</div>'; // fecha form-two-col
+
+  if (isEdit) h += blocoLotes(it);
+
+  h += `<div class="form-actions-row">
+    <button type="button" class="btn btn-ghost" onclick="cancelEdit()">Cancelar</button>
+    <button type="submit" class="btn btn-primary" id="save-btn"><i class="ti ti-device-floppy"></i> ${movModeAlmox ? 'Registrar Movimentação' : (isEdit ? 'Salvar Alterações' : 'Cadastrar')}</button>
+  </div></form>`;
+
+  document.getElementById('form-wrap').innerHTML = h;
+  document.getElementById('form-alert').style.display = 'none';
+}
+
+// Data de hoje no formato do <input type="date">.
+function hojeCampo() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function rotuloLote(l) {
+  const val = l.validade ? 'vence ' + fmtDate(l.validade) : 'sem validade';
+  return `${fmtQtd(l.saldo)} disponível · ${val} · entrada de ${fmtDate(l.data_mov)}`;
+}
+
+// Saída pede o lote e não tem validade própria (a validade é do lote).
+function onTipoAlmoxChange() {
+  const saida = (document.getElementById('a_tipo') || {}).value === 'saida';
+  const lote = document.getElementById('fg-lote');
+  const val  = document.getElementById('fg-validade');
+  if (lote) lote.style.display = saida ? '' : 'none';
+  if (val)  val.style.display  = saida ? 'none' : '';
+}
+
+// Lotes e histórico do item aberto.
+function blocoLotes(it) {
+  const lotes = it.lotes || [];
+  const comSaldo = lotes.filter(l => l.saldo > 0)
+    .sort((a, b) => (a.validade || '9999-12-31').localeCompare(b.validade || '9999-12-31'));
+  const zerados = lotes.filter(l => !(l.saldo > 0));
+
+  const cartao = l => `
+    <div class="hist-item">
+      <div class="hist-meta">📦 Lote de ${esc(fmtDate(l.data_mov))} · entrou ${esc(fmtQtd(l.quantidade))}</div>
+      <div class="hist-detail">
+        <span>Resta: <strong>${esc(fmtQtd(l.saldo))}</strong>&nbsp;·&nbsp;</span>
+        <span>Validade: ${validadePill(l.validade)}</span>
+        ${l.usuario ? `<span>&nbsp;·&nbsp;Usuário: <strong>${esc(l.usuario)}</strong></span>` : ''}
+        ${l.obs_mov ? `<div style="margin-top:3px;color:var(--txt2)">📝 ${esc(l.obs_mov)}</div>` : ''}
+      </div>
+    </div>`;
+
+  let h = `<div class="hist-card">
+    <div class="hist-card-title"><i class="ti ti-package" style="color:var(--accent)"></i> Lotes em estoque
+      <span class="badge b-gray" style="margin-left:6px">${comSaldo.length}</span>
+      <span style="margin-left:8px;font-size:12px;font-weight:500;color:var(--txt2)">Saldo total: ${saldoPill(it.saldo)}</span>
+    </div>`;
+  h += comSaldo.length
+    ? `<div class="hist-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:.75rem">${comSaldo.map(cartao).join('')}</div>`
+    : '<div style="color:var(--txt3);font-size:13px;padding:.5rem 0">Nenhum lote com saldo. Registre uma entrada.</div>';
+  if (zerados.length) {
+    h += `<div style="margin-top:.75rem;font-size:12px;color:var(--txt3)">${zerados.length} lote(s) já zerado(s) — aparecem no histórico abaixo.</div>`;
+  }
+  h += '</div>';
+
+  const hist = it.historico || [];
+  h += `<div class="hist-card">
+    <div class="hist-card-title"><i class="ti ti-history" style="color:var(--accent)"></i> Histórico de Movimentações
+      <span class="badge b-gray" style="margin-left:6px">${hist.length}</span>
+    </div>`;
+  if (hist.length) {
+    h += `<div class="hist-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:.75rem">`;
+    h += [...hist].reverse().map(m => {
+      const entrada = m.tipo === 'entrada';
+      const lote = entrada ? null : lotes.find(l => l.id === m.lote_id);
+      return `<div class="hist-item">
+        <div class="hist-meta">${esc(fmtDT(m.criado_em))} · ${entrada ? '📥 Entrada' : '📤 Saída'}</div>
+        <div class="hist-detail">
+          <span>Quantidade: <strong>${entrada ? '+' : '−'}${esc(fmtQtd(m.quantidade))}</strong>&nbsp;·&nbsp;</span>
+          <span>Data: <strong>${esc(fmtDate(m.data_mov))}</strong></span>
+          ${entrada && m.validade ? `<span>&nbsp;·&nbsp;Validade: ${validadePill(m.validade)}</span>` : ''}
+          ${lote ? `<span>&nbsp;·&nbsp;Lote de ${esc(fmtDate(lote.data_mov))}</span>` : ''}
+          ${m.usuario ? `<span>&nbsp;·&nbsp;Usuário: <strong>${esc(m.usuario)}</strong></span>` : ''}
+          ${m.obs_mov ? `<div style="margin-top:3px;color:var(--txt2)">📝 ${esc(m.obs_mov)}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    h += '</div>';
+  } else {
+    h += '<div style="color:var(--txt3);font-size:13px;padding:.5rem 0">Nenhuma movimentação registrada ainda.</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+async function saveAlmox(e) {
+  e.preventDefault();
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+
+  const val = id => (document.getElementById(id) || {}).value || '';
+  const mov = {
+    tipo:       movModeAlmox ? val('a_tipo') : 'entrada',
+    data_mov:   val('a_data_mov'),
+    validade:   val('a_validade'),
+    quantidade: val('a_qtd'),
+    loteId:     val('a_lote'),
+    usuario:    val('a_usuario'),
+    obs_mov:    val('a_obs_mov')
+  };
+
+  showLoading('Salvando...');
+  try {
+    if (movModeAlmox) {
+      if (!mov.quantidade) { showToast('Informe a quantidade.', 'err'); return; }
+      if (mov.tipo === 'saida' && !mov.loteId) { showToast('Escolha de qual lote sai o material.', 'err'); return; }
+      await DB.movimentarAlmox(S.editAlmoxId, mov);
+      showToast(mov.tipo === 'saida' ? '✅ Saída registrada!' : '✅ Entrada registrada!');
+      movModeAlmox = false; S.editAlmoxId = null;
+    } else {
+      const item = {
+        item:      val('a_item').trim(),
+        categoria: val('a_categoria'),
+        modelo:    val('a_modelo').trim(),
+        serie:     val('f_serie').trim(),
+        obs:       val('a_obs').trim()
+      };
+      if (!item.item)      { showToast('Preencha o Item.', 'err'); return; }
+      if (!item.categoria) { showToast('Selecione uma categoria.', 'err'); return; }
+
+      if (S.editAlmoxId != null) {
+        await DB.updateAlmox(S.editAlmoxId, item);
+        // Na edição a movimentação é opcional: só registra se digitou a
+        // quantidade. Sem isso, salvar um nome corrigido criaria um lote novo.
+        if (mov.quantidade) await DB.movimentarAlmox(S.editAlmoxId, mov);
+        showToast('✅ Item atualizado!');
+      } else {
+        if (!mov.quantidade) { showToast('Informe a quantidade que está entrando.', 'err'); return; }
+        await DB.createAlmox(item, mov);
+        showToast('✅ Item cadastrado!');
+      }
+      S.editAlmoxId = null;
+    }
+    S.almox = await DB.loadAlmox();
+    nav('almoxarifado');
+  } catch (ex) {
+    showToast('Erro ao salvar: ' + ex.message, 'err');
+    console.error(ex);
+  } finally {
+    hideLoading();
+    btn.disabled = false;
+  }
+}
+
+// ─── CATEGORIAS DO ALMOXARIFADO (aba Personalizar) ───────────
+function renderCatsAlmox() {
+  const el = document.getElementById('cat-almox-cloud'); if (!el) return;
+  el.innerHTML = S.catsAlmox.map(c =>
+    `<div class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${corSegura(c.color)};display:inline-block;margin-right:3px"></span>${esc(c.name)}<span class="tdel" onclick="delCatAlmox('${escJs(c.id)}')">×</span></div>`
+  ).join('') || '<div style="color:var(--txt3);font-size:12.5px">Nenhuma categoria cadastrada</div>';
+}
+
+function addCatAlmox() {
+  const n = document.getElementById('ncat-almox').value.trim();
+  const col = document.getElementById('ncat-almox-color').value;
+  if (!n) return;
+  S.catsAlmox.push({ id: 'a' + Date.now(), name: n, color: col });
+  persistConfig(); renderCatsAlmox(); populateFiltersAlmox();
+  document.getElementById('ncat-almox').value = '';
+}
+
+function delCatAlmox(id) {
+  // Itens que usam a categoria não somem: ficam mostrando o id no lugar do
+  // nome, igual acontece no patrimônio. Avisar é melhor do que impedir.
+  const usados = S.almox.filter(i => i.categoria === id).length;
+  if (usados && !confirm(`${usados} item(ns) usam esta categoria. Remover mesmo assim?`)) return;
+  S.catsAlmox = S.catsAlmox.filter(c => c.id !== id);
+  persistConfig(); renderCatsAlmox(); populateFiltersAlmox(); renderAlmox();
+}
+
+// ─── EXPORTAR ────────────────────────────────────────────────
+function linhaAlmoxExport(it) {
+  return {
+    'Item': it.item || '', 'Categoria': getCatAlmox(it.categoria).name || '',
+    'Modelo': it.modelo || '', 'N° Série': it.serie || '',
+    'Saldo': Number(it.saldo || 0),
+    'Validade mais próxima': it.validadeProxima ? fmtDate(it.validadeProxima) : '',
+    'Lotes com saldo': (it.lotes || []).filter(l => l.saldo > 0).length,
+    'Observações': it.obs || ''
+  };
+}
+
+function linhaLoteExport(it, l) {
+  return {
+    'Item': it.item || '', 'Categoria': getCatAlmox(it.categoria).name || '',
+    'Lote (entrada em)': fmtDate(l.data_mov),
+    'Quantidade que entrou': Number(l.quantidade || 0),
+    'Saldo do lote': Number(l.saldo || 0),
+    'Validade': l.validade ? fmtDate(l.validade) : '',
+    'Situação': !l.validade ? 'sem validade'
+      : (diasAte(l.validade) < 0 ? 'vencido' : (diasAte(l.validade) <= 30 ? 'vence em 30 dias' : 'ok')),
+    'Usuário': l.usuario || '', 'Observações': l.obs_mov || ''
+  };
+}
+
+function linhaAlmoxHistExport(it, m) {
+  const lote = m.tipo === 'entrada' ? null : (it.lotes || []).find(l => l.id === m.lote_id);
+  return {
+    'Item': it.item || '', 'Categoria': getCatAlmox(it.categoria).name || '',
+    'Data/Hora': m.criado_em ? new Date(m.criado_em).toLocaleString('pt-BR') : '',
+    'Tipo': m.tipo === 'saida' ? 'Saída' : 'Entrada',
+    'Data Movimentação': fmtDate(m.data_mov),
+    'Quantidade': Number(m.quantidade || 0),
+    'Validade': m.validade ? fmtDate(m.validade) : '',
+    'Lote de origem': lote ? fmtDate(lote.data_mov) : '',
+    'Usuário': m.usuario || '', 'Observações': m.obs_mov || ''
+  };
+}
+
 // ─── IMPORTAÇÃO EM MASSA ─────────────────────────────────────
-let _importRows = [];   // linhas lidas da planilha (a API confere e grava)
+// Serve aos dois cadastros. O que muda entre eles é a planilha modelo, as
+// colunas lidas e a rota da API; as REGRAS (campo obrigatório, repetido, valor
+// que não existe) ficam só no servidor, e a tela mostra o que voltou.
+let _importRows = [];              // linhas lidas da planilha (a API confere e grava)
+let _importTipo = 'patrimonio';    // 'patrimonio' | 'almoxarifado'
+
+const ehAlmoxImport = () => _importTipo === 'almoxarifado';
+
+function trocarTipoImport(tipo) {
+  _importTipo = tipo;
+  renderImportacao();
+}
 
 function renderImportacao() {
-  // Preenche a lista de valores válidos como referência visual
-  const catList  = S.cats.map(c => c.name).join(', ');
-  const statList = S.statusOpts.map(s => s.name).join(', ');
-  const locList  = S.locais.join(', ');
+  const almox = ehAlmoxImport();
+
+  document.getElementById('import-titulo').textContent =
+    almox ? 'Importar itens de almoxarifado' : 'Importar Patrimônios';
+  document.querySelectorAll('#tipo-import .tipo-opt').forEach(b =>
+    b.classList.toggle('active', b.dataset.tipo === _importTipo));
+
+  // Lista de valores aceitos, como referência visual.
   const el = document.getElementById('import-ref');
   if (el) {
-    el.innerHTML = `
-      <div style="font-size:12.5px;color:var(--txt2);line-height:1.9">
-        <div><strong>Categorias válidas:</strong> ${esc(catList) || '<em>nenhuma</em>'}</div>
-        <div><strong>Status válidos:</strong> ${esc(statList) || '<em>nenhum</em>'}</div>
-        <div><strong>Locais válidos:</strong> ${esc(locList) || '<em>nenhum</em>'}</div>
-      </div>`;
+    const linhas = almox
+      ? [['Categorias válidas', S.catsAlmox.map(c => c.name).join(', ')],
+         ['Quantidade', 'obrigatória, número maior que zero (ex.: 12 ou 2,5)'],
+         ['Validade', 'opcional, no formato AAAA-MM-DD (ex.: 2027-03-31)']]
+      : [['Categorias válidas', S.cats.map(c => c.name).join(', ')],
+         ['Status válidos', S.statusOpts.map(s => s.name).join(', ')],
+         ['Locais válidos', S.locais.join(', ')]];
+    el.innerHTML = `<div style="font-size:12.5px;color:var(--txt2);line-height:1.9">
+      ${linhas.map(([t, v]) => `<div><strong>${esc(t)}:</strong> ${esc(v) || '<em>nenhum</em>'}</div>`).join('')}
+    </div>`;
   }
-  // Limpa preview anterior
+
+  // Trocar de tipo recomeça a importação: as colunas são outras.
   _importRows = [];
   const prev = document.getElementById('import-preview');
   if (prev) prev.innerHTML = '';
@@ -1051,51 +1631,64 @@ function renderImportacao() {
   if (fileInput) fileInput.value = '';
 }
 
-// Baixa planilha modelo com cabeçalhos e uma linha de exemplo
+// Baixa planilha modelo com cabeçalhos e uma linha de exemplo.
 function downloadModelo() {
-  const exemplo = {
+  const almox = ehAlmoxImport();
+
+  const exemplo = almox ? {
+    'Item': 'Bobina 80mm',
+    'Categoria': S.catsAlmox[0]?.name || 'Bobina',
+    'Modelo': '80mm x 40m',
+    'N° Série': '',
+    'Quantidade': 12,
+    'Validade': '2027-03-31',
+    'Usuário': '',
+    'Observações': 'Compra de janeiro'
+  } : {
     'Nº Patrimônio': '001',
     'Marca': 'Dell',
     'Modelo': 'Vostro 3500',
     'N° Série': 'SN-ABC-12345',
-    'Categoria': S.cats[0]?.name || 'Informática',
+    'Categoria': S.cats[0]?.name || 'Notebook',
     'Status': S.statusOpts[0]?.name || 'Em uso',
     'Local Atual': S.locais[0] || 'TI',
-    'Usuário Atual': 'João Silva'
+    'Usuário Atual': 'Fulano de Tal'
   };
-  const ws = XLSX.utils.json_to_sheet([exemplo]);
-  ws['!cols'] = [{wch:16},{wch:26},{wch:18},{wch:18},{wch:16},{wch:16},{wch:20}];
-  // estiliza cabeçalho
-  const hStyle = {font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1E3A8A'}},alignment:{horizontal:'center'}};
-  ['A1','B1','C1','D1','E1','F1','G1'].forEach(a => { if(ws[a]) ws[a].s = hStyle; });
 
-  // Aba secundária com instruções/valores válidos
-  const ref = [
-    { 'Campo': 'Categoria', 'Valores aceitos': S.cats.map(c=>c.name).join(' | ') },
-    { 'Campo': 'Status',    'Valores aceitos': S.statusOpts.map(s=>s.name).join(' | ') },
+  const ws = XLSX.utils.json_to_sheet([exemplo]);
+  ws['!cols'] = [{wch:22},{wch:22},{wch:18},{wch:18},{wch:14},{wch:16},{wch:20},{wch:26}];
+  const hStyle = {font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1E3A8A'}},alignment:{horizontal:'center'}};
+  ['A1','B1','C1','D1','E1','F1','G1','H1'].forEach(a => { if(ws[a]) ws[a].s = hStyle; });
+
+  const ref = almox ? [
+    { 'Campo': 'Item',       'Valores aceitos': 'Obrigatório — não pode repetir um item já cadastrado' },
+    { 'Campo': 'Categoria',  'Valores aceitos': S.catsAlmox.map(c => c.name).join(' | ') || '(cadastre em Personalizar)' },
+    { 'Campo': 'Modelo',     'Valores aceitos': 'Opcional — texto' },
+    { 'Campo': 'N° Série',   'Valores aceitos': 'Opcional — se preenchido, não pode repetir' },
+    { 'Campo': 'Quantidade', 'Valores aceitos': 'Obrigatório — número maior que zero (12 ou 2,5)' },
+    { 'Campo': 'Validade',   'Valores aceitos': 'Opcional — AAAA-MM-DD (ex.: 2027-03-31)' },
+    { 'Campo': 'Usuário',    'Valores aceitos': 'Opcional — quem recebeu' },
+    { 'Campo': 'Observações','Valores aceitos': 'Opcional — texto' }
+  ] : [
+    { 'Campo': 'Categoria',  'Valores aceitos': S.cats.map(c => c.name).join(' | ') },
+    { 'Campo': 'Status',     'Valores aceitos': S.statusOpts.map(s => s.name).join(' | ') },
     { 'Campo': 'Local Atual','Valores aceitos': S.locais.join(' | ') },
     { 'Campo': 'Nº Patrimônio', 'Valores aceitos': 'Obrigatório — texto ou número' },
-    { 'Campo': 'Marca',     'Valores aceitos': 'Obrigatório — texto' },
-    { 'Campo': 'Modelo',    'Valores aceitos': 'Obrigatório — texto' },
-    { 'Campo': 'N° Série',  'Valores aceitos': 'Obrigatório — texto' },
-    { 'Campo': 'Usuário Atual', 'Valores aceitos': 'Opcional — texto' },
+    { 'Campo': 'Marca',      'Valores aceitos': 'Obrigatório — texto' },
+    { 'Campo': 'Modelo',     'Valores aceitos': 'Obrigatório — texto' },
+    { 'Campo': 'N° Série',   'Valores aceitos': 'Obrigatório — texto' },
+    { 'Campo': 'Usuário Atual', 'Valores aceitos': 'Opcional — texto' }
   ];
   const wsRef = XLSX.utils.json_to_sheet(ref);
   wsRef['!cols'] = [{wch:18},{wch:60}];
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Patrimonios');
+  XLSX.utils.book_append_sheet(wb, ws, almox ? 'Almoxarifado' : 'Patrimonios');
   XLSX.utils.book_append_sheet(wb, wsRef, 'Instruções');
-  XLSX.writeFile(wb, 'modelo_importacao_patrimonios.xlsx');
+  XLSX.writeFile(wb, almox ? 'modelo_importacao_almoxarifado.xlsx' : 'modelo_importacao_patrimonios.xlsx');
 }
 
 // Lê o arquivo escolhido e manda CONFERIR na API (sem gravar nada).
-//
-// As regras (campo obrigatório, número repetido, categoria que não existe...)
-// ficam só na API: a tela manda as linhas como estão na planilha, com os NOMES
-// de categoria/status/local, e mostra o que voltou. Antes a tela validava por
-// conta própria e a API tinha outras regras — uma linha "OK" na prévia podia
-// falhar na hora de gravar.
 function handleImportFile(input) {
   const file = input.files?.[0];
   if (!file) return;
@@ -1108,14 +1701,16 @@ function handleImportFile(input) {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const brutas = XLSX.utils.sheet_to_json(ws, { defval: '' });
       if (!brutas.length) { showToast('A planilha não tem nenhuma linha preenchida.', 'err'); return; }
-      _importRows = brutas.map(_linhaDaPlanilha);
+      _importRows = brutas.map(ehAlmoxImport() ? _linhaAlmoxDaPlanilha : _linhaDaPlanilha);
     } catch(err) {
       showToast('Erro ao ler arquivo: ' + err.message, 'err');
       return;
     }
     showLoading('Conferindo a planilha...');
     try {
-      const res = await DB.bulkCreateItems(_importRows, true);
+      const res = ehAlmoxImport()
+        ? await DB.bulkCreateAlmox(_importRows, true)
+        : await DB.bulkCreateItems(_importRows, true);
       _renderImportPreview(res);
     } catch(err) {
       _importRows = [];
@@ -1128,13 +1723,20 @@ function handleImportFile(input) {
 // Uma linha da planilha -> objeto que a API entende.
 // __rowNum__ é a linha real no Excel (começando em 0): usar a posição no array
 // erraria o número da linha sempre que houvesse uma linha em branco no meio.
-function _linhaDaPlanilha(r, idx) {
-  const col = (...nomes) => {
+function _colunaDe(r) {
+  return (...nomes) => {
     for (const n of nomes) if (r[n] != null && r[n] !== '') return String(r[n]).trim();
     return '';
   };
+}
+function _linhaDoExcel(r, idx) {
+  return Number.isInteger(r.__rowNum__) ? r.__rowNum__ + 1 : idx + 2;
+}
+
+function _linhaDaPlanilha(r, idx) {
+  const col = _colunaDe(r);
   return {
-    linha:         Number.isInteger(r.__rowNum__) ? r.__rowNum__ + 1 : idx + 2,
+    linha:         _linhaDoExcel(r, idx),
     patrimonio:    col('Nº Patrimônio', 'No Patrimônio', 'N° Patrimônio', 'Patrimônio'),
     nome:          col('Marca', 'Nome'),
     modelo:        col('Modelo'),
@@ -1146,7 +1748,40 @@ function _linhaDaPlanilha(r, idx) {
   };
 }
 
+function _linhaAlmoxDaPlanilha(r, idx) {
+  const col = _colunaDe(r);
+  return {
+    linha:      _linhaDoExcel(r, idx),
+    item:       col('Item', 'Material', 'Produto'),
+    categoria:  col('Categoria'),
+    modelo:     col('Modelo'),
+    serie:      col('N° Série', 'Nº Série', 'No Série', 'Série', 'Serie'),
+    quantidade: col('Quantidade', 'Qtd', 'Qtde'),
+    // O Excel pode entregar a data como texto ou como número de série dele;
+    // _dataDaPlanilha devolve sempre AAAA-MM-DD, que é o que a API espera.
+    validade:   _dataDaPlanilha(r['Validade'] ?? r['Data de Validade']),
+    data_mov:   _dataDaPlanilha(r['Data'] ?? r['Data de Movimentação']),
+    usuario:    col('Usuário', 'Usuario', 'Usuário Atual'),
+    obs:        col('Observações', 'Observacoes', 'Obs')
+  };
+}
+
+// Data vinda da planilha -> 'AAAA-MM-DD'. Aceita texto ISO, dd/mm/aaaa e o
+// número de série de data do Excel (45000 = 2023-03-15).
+function _dataDaPlanilha(v) {
+  if (v == null || v === '') return '';
+  if (typeof v === 'number' && XLSX.SSF) {
+    const d = XLSX.SSF.parse_date_code(v);
+    if (d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+  }
+  const s = String(v).trim();
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  return s.slice(0, 10);
+}
+
 function _renderImportPreview(res) {
+  const almox = ehAlmoxImport();
   const erros = res.erros || [];
   const porLinha = new Map();
   erros.forEach(er => {
@@ -1190,28 +1825,27 @@ function _renderImportPreview(res) {
     </div>`;
   }
 
+  const cabecalho = almox
+    ? '<th style="width:50px">Linha</th><th>Item</th><th>Categoria</th><th>Modelo</th><th>Série</th><th>Quantidade</th><th>Validade</th><th>Situação</th>'
+    : '<th style="width:50px">Linha</th><th>Nº</th><th>Marca</th><th>Modelo</th><th>Série</th><th>Categoria</th><th>Status</th><th>Situação</th>';
+
   const linhasTabela = _importRows.map(r => {
     const es = porLinha.get(r.linha);
     const situacao = !es
       ? '<span style="color:#059669;font-weight:600">✓ OK</span>'
       : `<span style="color:#dc2626;font-size:11.5px" title="${esc(es.map(x => x.motivo).join('; '))}">✗ ${esc(es[0].motivo)}${es.length > 1 ? ' (+' + (es.length - 1) + ')' : ''}</span>`;
+    const celulas = almox
+      ? [r.item, r.categoria, r.modelo, r.serie, r.quantidade, r.validade]
+      : [r.patrimonio, r.nome, r.modelo, r.serie, r.categoria, r.status];
     return `<tr style="${es ? 'background:var(--danger-bg)' : ''}">
         <td>${esc(r.linha)}</td>
-        <td>${esc(r.patrimonio)}</td>
-        <td>${esc(r.nome)}</td>
-        <td>${esc(r.modelo)}</td>
-        <td>${esc(r.serie)}</td>
-        <td>${esc(r.categoria)}</td>
-        <td>${esc(r.status)}</td>
+        ${celulas.map(c => `<td>${esc(c || '')}</td>`).join('')}
         <td>${situacao}</td>
       </tr>`;
   }).join('');
 
   h += `<div class="card"><div class="table-wrap" style="max-height:340px;overflow-y:auto">
-      <table><thead><tr>
-        <th style="width:50px">Linha</th><th>Nº</th><th>Marca</th><th>Modelo</th><th>Série</th>
-        <th>Categoria</th><th>Status</th><th>Situação</th>
-      </tr></thead><tbody>${linhasTabela}</tbody></table>
+      <table><thead><tr>${cabecalho}</tr></thead><tbody>${linhasTabela}</tbody></table>
     </div></div>`;
 
   document.getElementById('import-preview').innerHTML = h;
@@ -1219,7 +1853,7 @@ function _renderImportPreview(res) {
   const btn = document.getElementById('import-confirm-btn');
   if (!erros.length && _importRows.length) {
     btn.style.display = '';
-    btn.textContent = `Importar ${_importRows.length} ${_importRows.length === 1 ? 'patrimônio' : 'patrimônios'}`;
+    btn.textContent = `Importar ${_importRows.length} ${_importRows.length === 1 ? (almox ? 'item' : 'patrimônio') : (almox ? 'itens' : 'patrimônios')}`;
     btn.disabled = false;
   } else {
     btn.style.display = 'none';
@@ -1230,22 +1864,30 @@ function _renderImportPreview(res) {
 async function confirmImport() {
   if (!can('cadastrar')) { showToast('Sem permissão para importar.','err'); return; }
   if (!_importRows.length) { showToast('Escolha a planilha primeiro.','err'); return; }
-  if (!confirm(`Importar ${_importRows.length} patrimônio(s)? Esta ação criará os registros no banco.`)) return;
+  const almox = ehAlmoxImport();
+  if (!confirm(`Importar ${_importRows.length} ${almox ? 'item(ns) de almoxarifado' : 'patrimônio(s)'}? Esta ação criará os registros no banco.`)) return;
 
   showLoading(`Importando ${_importRows.length} itens...`);
   try {
-    const res = await DB.bulkCreateItems(_importRows, false);
+    const res = almox
+      ? await DB.bulkCreateAlmox(_importRows, false)
+      : await DB.bulkCreateItems(_importRows, false);
     if (!res.gravado) {
       // Algo mudou entre a conferência e a gravação (outra pessoa cadastrou o
       // mesmo número, por exemplo). Nada entrou; mostra o motivo.
       _renderImportPreview(res);
       return;
     }
-    showToast(`✅ ${res.sucesso} patrimônios importados com sucesso!`);
+    showToast(`✅ ${res.sucesso} ${almox ? 'itens' : 'patrimônios'} importados com sucesso!`);
     _importRows = [];
-    S.items = await DB.loadItems();
-    S.lastFiltered = [...S.items];
-    nav('lista');
+    if (almox) {
+      await recarregarAlmox();
+      nav('almoxarifado');
+    } else {
+      S.items = await DB.loadItems();
+      S.lastFiltered = [...S.items];
+      nav('lista');
+    }
   } catch(e) {
     showToast('Erro na importação: ' + e.message, 'err');
   } finally { hideLoading(); }
@@ -1281,6 +1923,28 @@ function doExport() {
   const type = document.querySelector('input[name=exptype]:checked').value;
   const wb = XLSX.utils.book_new();
   const cols = [{wch:14},{wch:26},{wch:16},{wch:18},{wch:18},{wch:24},{wch:16},{wch:12}];
+  // Almoxarifado: saldo por item, lote a lote, ou o histórico completo.
+  if (type==='almox' || type==='almox-lotes' || type==='almox-historico') {
+    const itens = S.lastFilteredAlmox && S.lastFilteredAlmox.length ? S.lastFilteredAlmox : S.almox;
+    let rows = [], nome = 'Almoxarifado';
+    if (type==='almox') {
+      rows = itens.map(linhaAlmoxExport);
+    } else if (type==='almox-lotes') {
+      itens.forEach(it => (it.lotes||[]).forEach(l => rows.push(linhaLoteExport(it, l))));
+      nome = 'Lotes';
+    } else {
+      itens.forEach(it => (it.historico||[]).forEach(m => rows.push(linhaAlmoxHistExport(it, m))));
+      nome = 'Movimentações';
+    }
+    if(!rows.length){ showToast('Nada para exportar no almoxarifado.','err'); return; }
+    const ws=XLSX.utils.json_to_sheet(rows);
+    ws['!cols']=[{wch:26},{wch:18},{wch:18},{wch:16},{wch:14},{wch:16},{wch:16},{wch:26},{wch:26},{wch:26}];
+    styleSheet(ws);XLSX.utils.book_append_sheet(wb,ws,nome);
+    const hoje=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+    XLSX.writeFile(wb,`almoxarifado_${hoje}.xlsx`);
+    document.getElementById('exp-modal').style.display='none';
+    return;
+  }
   if (type==='historico') {
     const rows=[];S.items.forEach(it=>(it.historico||[]).forEach(hv=>rows.push(buildHistRow(it,hv))));
     if(!rows.length){alert('Nenhuma movimentação.');return;}

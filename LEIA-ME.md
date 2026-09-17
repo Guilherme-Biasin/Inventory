@@ -150,6 +150,7 @@ guemat-estoque/
 │   │   ├── authRoutes.js        login, /eu, trocar senha, sessão e papel atual
 │   │   ├── configRoutes.js      aba Personalizar
 │   │   ├── patrimoniosRoutes.js patrimônios, movimentações, importação
+│   │   ├── almoxarifadoRoutes.js almoxarifado: itens, lotes, saldo, importação
 │   │   ├── usuariosRoutes.js    aba Usuários
 │   │   └── auditoria.js         registro e consulta da auditoria
 │   ├── criar-admin.js           cria o 1º admin / resgata o acesso de admin
@@ -185,6 +186,42 @@ acontece.
 mas a cada chamada o servidor confere o papel atual do usuário (lista em cache
 de 30s). Mudou o papel ou desativou pela aba Usuários: vale **na próxima
 chamada** da pessoa. Mudou direto no banco pelo SSMS: vale em até 30 segundos.
+
+---
+
+## Almoxarifado (material de consumo)
+
+Aba própria, ao lado de Patrimônios, para o que é consumido: bobina, etiqueta,
+saco plástico, tinta, toner. A diferença para o patrimônio é o que se controla:
+
+| | Patrimônio | Almoxarifado |
+|---|---|---|
+| Unidade | o bem, um a um | **quantidade** |
+| Campos | Nº, Marca, Modelo, Série, Categoria, Status | **Item**, Categoria, Modelo, Série, Observações |
+| Movimentação | para onde foi e com quem | **entrada** (soma) ou **saída** (desconta) |
+| Data | de movimentação | de movimentação e **de validade** |
+
+**O estoque é por lote.** Cada entrada é um lote, com a sua validade e a sua
+quantidade — dois toners iguais comprados em meses diferentes vencem em datas
+diferentes. Na saída, quem registra **escolhe de qual lote sai**; os que vencem
+primeiro aparecem no topo da lista. O saldo do item é a soma do que resta em
+cada lote, e a lista mostra a validade mais próxima a vencer, em verde, âmbar
+(30 dias ou menos) ou vermelho (vencido).
+
+O servidor recusa saída maior do que o lote tem e diz quanto existe: **saldo
+não fica negativo**. O saldo nunca é gravado em coluna — é sempre somado das
+movimentações, para não existirem duas versões da mesma verdade.
+
+Nem o nome do item nem o número de série se repetem. Quem tenta cadastrar de
+novo um material que já existe é orientado a registrar uma **entrada** no item
+existente, que é o que faz o saldo somar em vez de duplicar.
+
+As categorias do almoxarifado são uma lista separada, em **Personalizar ›
+Categorias do almoxarifado**. Exportar, Importar, Auditoria, permissões e o
+leitor de código de barras funcionam igual aos do patrimônio.
+
+Precisa da migração `api/sql/05_almoxarifado.sql`. Sem ela, a aba abre
+explicando o que falta e o resto do sistema continua funcionando.
 
 ---
 

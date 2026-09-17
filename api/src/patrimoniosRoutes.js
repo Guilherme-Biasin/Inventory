@@ -129,16 +129,40 @@ async function listar(){
 // a consulta abaixo custa quase nada perto de baixar todos os patrimonios.
 // As contagens entram junto das datas porque uma EXCLUSAO nao mexe em nenhum
 // "atualizado_em": sem elas, apagar um item passaria despercebido.
+// O almoxarifado entra no mesmo carimbo: a tela dele usa a mesma conferencia.
+// As tabelas so existem depois da migracao 05 — e uma API nova rodando contra um
+// banco antigo nao pode deixar a tela inteira sem atualizar por causa disso.
+// Por isso o servidor pergunta uma vez se elas existem e monta a consulta.
+let _temAlmox = null;
+async function temAlmoxarifado(p){
+  if(_temAlmox !== null) return _temAlmox;
+  try {
+    const r = await p.request().query(`SELECT COUNT(*) AS n FROM sys.tables t
+      JOIN sys.schemas s ON s.schema_id = t.schema_id
+      WHERE s.name = 'app' AND t.name IN ('almoxarifado','almoxarifado_mov')`);
+    _temAlmox = r.recordset[0].n === 2;
+  } catch(e){ _temAlmox = false; }
+  return _temAlmox;
+}
+
 async function carimbo(){
   const p = await conexao();
+  const almox = await temAlmoxarifado(p);
   const r = await p.request().query(`
     SELECT (SELECT COUNT(*) FROM app.patrimonio)          AS qtd_pat,
            (SELECT MAX(atualizado_em) FROM app.patrimonio) AS max_pat,
            (SELECT COUNT(*) FROM app.movimentacao)         AS qtd_mov,
-           (SELECT MAX(criado_em) FROM app.movimentacao)   AS max_mov`);
+           (SELECT MAX(criado_em) FROM app.movimentacao)   AS max_mov` +
+    (almox ? `,
+           (SELECT COUNT(*) FROM app.almoxarifado)          AS qtd_alm,
+           (SELECT MAX(atualizado_em) FROM app.almoxarifado) AS max_alm,
+           (SELECT COUNT(*) FROM app.almoxarifado_mov)       AS qtd_alm_mov,
+           (SELECT MAX(criado_em) FROM app.almoxarifado_mov) AS max_alm_mov` : ''));
   const c = r.recordset[0];
   return { carimbo: [c.qtd_pat, c.max_pat && c.max_pat.getTime(),
-                     c.qtd_mov, c.max_mov && c.max_mov.getTime()].join('|') };
+                     c.qtd_mov, c.max_mov && c.max_mov.getTime(),
+                     c.qtd_alm, c.max_alm && c.max_alm.getTime(),
+                     c.qtd_alm_mov, c.max_alm_mov && c.max_alm_mov.getTime()].join('|') };
 }
 
 // ------------------------------------------------------------

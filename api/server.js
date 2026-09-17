@@ -17,6 +17,7 @@ const zlib = require('zlib');
 const { authRoutes, sessaoValida } = require('./src/authRoutes');
 const { configRoutes }       = require('./src/configRoutes');
 const { patrimoniosRoutes }  = require('./src/patrimoniosRoutes');
+const { almoxarifadoRoutes } = require('./src/almoxarifadoRoutes');
 const { usuariosRoutes }     = require('./src/usuariosRoutes');
 const { auditoriaRoutes }    = require('./src/auditoria');
 const auth = require('./src/auth');
@@ -140,6 +141,7 @@ const rotas = [
   ...authRoutes,
   ...configRoutes,
   ...patrimoniosRoutes,
+  ...almoxarifadoRoutes,
   ...auditoriaRoutes,
   ...usuariosRoutes
 ];

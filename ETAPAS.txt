@@ -100,6 +100,29 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
       [ ] /carimbo nao percebe mudanca na aba Personalizar: outra tela
           aberta so ve categoria/local novo ao recarregar.
 
+[ ~~ ] ETAPA 11 - ALMOXARIFADO (materiais de consumo)  -- 17/09/2026
+      Aba nova ao lado de Patrimonios, para bobina, etiqueta, saco
+      plastico, tinta, toner. Controle por QUANTIDADE e por LOTE:
+      cada entrada e um lote com validade propria, e a saida escolhe
+      de qual lote sai.
+      [OK] Banco: app.almoxarifado + app.almoxarifado_mov e a coluna
+           config.cats_almox (migracao 05_almoxarifado.sql; o 02 e o
+           03 ja nascem com tudo).
+      [OK] API: almoxarifadoRoutes.js espelhando o patrimonio -
+           listar (com saldo, lotes e historico prontos), criar com a
+           primeira entrada, editar, movimentar, excluir e importar
+           tudo-ou-nada. Saida maior que o lote e recusada dizendo
+           quanto existe; item e serie nao se repetem.
+      [OK] Tela: seletor "Patrimonio | Almoxarifado" no topo do Novo
+           Cadastro, aba Almoxarifado com filtros (saldo, vencendo em
+           30 dias, vencido), lotes e historico no item, categorias
+           proprias em Personalizar, Exportar (3 saidas), Importar,
+           auditoria, permissoes e leitor de codigo de barras.
+      [OK] Testes: 68 no npm test + navegador (cadastro, saida por
+           lote, saldo insuficiente, filtros, importacao, exclusao).
+      [ ] PENDENTE: rodar 05_almoxarifado.sql no SSMS, atualizar a VM
+          (git pull + restart) e conferir na producao.
+
 [    ] ETAPA 10 - FECHAMENTO DA VERSAO 1.0
       Revisao final, documentacao conferida contra o codigo, tag v1.0
       no Git e entrega.

@@ -18,7 +18,7 @@ GO
 -- utilizavel; tudo e editavel na aba Personalizar.
 -- ------------------------------------------------------------
 IF NOT EXISTS (SELECT 1 FROM app.config WHERE id = 'main')
-INSERT INTO app.config (id, cats, pessoas, locais, status_opts, vinculos) VALUES (
+INSERT INTO app.config (id, cats, cats_almox, pessoas, locais, status_opts, vinculos) VALUES (
   'main',
   N'[{"id":"c1","name":"Notebook","color":"#2563eb"},
      {"id":"c2","name":"Desktop","color":"#7c3aed"},
@@ -26,6 +26,13 @@ INSERT INTO app.config (id, cats, pessoas, locais, status_opts, vinculos) VALUES
      {"id":"c4","name":"Impressora","color":"#d97706"},
      {"id":"c5","name":"Celular","color":"#059669"},
      {"id":"c6","name":"Periférico","color":"#64748b"}]',
+  -- categorias do ALMOXARIFADO (material de consumo)
+  N'[{"id":"a1","name":"Bobina","color":"#2563eb"},
+     {"id":"a2","name":"Etiqueta","color":"#7c3aed"},
+     {"id":"a3","name":"Saco plástico","color":"#0891b2"},
+     {"id":"a4","name":"Tinta de impressora","color":"#d97706"},
+     {"id":"a5","name":"Toner","color":"#059669"},
+     {"id":"a6","name":"Material de escritório","color":"#64748b"}]',
   N'[]',
   N'["TI","Almoxarifado","Manutenção"]',
   N'[{"id":"s1","name":"Em uso","color":"#059669"},

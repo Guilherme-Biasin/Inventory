@@ -153,6 +153,29 @@ const DB = {
   // simular=true so confere (nunca grava) — usado para a previa.
   bulkCreateItems(rows, simular){ return _post('/patrimonios/importar', { rows, simular: !!simular }); },
 
+  // ── ALMOXARIFADO ─────────────────────────────────────────────
+  // Material de consumo. Cada item traz saldo, lotes (cada entrada com a sua
+  // validade e quanto resta dela) e o historico completo — a tela nao precisa
+  // recalcular nada.
+  loadAlmox(){ return _get('/almoxarifado'); },
+
+  async createAlmox(item, mov){
+    const r = await _post('/almoxarifado', { item, mov });
+    return r.id;
+  },
+
+  updateAlmox(id, item){ return _post('/almoxarifado/atualizar', { id, item }); },
+
+  // mov.tipo = 'entrada' | 'saida'. Na saida vai tambem mov.loteId: quem
+  // registra escolhe de qual lote sai o material.
+  movimentarAlmox(almoxId, mov){ return _post('/almoxarifado/movimentacoes', { almoxId, mov }); },
+
+  deleteAlmox(id){ return _post('/almoxarifado/excluir', { id }); },
+
+  // Mesmas regras da importacao de patrimonio: tudo ou nada, e simular=true
+  // so confere.
+  bulkCreateAlmox(rows, simular){ return _post('/almoxarifado/importar', { rows, simular: !!simular }); },
+
   // ── ATUALIZACAO AUTOMATICA ───────────────────────────────────
   // O SQL Server nao tem o "realtime" do Supabase. Em vez de abrir um canal, a
   // tela pergunta a cada INTERVALO se alguma coisa mudou: a rota /carimbo

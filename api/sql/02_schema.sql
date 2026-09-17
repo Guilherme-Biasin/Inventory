@@ -23,7 +23,8 @@ GO
 IF OBJECT_ID('app.config') IS NULL
 CREATE TABLE app.config (
   id            VARCHAR(20)   NOT NULL CONSTRAINT pk_config PRIMARY KEY,
-  cats          NVARCHAR(MAX) NULL,   -- [{id,name,color}]
+  cats          NVARCHAR(MAX) NULL,   -- [{id,name,color}] categorias de patrimonio
+  cats_almox    NVARCHAR(MAX) NULL,   -- [{id,name,color}] categorias do almoxarifado
   pessoas       NVARCHAR(MAX) NULL,   -- ["Fulano", ...]
   locais        NVARCHAR(MAX) NULL,   -- ["TI", ...]
   status_opts   NVARCHAR(MAX) NULL,   -- [{id,name,color}]
@@ -152,6 +153,68 @@ GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_auditoria_registro' AND object_id = OBJECT_ID('app.auditoria'))
   CREATE INDEX ix_auditoria_registro ON app.auditoria(tabela, registro_id);
+GO
+
+-- ------------------------------------------------------------
+-- ALMOXARIFADO (materiais de consumo) — bobina, etiqueta, saco
+-- plastico, tinta, toner. Separado do patrimonio porque aqui o que
+-- importa e QUANTIDADE e VALIDADE, nao o bem individual: cada
+-- entrada e um LOTE com a sua validade, e cada saida diz de qual
+-- lote saiu.
+--
+-- O detalhe de cada decisao esta em 05_almoxarifado.sql, que aplica
+-- o mesmo em bancos que ja existiam.
+-- ------------------------------------------------------------
+IF OBJECT_ID('app.almoxarifado') IS NULL
+CREATE TABLE app.almoxarifado (
+  id            INT IDENTITY(1,1) CONSTRAINT pk_almoxarifado PRIMARY KEY,
+  item          VARCHAR(120)   NOT NULL,
+  categoria     VARCHAR(40)    NULL,       -- id de app.config.cats_almox
+  modelo        VARCHAR(120)   NULL,
+  serie         VARCHAR(120)   NULL,
+  obs           NVARCHAR(1000) NULL,       -- observacoes de cadastro
+  criado_em     DATETIME2(0)   NOT NULL CONSTRAINT df_almox_criado DEFAULT SYSDATETIME(),
+  criado_por    VARCHAR(50)    NULL,
+  atualizado_em DATETIME2(0)   NOT NULL CONSTRAINT df_almox_atualizado DEFAULT SYSDATETIME()
+);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_almox_item' AND object_id = OBJECT_ID('app.almoxarifado'))
+  CREATE UNIQUE INDEX ux_almox_item ON app.almoxarifado(item);
+GO
+
+-- Filtrado: varios itens podem ficar sem serie, mas serie preenchida
+-- nao se repete.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_almox_serie' AND object_id = OBJECT_ID('app.almoxarifado'))
+  CREATE UNIQUE INDEX ux_almox_serie ON app.almoxarifado(serie) WHERE serie IS NOT NULL;
+GO
+
+IF OBJECT_ID('app.almoxarifado_mov') IS NULL
+CREATE TABLE app.almoxarifado_mov (
+  id          INT IDENTITY(1,1) CONSTRAINT pk_almox_mov PRIMARY KEY,
+  almox_id    INT            NOT NULL,
+  tipo        VARCHAR(10)    NOT NULL,   -- 'entrada' | 'saida'
+  data_mov    DATE           NULL,
+  validade    DATE           NULL,       -- so na entrada (lote)
+  quantidade  DECIMAL(12,2)  NOT NULL,
+  lote_id     INT            NULL,       -- saida: id da entrada de onde saiu
+  usuario     VARCHAR(120)   NULL,
+  obs_mov     NVARCHAR(1000) NULL,
+  criado_em   DATETIME2(0)   NOT NULL CONSTRAINT df_almox_mov_criado DEFAULT SYSDATETIME(),
+  criado_por  VARCHAR(50)    NULL,
+  CONSTRAINT fk_almox_mov_item FOREIGN KEY (almox_id)
+    REFERENCES app.almoxarifado(id) ON DELETE CASCADE,
+  CONSTRAINT ck_almox_mov_tipo CHECK (tipo IN ('entrada','saida')),
+  CONSTRAINT ck_almox_mov_qtd CHECK (quantidade > 0)
+);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_almox_mov_item' AND object_id = OBJECT_ID('app.almoxarifado_mov'))
+  CREATE INDEX ix_almox_mov_item ON app.almoxarifado_mov(almox_id, criado_em);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_almox_mov_lote' AND object_id = OBJECT_ID('app.almoxarifado_mov'))
+  CREATE INDEX ix_almox_mov_lote ON app.almoxarifado_mov(lote_id);
 GO
 
 PRINT '02 concluido. Rode agora o 03_seed.sql.';
