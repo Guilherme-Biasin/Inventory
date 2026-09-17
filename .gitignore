@@ -12,6 +12,12 @@ senhas.txt
 *senha*.txt
 *senhas*.txt
 
+# Copia do NSSM na raiz, so na VM: permite rodar
+#   cd C:\guemat-estoque && git pull && nssm restart InventoryGuemat
+# (o cmd acha programa na pasta atual). E um executavel de terceiros — nao
+# entra no repositorio. O servico usa o C:\ferramentas\nssm.exe.
+/nssm.exe
+
 # Configuracao local da maquina (Claude Code)
 .claude/settings.local.json
 

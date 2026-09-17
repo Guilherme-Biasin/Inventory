@@ -47,14 +47,17 @@ Como a tela (Vercel) e a API (VM) estão em endereços diferentes, o serviço
 | `ATRAS_DE_PROXY` | `1` | Todo mundo chega com o IP do túnel: 5 senhas erradas de **uma** pessoa bloqueiam o login de **todas** por 10 minutos |
 | `SOMENTE_LEITURA` | *(não definir)* | — em produção a gravação fica ligada |
 
-Para conferir ou definir (PowerShell como administrador, na VM):
+Para conferir ou definir (Prompt de Comando **como administrador**, na VM):
 
 ```bash
 C:\ferramentas\nssm.exe get InventoryGuemat AppEnvironmentExtra
 ```
 ```bash
-C:\ferramentas\nssm.exe set InventoryGuemat AppEnvironmentExtra ORIGENS_PERMITIDAS=https://inventory.guematpro.com ATRAS_DE_PROXY=1
+C:\ferramentas\nssm.exe set InventoryGuemat AppEnvironmentExtra PORT=3002 ORIGENS_PERMITIDAS=https://inventory.guematpro.com ATRAS_DE_PROXY=1
 ```
+
+O `set` **substitui a lista inteira**: sempre repita todas as variáveis, não só
+a que mudou.
 
 > O curinga `inventory-guemat-*.vercel.app` só vale se o projeto na Vercel tiver
 > esse nome. Confira no painel da Vercel e ajuste o padrão.
@@ -66,14 +69,26 @@ git push origin main
 ```
 
 Isso publica **a tela** na hora (Vercel). Mudança na **API** exige, além do
-push, atualizar a VM:
+push, atualizar a VM. Prompt de Comando (cmd) **como administrador**, igual ao
+Gerente Assist:
 
 ```bash
-cd C:\guemat-estoque && git pull
+cd C:\guemat-estoque && git pull && nssm restart InventoryGuemat
 ```
-```bash
-C:\ferramentas\nssm.exe restart InventoryGuemat
-```
+
+O `nssm` curto funciona porque existe uma **cópia do `nssm.exe` dentro de
+`C:\guemat-estoque`**: o cmd procura o programa primeiro na pasta atual, e o
+`cd` do começo garante que você está nela. É o mesmo arranjo do GA
+(`C:\guemat-assist\nssm.exe`). Sem a cópia, o `nssm` sozinho dá "não é
+reconhecido como comando" — e o `git pull` passa, mas o serviço **não
+reinicia** e continua rodando a versão velha.
+
+- A cópia está no `.gitignore`: nunca vai para o GitHub e não atrapalha o pull.
+- **Não apague o `C:\ferramentas\nssm.exe`.** O serviço `InventoryGuemat` foi
+  instalado a partir dele; o Windows executa aquele arquivo para iniciar o
+  serviço. A cópia na pasta do projeto é só para digitar o comando curto.
+- Use o **cmd**, não o PowerShell: o PowerShell do Windows não aceita `&&`, e
+  também não roda programa da pasta atual sem `.\` na frente.
 
 Como os dois lados sobem separados, dá para a tela estar numa versão e a API
 noutra. Ao mexer nos dois no mesmo commit, atualize a VM logo depois do push.

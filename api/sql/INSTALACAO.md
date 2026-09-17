@@ -130,7 +130,13 @@ grava no banco.
 
 O `iniciar.bat` só mantém o sistema no ar enquanto a janela estiver aberta.
 Na VM ele roda como o serviço `InventoryGuemat`, pelo NSSM (o mesmo do
-Gerente Assist). PowerShell **como administrador**:
+Gerente Assist). Prompt de Comando (cmd) **como administrador** — confira que a
+barra de título começa com "Administrador:"; sem isso todo comando do NSSM
+responde `Acesso negado`.
+
+O serviço é instalado a partir de `C:\ferramentas\nssm.exe`, que fica fixo: o
+Windows executa esse arquivo toda vez que o serviço inicia, então ele **não pode
+ser apagado nem movido** depois.
 
 ```bash
 C:\ferramentas\nssm.exe install InventoryGuemat "C:\Program Files\nodejs\node.exe" server.js
@@ -149,6 +155,15 @@ C:\ferramentas\nssm.exe set InventoryGuemat AppStderr C:\guemat-estoque\api\log.
 ```
 ```bash
 C:\ferramentas\nssm.exe start InventoryGuemat
+```
+
+Por último, uma cópia do `nssm.exe` dentro da pasta do projeto, para a
+atualização do dia a dia usar o comando curto
+(`cd C:\guemat-estoque && git pull && nssm restart InventoryGuemat`, ver
+LEIA-ME). A cópia está no `.gitignore`.
+
+```bash
+copy C:\ferramentas\nssm.exe C:\guemat-estoque\
 ```
 
 O que cada variável faz está no [LEIA-ME](../../LEIA-ME.md#variáveis-do-serviço-na-vm-obrigatórias).
