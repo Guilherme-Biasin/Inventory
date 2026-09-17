@@ -1131,6 +1131,23 @@ html.dark .modal {
 }
 .user-badge:hover { background:var(--hover); }
 
+/* ── SELO DE AMBIENTE (mesmo desenho do Gerente Assist) ───
+   A tela de desenvolvimento é idêntica à de produção. Sem o selo, não há
+   como saber se o que se faz ali vai ou não para o banco de verdade. */
+.selo-ambiente { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center; }
+.selo-ambiente:empty { display:none; }
+.selo-leitura, .selo-producao, .selo-versao {
+    font-size:11px; font-weight:800; letter-spacing:.6px;
+    padding:4px 10px; border-radius:20px; white-space:nowrap;
+}
+/* Âmbar: os dados são reais, o aviso é sobre o que NÃO dá para fazer. */
+.selo-leitura  { background:#f59e0b; color:#1e1e1e; }
+/* Vermelho: notebook ligado no banco de produção, gravando de verdade. */
+.selo-producao { background:#dc2626; color:#fff; }
+.selo-versao   { background:var(--bg3); color:var(--txt2); font-weight:700; }
+.login-card .selo-ambiente { display:flex; margin-bottom:1rem; }
+.login-card .selo-ambiente:empty { display:none; }
+
 /* ══════════════════════════════════════════════════════
    1920×1080 — conteúdo se expande para usar a tela toda
    Sidebar 210px fixa; content usa o restante (~1710px)

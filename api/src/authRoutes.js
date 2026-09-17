@@ -124,11 +124,19 @@ const authRoutes = [
   { method: 'POST', path: '/api/v1/senha', handler: trocarSenha }
 ];
 
-// ---------- Revogacao de sessao ----------
-// O token e assinado e vale 12h, entao desativar um usuario nao derrubaria a
-// sessao dele sozinho. A lista de logins ATIVOS fica em cache por 30s:
-// desativou na aba Usuarios, o acesso cai em ate meio minuto, sem custo de uma
-// consulta ao banco por requisicao.
+// ---------- Revogacao de sessao e PAPEL ATUAL ----------
+// O token e assinado e vale 12h. Se o servidor confiasse no que esta DENTRO
+// dele, desativar um usuario nao derrubaria a sessao, e rebaixar um admin para
+// leitor so valeria quando o token vencesse — ate 12h com poder de admin.
+//
+// Por isso o servidor mantem, em cache, o mapa login -> papel de todos os
+// usuarios ATIVOS, e a cada chamada:
+//   - login fora do mapa  => sessao encerrada (401)
+//   - login no mapa       => o papel usado e o DO BANCO, nao o do token
+//
+// Quando a mudanca e feita pela aba Usuarios, o cache e zerado na hora
+// (invalidarCacheAtivos) e a proxima chamada ja enxerga o papel novo. Os 30s
+// so valem para alteracao feita direto no banco, pelo SSMS.
 const CACHE_MS = 30 * 1000;
 let _ativos = null, _ativosEm = 0, _buscando = null;
 
@@ -139,8 +147,8 @@ async function loginsAtivos(){
   _buscando = (async () => {
     try {
       const p = await conexao();
-      const r = await p.request().query('SELECT login FROM app.usuario WHERE ativo = 1');
-      _ativos = new Set(r.recordset.map(x => String(x.login).toLowerCase()));
+      const r = await p.request().query('SELECT login, papel FROM app.usuario WHERE ativo = 1');
+      _ativos = new Map(r.recordset.map(x => [String(x.login).toLowerCase(), x.papel]));
       _ativosEm = Date.now();
     } catch(e){
       // Banco fora do ar: mantem o cache anterior em vez de expulsar todo mundo.
@@ -151,18 +159,23 @@ async function loginsAtivos(){
   return _buscando;
 }
 
-// Chamado quando o admin desativa/cria usuario: a proxima requisicao ja enxerga
-// a mudanca, sem esperar os 30s do cache.
+// Chamado quando o admin cria, altera, desativa ou exclui usuario: a proxima
+// requisicao ja enxerga a mudanca, sem esperar os 30s do cache.
 function invalidarCacheAtivos(){ _ativos = null; _ativosEm = 0; }
 
-// true = a sessao ainda vale. Se nunca conseguimos carregar a lista, deixa
-// passar (o token assinado ja e uma garantia) para nao derrubar o sistema
-// inteiro por um problema momentaneo de banco.
+// true = a sessao ainda vale. De quebra, ATUALIZA usuario.papel com o papel do
+// banco — o server.js chama isto antes de conferir permissao, entao a decisao
+// sempre usa o papel de agora.
+// Se nunca conseguimos carregar a lista (banco fora do ar desde a partida),
+// deixa passar com o papel do token para nao derrubar o sistema inteiro.
 async function sessaoValida(usuario){
   if(!usuario || !usuario.login) return false;
   const ativos = await loginsAtivos();
   if(!ativos) return true;
-  return ativos.has(String(usuario.login).toLowerCase());
+  const papel = ativos.get(String(usuario.login).toLowerCase());
+  if(!papel) return false;
+  usuario.papel = papel;
+  return true;
 }
 
 module.exports = { authRoutes, sessaoValida, invalidarCacheAtivos };

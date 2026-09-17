@@ -2,7 +2,8 @@
 --  Inventory Guemat — 03: dados iniciais
 --  Rode no banco ESTOQUE_TI, depois do 02. Roda UMA vez.
 --
---  Cria a linha de configuracao e o PRIMEIRO administrador.
+--  Cria a linha de configuracao. O primeiro administrador NAO
+--  nasce aqui: ele e criado com api/criar-admin.js (ver abaixo).
 --  Tudo aqui e "se ainda nao existir": rodar de novo nao duplica
 --  nem sobrescreve o que voce ja cadastrou.
 -- ============================================================
@@ -36,33 +37,22 @@ INSERT INTO app.config (id, cats, pessoas, locais, status_opts, vinculos) VALUES
 GO
 
 -- ------------------------------------------------------------
--- PRIMEIRO ADMINISTRADOR
+-- PRIMEIRO ADMINISTRADOR: NAO e criado aqui, de proposito.
 --
---   login: admin
---   senha: Trocar@123
+-- Este arquivo esta no Git. Qualquer usuario e senha escritos aqui
+-- (mesmo como hash) virariam um acesso conhecido por quem ler o
+-- repositorio. O primeiro admin e criado na linha de comando, com
+-- a senha digitada na hora e sem ficar gravada em lugar nenhum:
 --
--- TROQUE ESSA SENHA NO PRIMEIRO ACESSO (menu do usuario ->
--- Alterar senha). Ela esta escrita aqui em um arquivo versionado
--- no Git; enquanto nao for trocada, quem ler o repositorio entra
--- no sistema.
+--   cd api
+--   node criar-admin.js <login> "<Nome>"
 --
--- O valor abaixo e o hash scrypt (sal:hash) gerado pela mesma
--- funcao que a API usa — nao e a senha, e nao da para voltar dela
--- para a senha.
+-- Ver api/sql/INSTALACAO.md, passo 4.
 -- ------------------------------------------------------------
-IF NOT EXISTS (SELECT 1 FROM app.usuario WHERE login = 'admin')
-INSERT INTO app.usuario (login, senha_hash, nome, papel, ativo) VALUES (
-  'admin',
-  '728198d7d758ffac85d262ba5e4a3eef:00f9528db074a6cf68b5db8216f4e7047846a472834bbd7b10835debf7e673f2',
-  'Administrador',
-  'admin',
-  1
-);
-GO
 
 SELECT 'config'    AS tabela, COUNT(*) AS linhas FROM app.config
-UNION ALL SELECT 'usuario', COUNT(*) FROM app.usuario;
+UNION ALL SELECT 'usuario', COUNT(*) FROM app.usuario;   -- 0 em instalacao nova: o admin vem do criar-admin.js
 GO
 
-PRINT '03 concluido. Banco pronto — agora configure api/config/db.json e suba a API.';
+PRINT '03 concluido. Agora configure api/config/db.json e crie o primeiro admin com node criar-admin.js.';
 GO

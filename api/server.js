@@ -23,6 +23,46 @@ const auth = require('./src/auth');
 
 const PORT = process.env.PORT || 3002;
 
+// SOMENTE LEITURA — para o notebook abrir o sistema com os DADOS REAIS sem
+// risco. O banco que o desenvolvimento enxerga e o mesmo ESTOQUE_TI da
+// producao: cadastrar um patrimonio "so para testar" entraria no inventario
+// de verdade. Com esta trava tudo aparece, e nenhum POST passa — nem criar
+// usuario, nem trocar senha. (O login passa: ele e publico.)
+// A trava fica AQUI, no servidor, e nao so escondendo botao na tela.
+// Mesmo desenho do Gerente Assist. Suba com api\iniciar-leitura.bat.
+const SOMENTE_LEITURA = process.env.SOMENTE_LEITURA === '1';
+
+// QUAL COMMIT ESTE PROCESSO ESTA RODANDO. Lido do .git na partida, e nao a cada
+// chamada: o codigo em memoria e o da partida, entao reler depois mentiria
+// exatamente na hora que importa (depois de um `git pull` sem restart).
+//
+// "Atualizei e nao mudou nada" tem tres causas iguais por fora — o pull nao
+// veio, o servico nao reiniciou, ou a migracao SQL falta. Com o commit a vista,
+// da para descartar as duas primeiras sem adivinhar.
+const VERSAO = (() => {
+  try {
+    const git = path.resolve(__dirname, '..', '.git');
+    const head = fs.readFileSync(path.join(git, 'HEAD'), 'utf8').trim();
+    const ref = head.startsWith('ref:') ? head.slice(4).trim() : null;
+    let sha = head;
+    if(ref){
+      const solto = path.join(git, ref);
+      if(fs.existsSync(solto)) sha = fs.readFileSync(solto, 'utf8').trim();
+      else {
+        // Depois de um `git gc` a ref vai para packed-refs e o arquivo solto some.
+        const packed = fs.readFileSync(path.join(git, 'packed-refs'), 'utf8');
+        const linha = packed.split('\n').find(l => l.endsWith(' ' + ref));
+        sha = linha ? linha.split(' ')[0] : '';
+      }
+    }
+    return sha ? sha.slice(0, 7) : null;
+  } catch(e){
+    // Instalacao sem .git (copiada por zip) continua funcionando, so nao diz a
+    // versao — e melhor do que o servidor inteiro nao subir por causa disto.
+    return null;
+  }
+})();
+
 // Frontend servido a partir da pasta /frontend (irma de /api).
 const FRONTEND_DIR = path.resolve(__dirname, '..', 'frontend');
 const ARQUIVO_INICIAL = 'index.html';
@@ -55,10 +95,12 @@ function podeAcessar(usuario, permissao){
 }
 
 // ---------- CORS ----------
-// Sem ORIGENS_PERMITIDAS nenhuma origem externa e liberada — e o sistema
-// funciona normalmente, porque o frontend e servido por este mesmo processo
-// (mesma origem nao usa CORS). So configure se um dia hospedar a tela em outro
-// endereco.  Ex.: ORIGENS_PERMITIDAS=https://estoque.guematpro.com
+// Sem ORIGENS_PERMITIDAS nenhuma origem externa e liberada. Isso basta quando a
+// tela e servida por este mesmo processo (localhost:3002 — mesma origem nao usa
+// CORS). EM PRODUCAO A TELA VEM DA VERCEL, em outro endereco, e o servico na VM
+// PRECISA da variavel, senao o navegador bloqueia toda chamada:
+//   ORIGENS_PERMITIDAS=https://inventory.guematpro.com
+// Ver LEIA-ME.md, "Variaveis do servico na VM".
 const ORIGENS = (process.env.ORIGENS_PERMITIDAS || '')
   .split(',').map(s => s.trim()).filter(Boolean)
   .map(p => new RegExp('^' + p.replace(/[.*+?^${}()|[\]\\]/g, m => m === '*' ? ' ' : '\\' + m)
@@ -86,7 +128,15 @@ function ipDoCliente(req){
   return (req.socket && req.socket.remoteAddress) || '?';
 }
 
+// Qual ambiente e este. Publica de proposito: a tela precisa saber ANTES do
+// login, para avisar quando nada do que se fizer ali vai ser gravado.
+const ambienteRoute = {
+  method: 'GET', path: '/api/v1/ambiente', publico: true,
+  handler: async () => ({ modo: 'sqlserver', somenteLeitura: SOMENTE_LEITURA, versao: VERSAO })
+};
+
 const rotas = [
+  ambienteRoute,
   ...authRoutes,
   ...configRoutes,
   ...patrimoniosRoutes,
@@ -180,6 +230,17 @@ async function servirApi(req, res, parsed){
 
   try {
     const body = (req.method === 'POST' || req.method === 'PUT') ? await lerBody(req) : null;
+
+    // Trava de SOMENTE LEITURA. Depois de ler o corpo porque a importacao tem
+    // o modo { simular: true }, que so confere a planilha e nao grava nada —
+    // esse pode passar.
+    const soConfere = rota.simulavel && body && body.simular === true;
+    if(SOMENTE_LEITURA && req.method === 'POST' && !rota.publico && !soConfere){
+      res.writeHead(423);
+      return res.end(JSON.stringify({ erro: 'servidor em SOMENTE LEITURA — nada foi gravado. ' +
+        'Este modo existe para conferir os dados reais sem escrever no banco de producao.' }));
+    }
+
     const dados = await rota.handler(parsed.searchParams, body, usuario, { ip: ipDoCliente(req) });
     enviar(req, res, 200, JSON.stringify(dados));
   } catch(e){
@@ -285,5 +346,7 @@ server.on('error', e => {
 server.listen(PORT, () => {
   console.log(`Inventory Guemat rodando em http://localhost:${PORT}/`);
   console.log(`API em http://localhost:${PORT}/api/v1`);
+  console.log(`Versao (commit): ${VERSAO || 'desconhecida'}`);
+  if(SOMENTE_LEITURA) console.log('*** SOMENTE LEITURA: nenhuma gravacao passa ***');
   rotas.forEach(r => console.log(`  ${r.method.padEnd(4)} ${r.path}`));
 });

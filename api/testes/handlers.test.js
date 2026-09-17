@@ -57,7 +57,7 @@ const { patrimoniosRoutes } = require(path.join(API, 'src/patrimoniosRoutes'));
 const { configRoutes }      = require(path.join(API, 'src/configRoutes'));
 const { usuariosRoutes }    = require(path.join(API, 'src/usuariosRoutes'));
 const { auditoriaRoutes }   = require(path.join(API, 'src/auditoria'));
-const { authRoutes }        = require(path.join(API, 'src/authRoutes'));
+const { authRoutes, sessaoValida, invalidarCacheAtivos } = require(path.join(API, 'src/authRoutes'));
 const auth                  = require(path.join(API, 'src/auth'));
 
 const todas = [...authRoutes, ...configRoutes, ...patrimoniosRoutes, ...auditoriaRoutes, ...usuariosRoutes];
@@ -183,16 +183,77 @@ await teste('excluir devolve o antes para a auditoria', async () => {
   if(!consultas.some(c => c.sql.startsWith('DELETE FROM app.patrimonio'))) throw new Error('nao apagou');
 });
 
-await teste('importar conta acertos e erros por linha', async () => {
-  const dup = new Error('dup'); dup.number = 2627;
-  respostas = [[{ id: 1 }], [], dup, [{ id: 3 }], []];
+// Configuracao e numeros existentes que a conferencia da importacao le primeiro.
+const CFG_IMPORT = [{
+  cats: '[{"id":"c1","name":"Notebook","color":"#2563eb"}]',
+  status_opts: '[{"id":"s1","name":"Em uso","color":"#059669"}]',
+  locais: '["TI"]'
+}];
+const linhaOk = (linha, numero) => ({ linha, patrimonio: numero, nome: 'Dell', modelo: 'Vostro',
+  serie: 'SN' + numero, categoria: 'notebook', status: 'Em uso', local_atual: 'ti' });
+
+await teste('importar: planilha certa grava tudo numa transacao, com historico', async () => {
+  respostas = [CFG_IMPORT, [{ patrimonio: '999' }], [{ id: 1 }], [], [{ id: 2 }], [], []];
   const r = await rota('POST', '/api/v1/patrimonios/importar').handler(qs(), {
-    rows: [{ patrimonio: 'A' }, { patrimonio: 'B' }, { patrimonio: 'C' }]
+    rows: [linhaOk(2, 'A'), linhaOk(3, 'B')]
   }, ADMIN);
+  igual(r.gravado, true, 'gravado');
   igual(r.sucesso, 2, 'sucessos');
-  igual(r.erros.length, 1, 'erros');
-  igual(r.erros[0].linha, 3, 'linha do erro');
-  if(!r.erros[0].motivo.includes('ja existe')) throw new Error('motivo nao traduzido: ' + r.erros[0].motivo);
+  const movs = consultas.filter(c => c.sql.startsWith('INSERT INTO app.movimentacao'));
+  igual(movs.length, 2, 'uma entrada no historico por bem');
+  const pat = consultas.find(c => c.sql.startsWith('INSERT INTO app.patrimonio'));
+  igual([pat.entradas.categoria, pat.entradas.status, pat.entradas.local], ['c1', 's1', 'TI'], 'nomes traduzidos');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(movs[0].entradas.data)) throw new Error('entrada sem data');
+});
+
+await teste('importar: com um erro que seja, nada e gravado', async () => {
+  respostas = [CFG_IMPORT, []];
+  const r = await rota('POST', '/api/v1/patrimonios/importar').handler(qs(), {
+    rows: [linhaOk(2, 'A'), Object.assign(linhaOk(3, 'B'), { categoria: 'Tablet' })]
+  }, ADMIN);
+  igual(r.gravado, false, 'nao gravou');
+  igual(r.erros.length, 1, 'um erro');
+  igual(r.erros[0].linha, 3, 'linha');
+  if (!r.erros[0].correcao.includes('Notebook')) throw new Error('correcao nao lista as categorias validas');
+  if (consultas.some(c => c.sql.startsWith('INSERT'))) throw new Error('gravou mesmo com erro');
+});
+
+await teste('importar: numero repetido na planilha e ja cadastrado viram erro explicado', async () => {
+  respostas = [CFG_IMPORT, [{ patrimonio: 'x-1' }]];
+  const r = await rota('POST', '/api/v1/patrimonios/importar').handler(qs(), {
+    rows: [linhaOk(2, 'A'), linhaOk(5, 'a'), linhaOk(6, 'X-1')]
+  }, ADMIN);
+  igual(r.erros.map(e => e.linha), [5, 6], 'linhas');
+  if (!r.erros[0].motivo.includes('linha 2')) throw new Error('nao disse onde esta a repeticao: ' + r.erros[0].motivo);
+  if (!r.erros[1].motivo.includes('já está cadastrado')) throw new Error('nao acusou o existente: ' + r.erros[1].motivo);
+});
+
+await teste('importar: campo vazio e texto longo demais nao sao cortados calados', async () => {
+  respostas = [CFG_IMPORT, []];
+  const r = await rota('POST', '/api/v1/patrimonios/importar').handler(qs(), {
+    rows: [Object.assign(linhaOk(2, 'A'), { modelo: '', serie: 'S'.repeat(121) })]
+  }, ADMIN);
+  igual(r.erros.map(e => e.campo), ['Modelo', 'N° Série'], 'campos');
+});
+
+await teste('importar: simular so confere, mesmo com a planilha certa', async () => {
+  respostas = [CFG_IMPORT, []];
+  const r = await rota('POST', '/api/v1/patrimonios/importar').handler(qs(), {
+    rows: [linhaOk(2, 'A')], simular: true
+  }, ADMIN);
+  igual([r.gravado, r.erros.length], [false, 0], 'conferido sem gravar');
+  if (consultas.some(c => c.sql.startsWith('INSERT'))) throw new Error('simulacao gravou');
+});
+
+await teste('importar: falha do banco no meio desfaz tudo e explica', async () => {
+  const dup = new Error('dup'); dup.number = 2627;
+  respostas = [CFG_IMPORT, [], [{ id: 1 }], [], dup];
+  const r = await rota('POST', '/api/v1/patrimonios/importar').handler(qs(), {
+    rows: [linhaOk(2, 'A'), linhaOk(3, 'B')]
+  }, ADMIN);
+  igual([r.gravado, r.sucesso], [false, 0], 'nada gravado');
+  igual(r.erros[0].linha, 3, 'linha que falhou');
+  if (!r.erros[0].motivo.includes('ja existe')) throw new Error('motivo nao traduzido');
 });
 
 await teste('movimentacao grava o status e atualiza o do bem', async () => {
@@ -260,13 +321,25 @@ await teste('salvar config usa MERGE e nao perde lista undefined', async () => {
   igual(m.entradas.pessoas, '[]', 'lista ausente vira []');
 });
 
+await teste('config recusa cor que nao e #hex (CSS injetado)', async () => {
+  respostas = [[], []];
+  await rota('POST', '/api/v1/config').handler(qs(), {
+    cats: [{ id: 'c1', name: 'Notebook', color: 'red;background:url(//x)', extra: 'fora' }],
+    statusOpts: [{ id: 's1', name: 'Em uso', color: '#059669' }],
+    pessoas: [], locais: ['TI'], vinculos: null
+  }, ADMIN);
+  const e = consultas[0].entradas;
+  igual(JSON.parse(e.cats), [{ id: 'c1', name: 'Notebook', color: '#888888' }], 'cor trocada e campo extra fora');
+  igual(JSON.parse(e.status)[0].color, '#059669', 'cor valida mantida');
+});
+
 console.log('\n— USUARIOS —');
 
 await teste('criar usuario normaliza o login e guarda a senha em hash', async () => {
   respostas = [[{ id: 5 }], []];
   const r = await rota('POST', '/api/v1/usuarios').handler(qs(),
-    { login: '  Alex.Guedes ', papel: 'editor', senha: '1234' }, ADMIN);
-  igual(r.login, 'alex.guedes', 'login normalizado');
+    { login: '  Fulano.Tal ', papel: 'editor', senha: '1234' }, ADMIN);
+  igual(r.login, 'fulano.tal', 'login normalizado');
   if('senhaProvisoria' in r) throw new Error('nao deveria mais sortear senha');
   const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.usuario'));
   if(ins.entradas.hash === '1234') throw new Error('gravou a senha em texto puro');
@@ -363,10 +436,36 @@ await teste('excluir usuario inexistente avisa', async () => {
 
 console.log('\n— LOGIN / SENHA —');
 
+await teste('sessao usa o papel ATUAL do banco, nao o do token', async () => {
+  invalidarCacheAtivos();
+  respostas = [[{ login: 'Chefe', papel: 'leitor' }]];
+  const u = { login: 'chefe', papel: 'admin' };          // token antigo dizia admin
+  igual(await sessaoValida(u), true, 'sessao valida');
+  igual(u.papel, 'leitor', 'rebaixado vale na hora');
+});
+
+await teste('sessao de usuario desativado ou excluido cai', async () => {
+  invalidarCacheAtivos();
+  respostas = [[{ login: 'outro', papel: 'admin' }]];
+  igual(await sessaoValida({ login: 'chefe', papel: 'admin' }), false, 'fora da lista');
+});
+
+await teste('alterar papel zera o cache de sessoes', async () => {
+  invalidarCacheAtivos();
+  respostas = [[{ login: 'bia', papel: 'editor' }]];
+  await sessaoValida({ login: 'bia', papel: 'editor' });            // enche o cache
+  respostas = [[{ id: 4, login: 'bia', nome: 'Bia', papel: 'editor', ativo: 1 }], [], []];
+  await rota('POST', '/api/v1/usuarios/atualizar').handler(qs(), { id: 4, nome: 'Bia', papel: 'leitor' }, ADMIN);
+  respostas = [[{ login: 'bia', papel: 'leitor' }]];
+  const u = { login: 'bia', papel: 'editor' };
+  await sessaoValida(u);
+  igual(u.papel, 'leitor', 'papel novo sem esperar 30s');
+});
+
 await teste('login certo devolve token e papel', async () => {
-  const hash = auth.hashSenha('Trocar@123');
+  const hash = auth.hashSenha('SenhaDeTeste1');
   respostas = [[{ usuario_id: 1, login: 'admin', senha_hash: hash, nome: 'Adm', papel: 'admin', ativo: true }]];
-  const r = await rota('POST', '/api/v1/login').handler(qs(), { login: 'admin', senha: 'Trocar@123' }, null, { ip: '1.1.1.1' });
+  const r = await rota('POST', '/api/v1/login').handler(qs(), { login: 'admin', senha: 'SenhaDeTeste1' }, null, { ip: '1.1.1.1' });
   igual(r.usuario.papel, 'admin', 'papel');
   igual(auth.verificarToken(r.token).login, 'admin', 'token valido');
 });

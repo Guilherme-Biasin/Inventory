@@ -1,0 +1,97 @@
+========================================================
+ INVENTORY GUEMAT - ROTEIRO DE ETAPAS
+========================================================
+Legenda de status:  [    ] pendente    [ OK ] concluida    [ ~~ ] em andamento
+Regra do projeto:   ao concluir uma etapa, a documentacao (LEIA-ME.md,
+                    api/sql/INSTALACAO.md e este arquivo) e atualizada
+                    no MESMO commit.
+Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
+                    (npm test + navegador) -> atualizar docs -> commit
+========================================================
+
+
+[ OK ] ETAPA 1 - MIGRAR DO SUPABASE PARA O SQL SERVER
+      Banco ESTOQUE_TI separado do OFICIAL (scripts 01, 02, 03).
+      Login proprio (scrypt + token HMAC 12h) no lugar do Supabase Auth.
+      Papel (leitor/editor/admin) conferido no servidor.
+      Auditoria escrita pela API, com o autor certo.
+      Realtime substituido por /carimbo a cada 20s.
+      Movimentacao passou a registrar o status (migracao 04).
+
+[ OK ] ETAPA 2 - SEPARAR TELA E API (IGUAL AO GERENTE ASSIST)
+      Tela na Vercel (inventory.guematpro.com), API na VM
+      (inventory-api.guematpro.com, servico NSSM InventoryGuemat, 3002).
+      frontend/js/config.js escolhe a API pelo dominio.
+      Senha definida no cadastro de usuario; fim dos popups do
+      navegador; excluir usuario ao lado de desativar.
+
+[ OK ] ETAPA 3 - REVISAO DE SEGURANCA E ESTRUTURA (17/09/2026)
+      [OK] Tela: todo texto do banco/planilha passa por esc(). Fechado
+           o buraco em que um editor rodava codigo no navegador do
+           admin cadastrando HTML como marca/modelo. Cor de categoria
+           e status so aceita #hex (tela e servidor).
+      [OK] Papel vem do BANCO a cada chamada, nao do token de 12h.
+           Rebaixar ou desativar vale na proxima chamada da pessoa.
+      [OK] Importacao tudo-ou-nada: confere a planilha inteira antes,
+           lista cada erro com linha + motivo + como corrigir, e so
+           grava sem nenhum erro, numa transacao unica, cada bem com
+           a sua entrada no historico.
+      [OK] Modo SOMENTE LEITURA (api\iniciar-leitura.bat) + rota
+           /api/v1/ambiente com a versao (commit) + selo na tela.
+      [OK] Removido do repositorio todo usuario/senha: admin padrao
+           do 03_seed.sql, senha do LEIA-ME/INSTALACAO, exemplos com
+           nome real. criar-admin.js pede a senha sem mostrar.
+      [OK] senhas.txt e similares no .gitignore.
+      [OK] Documentacao: variaveis do NSSM (ORIGENS_PERMITIDAS,
+           ATRAS_DE_PROXY), instalacao por git clone, fluxo de
+           atualizacao e diagnostico pela versao.
+      Testes: 52 passando (npm test).
+
+[    ] ETAPA 4 - PUBLICAR E VALIDAR A ETAPA 3 EM PRODUCAO
+      [ ] git push (tela na Vercel) + git pull e restart na VM (API).
+      [ ] Conferir /api/v1/ambiente: versao igual ao ultimo commit.
+      [ ] Conferir as variaveis do servico (nssm get ... AppEnvironmentExtra):
+          ORIGENS_PERMITIDAS e ATRAS_DE_PROXY=1. Confirmar o nome do
+          projeto na Vercel para o curinga *.vercel.app.
+      [ ] Testar: rebaixar um usuario de teste e ver o 403 na hora.
+      [ ] Testar: importar planilha com erros (nada grava) e sem erros.
+      [ ] Confirmar que a conta admin antiga nao existe/esta desativada
+          (a senha antiga continua no historico do Git, commit 1612eef).
+      [ ] Apagar o senhas.txt local depois de passar para um
+          gerenciador de senhas.
+
+[    ] ETAPA 5 - CLAUDE.md DO PROJETO
+      Importar do Gerente Assist so as regras escolhidas pelo gerente
+      (lista apresentada em 17/09/2026) + as regras proprias daqui.
+
+[    ] ETAPA 6 - AMBIENTE DE TESTE QUE GRAVA  (decisao pendente)
+      Hoje o notebook so tem "so leitura" contra a producao. Para testar
+      cadastro/importacao de ponta a ponta sem mexer no inventario real:
+        a) banco ESTOQUE_TI_TESTE no mesmo servidor (+ db.teste.json), ou
+        b) modo mock em memoria, como o do Gerente Assist.
+      Perguntar ao gerente qual prefere antes de fazer.
+
+[    ] ETAPA 7 - VERIFICADOR DE INSTALACAO
+      api/verificar-banco.js (como no Gerente Assist): diz se o banco
+      tem todas as tabelas, colunas e migracoes, e se a linha 'main'
+      existe. Evita descobrir migracao faltando pelo erro na tela.
+
+[    ] ETAPA 8 - BACKUP DO ESTOQUE_TI  (confirmar com o gerente)
+      Confirmar se o banco novo entrou no plano de backup do servidor
+      (ele e separado do OFICIAL, entao nao herda o backup do ERP).
+      Testar uma restauracao.
+
+[    ] ETAPA 9 - AJUSTES MENORES LEVANTADOS NA REVISAO
+      [ ] Bibliotecas externas com versao fixa: os icones usam
+          "@latest" (pode mudar sozinho e quebrar a tela) e o xlsx
+          0.18.5 tem falhas conhecidas ao ler planilha maliciosa -
+          atualizar para a versao atual da SheetJS.
+      [ ] Excluir patrimonio e confirmar importacao ainda usam o
+          confirm() do navegador; trocar pelo modal confirmar() que a
+          aba Usuarios ja usa.
+      [ ] /carimbo nao percebe mudanca na aba Personalizar: outra tela
+          aberta so ve categoria/local novo ao recarregar.
+
+[    ] ETAPA 10 - FECHAMENTO DA VERSAO 1.0
+      Revisao final, documentacao conferida contra o codigo, tag v1.0
+      no Git e entrega.

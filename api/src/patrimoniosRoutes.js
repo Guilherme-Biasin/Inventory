@@ -35,6 +35,13 @@ function traduzirErro(e, numeroPatrimonio){
   return e;
 }
 
+// Data de hoje no relogio do servidor (mesmo fuso da empresa), como AAAA-MM-DD.
+// toISOString() daria a data em UTC: depois das 21h ja seria "amanha".
+function hojeISO(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 function movEhVazia(mov){
   const m = mov || {};
   return !dataISO(m.data_mov) && !txt(m.quem_recebeu_retirou)
@@ -308,32 +315,159 @@ async function excluir(q, body, usuario){
 // ------------------------------------------------------------
 // POST /api/v1/patrimonios/importar — importacao em massa
 // ------------------------------------------------------------
-// Linha a linha de proposito: se uma falhar (numero repetido, por exemplo), as
-// outras entram e a tela lista exatamente qual linha da planilha deu problema.
-// Um INSERT unico faria as 300 linhas caírem por causa de uma.
+// TUDO OU NADA. Antes era linha a linha: a linha com erro era pulada e as
+// outras entravam. Isso deixava a planilha "meio importada" — e se o bem
+// entrava mas a movimentacao de entrada falhava, ele ficava SEM HISTORICO e
+// ainda aparecia na lista de erros, como se nao tivesse sido gravado.
+//
+// Agora:
+//   1) A planilha inteira e conferida ANTES de gravar qualquer coisa. Cada
+//      problema volta com a linha, o que esta errado e como consertar.
+//   2) Com um erro que seja, nada e gravado. A pessoa corrige a planilha e
+//      importa de novo.
+//   3) Sem erros, tudo entra numa transacao so: cada bem junto da sua
+//      movimentacao de entrada. Se o banco recusar qualquer linha no meio,
+//      a transacao inteira volta atras.
+//
+// { rows, simular: true } so confere e devolve o resultado, sem gravar. A tela
+// usa isso para mostrar os erros assim que o arquivo e escolhido — as regras
+// ficam num lugar so (aqui), e a tela nunca discorda da API.
+//
+// Cada linha chega com os NOMES da planilha (categoria "Notebook", status
+// "Em uso"); a traducao para id e feita aqui, contra a configuracao do banco.
 const MAX_IMPORT = 2000;
+
+// Tamanhos maximos = tamanho das colunas em 02_schema.sql. Cortar calado (como
+// no cadastro manual) numa importacao faria o numero de serie gravado ser
+// diferente do da etiqueta sem ninguem perceber.
+const CAMPOS_IMPORT = [
+  { chave: 'patrimonio',    nome: 'Nº Patrimônio', max: 50,  obrigatorio: true },
+  { chave: 'nome',          nome: 'Marca',         max: 120, obrigatorio: true },
+  { chave: 'modelo',        nome: 'Modelo',        max: 120, obrigatorio: true },
+  { chave: 'serie',         nome: 'N° Série',      max: 120, obrigatorio: true },
+  { chave: 'categoria',     nome: 'Categoria',     max: 60,  obrigatorio: true },
+  { chave: 'status',        nome: 'Status',        max: 60,  obrigatorio: true },
+  { chave: 'local_atual',   nome: 'Local Atual',   max: 120 },
+  { chave: 'usuario_atual', nome: 'Usuário Atual', max: 120 }
+];
+
+function jsonLista(v){ try { const x = JSON.parse(v || '[]'); return Array.isArray(x) ? x : []; } catch(e){ return []; } }
+const chaveTexto = s => String(s || '').trim().toLowerCase();
+
+// Confere a planilha inteira. Devolve { linhas, erros }: "linhas" ja vem com
+// categoria/status traduzidos para id e so e usada se "erros" estiver vazio.
+async function conferirImportacao(p, rows){
+  const cfgR = await p.request()
+    .query("SELECT cats, status_opts, locais FROM app.config WHERE id = 'main'");
+  const cfg = cfgR.recordset[0] || {};
+  const cats    = jsonLista(cfg.cats);
+  const stats   = jsonLista(cfg.status_opts);
+  const locais  = jsonLista(cfg.locais);
+  const catPorNome  = new Map(cats.map(c => [chaveTexto(c.name), c.id]));
+  const statPorNome = new Map(stats.map(s => [chaveTexto(s.name), s.id]));
+  const localPorNome = new Map(locais.map(l => [chaveTexto(l), l]));
+
+  // Numeros que ja existem no sistema. Comparacao sem diferenciar maiuscula,
+  // igual ao indice unico do banco (collation CI).
+  const exR = await p.request().query('SELECT patrimonio FROM app.patrimonio');
+  const existentes = new Set(exR.recordset.map(r => chaveTexto(r.patrimonio)));
+
+  const erros = [];
+  const linhas = [];
+  const primeiraLinhaDoNumero = new Map();
+  const lista = (arr, f) => arr.map(f).filter(Boolean).join(', ') || '(nenhum cadastrado)';
+
+  rows.forEach((bruta, i) => {
+    const r = bruta || {};
+    const linha = Number.isInteger(r.linha) ? r.linha : i + 2;   // linha 1 e o cabecalho
+    const erro = (campo, motivo, correcao) => erros.push({ linha, campo, motivo, correcao });
+    const v = {};
+
+    CAMPOS_IMPORT.forEach(c => {
+      const s = r[c.chave] == null ? '' : String(r[c.chave]).trim();
+      v[c.chave] = s;
+      if(!s && c.obrigatorio){
+        erro(c.nome, `${c.nome} está vazio`, `Preencha a coluna "${c.nome}" nesta linha.`);
+      } else if(s.length > c.max){
+        erro(c.nome, `${c.nome} tem ${s.length} caracteres (máximo ${c.max})`,
+             `Abrevie o texto da coluna "${c.nome}" para até ${c.max} caracteres.`);
+      }
+    });
+
+    if(v.patrimonio){
+      const k = chaveTexto(v.patrimonio);
+      if(primeiraLinhaDoNumero.has(k)){
+        erro('Nº Patrimônio', `o número "${v.patrimonio}" se repete — já aparece na linha ${primeiraLinhaDoNumero.get(k)}`,
+             'Cada bem precisa de um número único. Corrija uma das duas linhas ou apague a duplicada.');
+      } else {
+        primeiraLinhaDoNumero.set(k, linha);
+        if(existentes.has(k)){
+          erro('Nº Patrimônio', `o número "${v.patrimonio}" já está cadastrado no sistema`,
+               'Se é o mesmo bem, apague a linha da planilha (ele já existe). Se é outro bem, use outro número.');
+        }
+      }
+    }
+
+    let catId = null, statId = null, local = null;
+    if(v.categoria){
+      catId = catPorNome.get(chaveTexto(v.categoria));
+      if(!catId) erro('Categoria', `a categoria "${v.categoria}" não existe`,
+        `Use exatamente um destes nomes: ${lista(cats, c => c.name)} — ou cadastre a categoria em Personalizar antes de importar.`);
+    }
+    if(v.status){
+      statId = statPorNome.get(chaveTexto(v.status));
+      if(!statId) erro('Status', `o status "${v.status}" não existe`,
+        `Use exatamente um destes nomes: ${lista(stats, s => s.name)} — ou cadastre o status em Personalizar antes de importar.`);
+    }
+    if(v.local_atual){
+      local = localPorNome.get(chaveTexto(v.local_atual));
+      if(!local) erro('Local Atual', `o local "${v.local_atual}" não existe`,
+        `Use exatamente um destes nomes: ${lista(locais, l => l)} — cadastre o local em Personalizar, ou deixe a coluna vazia.`);
+    }
+
+    const data = r.data_mov ? dataISO(r.data_mov) : null;
+    if(r.data_mov && !data){
+      erro('Data', `a data "${r.data_mov}" não é válida`, 'Use o formato AAAA-MM-DD, ou deixe em branco para usar a data de hoje.');
+    }
+
+    linhas.push({
+      linha, patrimonio: v.patrimonio, nome: v.nome, modelo: v.modelo, serie: v.serie,
+      categoria: catId, status: statId, local_atual: local, usuario_atual: v.usuario_atual || null,
+      data_mov: data
+    });
+  });
+
+  return { linhas, erros };
+}
 
 async function importar(q, body, usuario){
   const rows = (body && body.rows) || [];
   if(!Array.isArray(rows) || !rows.length) throw new Error('nenhuma linha para importar');
-  if(rows.length > MAX_IMPORT) throw new Error(`limite de ${MAX_IMPORT} linhas por importacao`);
+  if(rows.length > MAX_IMPORT){
+    throw new Error(`a planilha tem ${rows.length} linhas e o limite é ${MAX_IMPORT} por importação — divida em arquivos menores`);
+  }
 
   const p = await conexao(); const sql = tipos();
-  let sucesso = 0;
-  const erros = [];
+  const { linhas, erros } = await conferirImportacao(p, rows);
 
-  for(let i = 0; i < rows.length; i++){
-    const r = rows[i] || {};
-    const numero = txt(r.patrimonio, 50);
-    try {
-      if(!numero) throw new Error('numero do patrimonio vazio');
-      const ins = await p.request()
-        .input('patrimonio', sql.VarChar(50),  numero)
+  if(erros.length || (body && body.simular)){
+    return { gravado: false, total: rows.length, sucesso: 0, erros };
+  }
+
+  const tx = new (tipos().Transaction)(p);
+  await tx.begin();
+  const pedido = () => new (tipos().Request)(tx);
+  let atual = null;
+  try {
+    for(const r of linhas){
+      atual = r;
+      const ins = await pedido()
+        .input('patrimonio', sql.VarChar(50),  r.patrimonio)
         .input('nome',       sql.VarChar(120), txt(r.nome, 120))
         .input('modelo',     sql.VarChar(120), txt(r.modelo, 120))
         .input('serie',      sql.VarChar(120), txt(r.serie, 120))
-        .input('categoria',  sql.VarChar(40),  txt(r.categoria, 40))
-        .input('status',     sql.VarChar(40),  txt(r.status, 40))
+        .input('categoria',  sql.VarChar(40),  r.categoria)
+        .input('status',     sql.VarChar(40),  r.status)
         .input('local',      sql.VarChar(120), txt(r.local_atual, 120))
         .input('usu',        sql.VarChar(120), txt(r.usuario_atual, 120))
         .input('por',        sql.VarChar(50),  usuario.login)
@@ -343,27 +477,40 @@ async function importar(q, body, usuario){
                 VALUES (@patrimonio, @nome, @modelo, @serie, @categoria, @status, @local, @usu, @por)`);
       const id = ins.recordset[0].id;
 
-      await inserirMovimentacao(() => p.request(), sql, id, 'entrada', {
-        data_mov: r.data_mov,
+      // A entrada no historico vai na MESMA transacao: nao existe bem
+      // importado sem a movimentacao que conta como ele chegou.
+      await inserirMovimentacao(pedido, sql, id, 'entrada', {
+        data_mov: r.data_mov || hojeISO(),
         quem_recebeu_retirou: 'Entrada',
         usuario_atual: r.usuario_atual,
         local: r.local_atual,
         status: r.status,
         obs_mov: 'Importacao em massa'
       }, usuario.login);
-
-      sucesso++;
-    } catch(e){
-      erros.push({ linha: i + 2, motivo: traduzirErro(e, numero).message });  // +2: linha 1 e o cabecalho
     }
+    await tx.commit();
+  } catch(e){
+    try { await tx.rollback(); } catch(e2){ /* transacao ja abortada */ }
+    // Algo que a conferencia nao tinha como prever (outra pessoa cadastrou o
+    // mesmo numero neste meio tempo, banco caiu...). Nada ficou gravado.
+    console.error('[importar] linha', atual && atual.linha, '-', e.message);
+    return {
+      gravado: false, total: rows.length, sucesso: 0,
+      erros: [{
+        linha: atual ? atual.linha : null,
+        campo: null,
+        motivo: traduzirErro(e, atual && atual.patrimonio).message,
+        correcao: 'Nenhuma linha foi gravada. Corrija esta linha e importe a planilha inteira de novo.'
+      }]
+    };
   }
 
   await auditar(usuario, {
     tabela: 'patrimonio', registroId: null, acao: 'INSERT',
-    descricao: `Importacao em massa: ${sucesso} cadastrado(s), ${erros.length} com erro`,
-    depois: { sucesso, erros: erros.length }
+    descricao: `Importacao em massa: ${linhas.length} patrimonio(s) cadastrado(s)`,
+    depois: { sucesso: linhas.length, numeros: linhas.map(r => r.patrimonio) }
   });
-  return { sucesso, erros };
+  return { gravado: true, total: rows.length, sucesso: linhas.length, erros: [] };
 }
 
 const patrimoniosRoutes = [
@@ -372,7 +519,7 @@ const patrimoniosRoutes = [
   { method: 'POST', path: '/api/v1/patrimonios',           handler: criar,     permissao: 'cadastrar' },
   { method: 'POST', path: '/api/v1/patrimonios/atualizar', handler: atualizar, permissao: 'editar' },
   { method: 'POST', path: '/api/v1/patrimonios/excluir',   handler: excluir,   permissao: 'excluir' },
-  { method: 'POST', path: '/api/v1/patrimonios/importar',  handler: importar,  permissao: 'cadastrar' },
+  { method: 'POST', path: '/api/v1/patrimonios/importar',  handler: importar,  permissao: 'cadastrar', simulavel: true },
   { method: 'POST', path: '/api/v1/movimentacoes',         handler: movimentar, permissao: 'movimentar' }
 ];
 

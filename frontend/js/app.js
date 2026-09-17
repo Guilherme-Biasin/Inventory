@@ -171,8 +171,20 @@ function getCat(id)  { return S.cats.find(c => c.id === id) || {name:id, color:'
 function getStat(id) { return S.statusOpts.find(s => s.id === id) || {name:id, color:'#888'}; }
 function fmtDate(d)  { if (!d) return '—'; try { return new Date(d+'T12:00').toLocaleDateString('pt-BR'); } catch(e) { return d; } }
 function fmtDT(ts)   { if (!ts) return '—'; try { return new Date(ts).toLocaleString('pt-BR'); } catch(e) { return ts; } }
-function catPills(arr)  { return (arr||[]).map(id => { const c=getCat(id);  return `<span class="cat-pill" style="background:${c.color}22;color:${c.color}">${c.name}</span>`; }).join('')||'—'; }
-function statPills(arr) { return (arr||[]).map(id => { const s=getStat(id); return `<span class="cat-pill" style="background:${s.color}22;color:${s.color}">${s.name}</span>`; }).join('')||'—'; }
+function catPills(arr)  { return (arr||[]).map(id => { const c=getCat(id);  const cor=corSegura(c.color); return `<span class="cat-pill" style="background:${cor}22;color:${cor}">${esc(c.name)}</span>`; }).join('')||'—'; }
+function statPills(arr) { return (arr||[]).map(id => { const s=getStat(id); const cor=corSegura(s.color); return `<span class="cat-pill" style="background:${cor}22;color:${cor}">${esc(s.name)}</span>`; }).join('')||'—'; }
+
+// Cor que entra dentro de style="...". So aceita #rgb/#rrggbb: qualquer outra
+// coisa ("red;background:url(...)") viraria CSS injetado na pagina de todos.
+function corSegura(c) {
+  return /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(String(c || '')) ? c : '#888888';
+}
+
+// REGRA DA TELA: todo valor que veio do banco ou de planilha passa por esc()
+// antes de entrar em innerHTML — inclusive numero, marca, modelo e serie.
+// Sem isso, um editor que cadastrasse "<img src=x onerror=...>" como marca
+// rodava codigo no navegador de quem abrisse a lista (um admin, por exemplo),
+// com o token de login dele.
 function esc(str) {
   return String(str ?? '')
     .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
@@ -259,10 +271,10 @@ function renderDash() {
   const recent = [...S.items].slice(-5).reverse();
   document.getElementById('dash-tbody').innerHTML = recent.length
     ? recent.map(i => `<tr>
-        <td><strong>${i.patrimonio||'—'}</strong></td>
-        <td>${i.nome||'—'}</td>
-        <td>${i.modelo||'—'}</td>
-        <td>${i.serie||'—'}</td>
+        <td><strong>${esc(i.patrimonio||'—')}</strong></td>
+        <td>${esc(i.nome||'—')}</td>
+        <td>${esc(i.modelo||'—')}</td>
+        <td>${esc(i.serie||'—')}</td>
         <td>${catPills(i.categoria)}</td>
         <td>${statPills(i.status)}</td>
       </tr>`).join('')
@@ -273,8 +285,8 @@ function renderDash() {
 function populateFilters() {
   const fc = document.getElementById('fcat'), fs = document.getElementById('fstat');
   const vc = fc.value, vs = fs.value;
-  fc.innerHTML = '<option value="">Todas as categorias</option>' + S.cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-  fs.innerHTML = '<option value="">Todos os status</option>'     + S.statusOpts.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  fc.innerHTML = '<option value="">Todas as categorias</option>' + S.cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  fs.innerHTML = '<option value="">Todos os status</option>'     + S.statusOpts.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
   fc.value = vc; fs.value = vs;
 }
 function renderLista() {
@@ -295,14 +307,14 @@ function renderLista() {
     '<th>Nº</th><th>Marca</th><th>Modelo</th><th>N° Série</th><th>Categoria</th><th>Status</th><th>Local Atual</th><th>Usuário Atual</th><th>Movim.</th><th>Ações</th>';
   document.getElementById('lista-tbody').innerHTML = filtered.length
     ? filtered.map(it => `<tr>
-        <td><strong>${it.patrimonio||'—'}</strong></td>
-        <td>${it.nome||'—'}</td>
-        <td>${it.modelo||'—'}</td>
-        <td>${it.serie||'—'}</td>
+        <td><strong>${esc(it.patrimonio||'—')}</strong></td>
+        <td>${esc(it.nome||'—')}</td>
+        <td>${esc(it.modelo||'—')}</td>
+        <td>${esc(it.serie||'—')}</td>
         <td>${catPills(it.categoria)}</td>
         <td>${statPills(it.status)}</td>
-        <td>${it.local_atual||'—'}</td>
-        <td>${it.usuario_atual||'—'}</td>
+        <td>${esc(it.local_atual||'—')}</td>
+        <td>${esc(it.usuario_atual||'—')}</td>
         <td><span class="badge b-gray">${(it.historico||[]).length}</span></td>
         <td>${actionButtons(it.id)}</td>
       </tr>`).join('')
@@ -546,7 +558,7 @@ function renderConfig() { renderCats(); renderPessoas(); renderLocais(); renderS
 
 function renderCats() {
   const el = document.getElementById('cat-cloud'); if (!el) return;
-  el.innerHTML = S.cats.map(c => `<div class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${c.color};display:inline-block;margin-right:3px"></span>${esc(c.name)}<span class="tdel" onclick="delCat('${c.id}')">×</span></div>`).join('');
+  el.innerHTML = S.cats.map(c => `<div class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${corSegura(c.color)};display:inline-block;margin-right:3px"></span>${esc(c.name)}<span class="tdel" onclick="delCat('${escJs(c.id)}')">×</span></div>`).join('');
 }
 function addCat() {
   const n = document.getElementById('ncat').value.trim();
@@ -581,7 +593,7 @@ function delLocal(i) { S.locais.splice(i,1); persistConfig(); renderLocais(); }
 
 function renderStatOpts() {
   const el = document.getElementById('stat-cloud'); if (!el) return;
-  el.innerHTML = S.statusOpts.map(s => `<div class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${s.color};display:inline-block;margin-right:3px"></span>${esc(s.name)}<span class="tdel" onclick="delStat('${s.id}')">×</span></div>`).join('');
+  el.innerHTML = S.statusOpts.map(s => `<div class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${corSegura(s.color)};display:inline-block;margin-right:3px"></span>${esc(s.name)}<span class="tdel" onclick="delStat('${escJs(s.id)}')">×</span></div>`).join('');
 }
 function addStat() {
   const n = document.getElementById('nstat').value.trim();
@@ -600,7 +612,7 @@ function renderVinculos() {
     return items.map((item,i) => {
       const id = idFn(item,i); const lbl = labelFn(item); const chk = sel.includes(id)?'checked':'';
       return `<label class="chk-row">
-        <input type="checkbox" ${chk} onchange="toggleVinculo('${tipo}','${field}','${id}',this.checked)">
+        <input type="checkbox" ${chk} onchange="toggleVinculo('${tipo}','${field}','${escJs(id)}',this.checked)">
         ${esc(lbl)}</label>`;
     }).join('') || '<div style="color:var(--txt3);font-size:12.5px">Nenhuma opção cadastrada</div>';
   }
@@ -674,9 +686,9 @@ function _renderAuditRows(logs) {
       <td style="white-space:nowrap;color:var(--txt3);font-size:12px">${_fmtDTAudit(r.criado_em)}</td>
       <td>
         <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;font-size:11.5px;font-weight:600;background:${colorMap[r.acao]}22;color:${colorMap[r.acao]}">
-          <i class="ti ${iconMap[r.acao]||'ti-circle'}"></i> ${labelMap[r.acao]||r.acao}
+          <i class="ti ${iconMap[r.acao]||'ti-circle'}"></i> ${esc(labelMap[r.acao]||r.acao)}
         </span>
-        <span style="font-size:11px;color:var(--txt3);margin-left:5px">${tabelaMap[r.tabela]||r.tabela}</span>
+        <span style="font-size:11px;color:var(--txt3);margin-left:5px">${esc(tabelaMap[r.tabela]||r.tabela)}</span>
       </td>
       <td style="font-size:13px">${esc(r.descricao||'—')}</td>
       <td style="font-size:12px;color:var(--txt2)">${esc(r.usuario||'—')}</td>
@@ -705,7 +717,8 @@ function filterAudit() {
 
 function showAuditDetail(id) {
   const r = (window._auditLogs||[]).find(x => x.id === id); if (!r) return;
-  const fmt = obj => obj ? JSON.stringify(obj, null, 2) : 'N/A';
+  // O JSON guarda o que foi digitado (marca, modelo...) — escapado como o resto.
+  const fmt = obj => obj ? esc(JSON.stringify(obj, null, 2)) : 'N/A';
   const el = document.getElementById('audit-detail-modal');
   document.getElementById('audit-detail-body').innerHTML = `
     <div style="margin-bottom:1rem">
@@ -818,7 +831,7 @@ function _renderUserRows(users) {
         ${isMe?`<span style="font-size:10px;background:#22c55e22;color:#16a34a;padding:1px 6px;border-radius:10px">você</span>`:''}
       </td>
       <td>
-        <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;background:${rcolor}22;color:${rcolor}">${rlabel}</span>
+        <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;background:${rcolor}22;color:${rcolor}">${esc(rlabel)}</span>
       </td>
       <td>
         <span style="padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500;background:${u.ativo?'#dcfce7':'#fee2e2'};color:${u.ativo?'#166534':'#991b1b'}">
@@ -828,7 +841,7 @@ function _renderUserRows(users) {
       <td style="font-size:12px;color:var(--txt3)">${_fmtDTAudit(u.criado_em)}</td>
       <td>
         <div class="actions-cell" style="gap:6px">
-          <button class="btn btn-sm" onclick="openEditUser(${u.id},'${escJs(u.nome||'')}','${u.papel}')" title="Editar"><i class="ti ti-edit"></i></button>
+          <button class="btn btn-sm" onclick="openEditUser(${u.id},'${escJs(u.nome||'')}','${escJs(u.papel)}')" title="Editar"><i class="ti ti-edit"></i></button>
           ${can('gerenciar_usuarios') ? `<button class="btn btn-sm" onclick="adminResetPassword(${u.id},'${escJs(u.login)}')" title="Redefinir senha" style="color:#d97706;border-color:#d97706"><i class="ti ti-key"></i></button>` : ''}
           <button class="btn btn-sm" onclick="toggleAtivo(${u.id},${!u.ativo})" title="${u.ativo?'Desativar (mantém a conta)':'Ativar'}"
             style="${u.ativo?'color:#d97706;border-color:#d97706':'color:#059669;border-color:#059669'}">
@@ -1012,7 +1025,7 @@ async function doAdminResetPassword() {
 }
 
 // ─── IMPORTAÇÃO EM MASSA ─────────────────────────────────────
-let _importRows = [];   // linhas validadas prontas para importar
+let _importRows = [];   // linhas lidas da planilha (a API confere e grava)
 
 function renderImportacao() {
   // Preenche a lista de valores válidos como referência visual
@@ -1076,155 +1089,166 @@ function downloadModelo() {
   XLSX.writeFile(wb, 'modelo_importacao_patrimonios.xlsx');
 }
 
-// Lê o arquivo escolhido e valida cada linha
+// Lê o arquivo escolhido e manda CONFERIR na API (sem gravar nada).
+//
+// As regras (campo obrigatório, número repetido, categoria que não existe...)
+// ficam só na API: a tela manda as linhas como estão na planilha, com os NOMES
+// de categoria/status/local, e mostra o que voltou. Antes a tela validava por
+// conta própria e a API tinha outras regras — uma linha "OK" na prévia podia
+// falhar na hora de gravar.
 function handleImportFile(input) {
   const file = input.files?.[0];
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      _validateImport(rows);
+      const brutas = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (!brutas.length) { showToast('A planilha não tem nenhuma linha preenchida.', 'err'); return; }
+      _importRows = brutas.map(_linhaDaPlanilha);
     } catch(err) {
       showToast('Erro ao ler arquivo: ' + err.message, 'err');
+      return;
     }
+    showLoading('Conferindo a planilha...');
+    try {
+      const res = await DB.bulkCreateItems(_importRows, true);
+      _renderImportPreview(res);
+    } catch(err) {
+      _importRows = [];
+      showToast('Erro ao conferir: ' + err.message, 'err');
+    } finally { hideLoading(); }
   };
   reader.readAsArrayBuffer(file);
 }
 
-function _validateImport(rows) {
-  _importRows = [];
-  const preview = [];
-  // mapas nome→id (case-insensitive)
-  const catMap  = {}; S.cats.forEach(c => catMap[c.name.toLowerCase().trim()] = c.id);
-  const statMap = {}; S.statusOpts.forEach(s => statMap[s.name.toLowerCase().trim()] = s.id);
-  const locSet  = new Set(S.locais.map(l => l.toLowerCase().trim()));
-
-  rows.forEach((r, idx) => {
-    const linha = idx + 2;
-    const patrimonio = String(r['Nº Patrimônio'] ?? r['No Patrimônio'] ?? r['Patrimônio'] ?? '').trim();
-    const nome       = String(r['Marca'] ?? r['Nome'] ?? '').trim();
-    const modelo     = String(r['Modelo'] ?? '').trim();
-    const serie      = String(r['N° Série'] ?? r['No Série'] ?? r['Série'] ?? r['Serie'] ?? '').trim();
-    const catNome    = String(r['Categoria'] ?? '').trim();
-    const statNome   = String(r['Status'] ?? '').trim();
-    const local      = String(r['Local Atual'] ?? r['Local'] ?? '').trim();
-    const usuario    = String(r['Usuário Atual'] ?? r['Usuario Atual'] ?? '').trim();
-
-    const erros = [];
-    if (!patrimonio) erros.push('Nº Patrimônio vazio');
-    if (!nome)       erros.push('Marca vazia');
-    if (!modelo)     erros.push('Modelo vazio');
-    if (!serie)      erros.push('N° Série vazio');
-
-    let catId = null, statId = null;
-    if (catNome) {
-      catId = catMap[catNome.toLowerCase()];
-      if (!catId) erros.push(`Categoria "${catNome}" não existe`);
-    } else erros.push('Categoria vazia');
-
-    if (statNome) {
-      statId = statMap[statNome.toLowerCase()];
-      if (!statId) erros.push(`Status "${statNome}" não existe`);
-    } else erros.push('Status vazio');
-
-    if (local && !locSet.has(local.toLowerCase())) {
-      erros.push(`Local "${local}" não existe`);
-    }
-
-    const valido = erros.length === 0;
-    if (valido) {
-      _importRows.push({
-        patrimonio, nome, modelo, serie,
-        categoria: catId, status: statId,
-        local_atual: local, usuario_atual: usuario,
-        data_mov: new Date().toISOString().slice(0,10)
-      });
-    }
-    preview.push({ linha, patrimonio, nome, modelo, serie, catNome, statNome, local, valido, erros });
-  });
-
-  _renderImportPreview(preview);
+// Uma linha da planilha -> objeto que a API entende.
+// __rowNum__ é a linha real no Excel (começando em 0): usar a posição no array
+// erraria o número da linha sempre que houvesse uma linha em branco no meio.
+function _linhaDaPlanilha(r, idx) {
+  const col = (...nomes) => {
+    for (const n of nomes) if (r[n] != null && r[n] !== '') return String(r[n]).trim();
+    return '';
+  };
+  return {
+    linha:         Number.isInteger(r.__rowNum__) ? r.__rowNum__ + 1 : idx + 2,
+    patrimonio:    col('Nº Patrimônio', 'No Patrimônio', 'N° Patrimônio', 'Patrimônio'),
+    nome:          col('Marca', 'Nome'),
+    modelo:        col('Modelo'),
+    serie:         col('N° Série', 'Nº Série', 'No Série', 'Série', 'Serie'),
+    categoria:     col('Categoria'),
+    status:        col('Status'),
+    local_atual:   col('Local Atual', 'Local'),
+    usuario_atual: col('Usuário Atual', 'Usuario Atual')
+  };
 }
 
-function _renderImportPreview(preview) {
-  const validos = preview.filter(p => p.valido).length;
-  const invalidos = preview.length - validos;
+function _renderImportPreview(res) {
+  const erros = res.erros || [];
+  const porLinha = new Map();
+  erros.forEach(er => {
+    if (!porLinha.has(er.linha)) porLinha.set(er.linha, []);
+    porLinha.get(er.linha).push(er);
+  });
+  const linhasComErro = _importRows.filter(r => porLinha.has(r.linha)).length;
+  const semProblema   = _importRows.length - linhasComErro;
 
-  const el = document.getElementById('import-preview');
-  el.innerHTML = `
+  let h = `
     <div style="display:flex;gap:12px;margin:1rem 0">
       <div class="stat" style="flex:1;padding:.75rem 1rem">
-        <div class="stat-label">Total de linhas</div><div class="stat-val">${preview.length}</div>
+        <div class="stat-label">Total de linhas</div><div class="stat-val">${_importRows.length}</div>
       </div>
       <div class="stat" style="flex:1;padding:.75rem 1rem">
-        <div class="stat-label">Válidas</div><div class="stat-val" style="color:#059669">${validos}</div>
+        <div class="stat-label">Sem problema</div><div class="stat-val" style="color:#059669">${semProblema}</div>
       </div>
       <div class="stat" style="flex:1;padding:.75rem 1rem">
-        <div class="stat-label">Com erro</div><div class="stat-val" style="color:#dc2626">${invalidos}</div>
+        <div class="stat-label">Com erro</div><div class="stat-val" style="color:#dc2626">${linhasComErro}</div>
       </div>
-    </div>
-    <div class="card"><div class="table-wrap" style="max-height:340px;overflow-y:auto">
+    </div>`;
+
+  // Com erro, a lista de correções vem ANTES da tabela: é o que a pessoa
+  // precisa ler, e numa planilha de 300 linhas ficaria escondida lá embaixo.
+  if (erros.length) {
+    const itens = erros.map(er => {
+      const onde = (er.linha != null ? 'Linha ' + esc(er.linha) : 'Planilha') + (er.campo ? ' · ' + esc(er.campo) : '');
+      return `<li style="margin-bottom:.45rem">
+          <strong>${onde}:</strong> ${esc(er.motivo)}<br>
+          <span style="color:var(--txt2)">👉 ${esc(er.correcao || '')}</span>
+        </li>`;
+    }).join('');
+    h += `<div class="card" style="padding:1rem 1.25rem;margin-bottom:1rem;border-color:#dc2626;background:var(--danger-bg)">
+      <div style="font-weight:700;color:var(--danger-txt);margin-bottom:.35rem">
+        <i class="ti ti-alert-triangle"></i> Nada foi gravado — ${erros.length} ${erros.length === 1 ? 'problema encontrado' : 'problemas encontrados'}
+      </div>
+      <div style="font-size:12.5px;color:var(--txt2);margin-bottom:.75rem">
+        A importação só grava quando a planilha inteira estiver certa. Corrija os itens abaixo no Excel, salve e escolha o arquivo de novo.
+      </div>
+      <ol style="margin:0;padding-left:1.25rem;font-size:13px;line-height:1.55;max-height:320px;overflow-y:auto">${itens}</ol>
+    </div>`;
+  }
+
+  const linhasTabela = _importRows.map(r => {
+    const es = porLinha.get(r.linha);
+    const situacao = !es
+      ? '<span style="color:#059669;font-weight:600">✓ OK</span>'
+      : `<span style="color:#dc2626;font-size:11.5px" title="${esc(es.map(x => x.motivo).join('; '))}">✗ ${esc(es[0].motivo)}${es.length > 1 ? ' (+' + (es.length - 1) + ')' : ''}</span>`;
+    return `<tr style="${es ? 'background:var(--danger-bg)' : ''}">
+        <td>${esc(r.linha)}</td>
+        <td>${esc(r.patrimonio)}</td>
+        <td>${esc(r.nome)}</td>
+        <td>${esc(r.modelo)}</td>
+        <td>${esc(r.serie)}</td>
+        <td>${esc(r.categoria)}</td>
+        <td>${esc(r.status)}</td>
+        <td>${situacao}</td>
+      </tr>`;
+  }).join('');
+
+  h += `<div class="card"><div class="table-wrap" style="max-height:340px;overflow-y:auto">
       <table><thead><tr>
         <th style="width:50px">Linha</th><th>Nº</th><th>Marca</th><th>Modelo</th><th>Série</th>
         <th>Categoria</th><th>Status</th><th>Situação</th>
-      </tr></thead><tbody>
-      ${preview.map(p => `<tr style="${p.valido?'':'background:var(--danger-bg)'}">
-        <td>${p.linha}</td>
-        <td>${esc(p.patrimonio)}</td>
-        <td>${esc(p.nome)}</td>
-        <td>${esc(p.modelo)}</td>
-        <td>${esc(p.serie)}</td>
-        <td>${esc(p.catNome)}</td>
-        <td>${esc(p.statNome)}</td>
-        <td>${p.valido
-          ? '<span style="color:#059669;font-weight:600">✓ OK</span>'
-          : `<span style="color:#dc2626;font-size:11.5px" title="${esc(p.erros.join('; '))}">✗ ${esc(p.erros[0])}${p.erros.length>1?` (+${p.erros.length-1})`:''}</span>`}
-        </td>
-      </tr>`).join('')}
-      </tbody></table>
+      </tr></thead><tbody>${linhasTabela}</tbody></table>
     </div></div>`;
 
+  document.getElementById('import-preview').innerHTML = h;
+
   const btn = document.getElementById('import-confirm-btn');
-  if (validos > 0) {
+  if (!erros.length && _importRows.length) {
     btn.style.display = '';
-    btn.textContent = `Importar ${validos} ${validos===1?'patrimônio':'patrimônios'}`;
+    btn.textContent = `Importar ${_importRows.length} ${_importRows.length === 1 ? 'patrimônio' : 'patrimônios'}`;
     btn.disabled = false;
   } else {
     btn.style.display = 'none';
-  }
-  if (invalidos > 0) {
-    showToast(`${invalidos} linha(s) com erro serão ignoradas.`, 'err');
+    showToast('A planilha tem erros — veja a lista e corrija antes de importar.', 'err');
   }
 }
 
 async function confirmImport() {
   if (!can('cadastrar')) { showToast('Sem permissão para importar.','err'); return; }
-  if (!_importRows.length) { showToast('Nenhuma linha válida.','err'); return; }
+  if (!_importRows.length) { showToast('Escolha a planilha primeiro.','err'); return; }
   if (!confirm(`Importar ${_importRows.length} patrimônio(s)? Esta ação criará os registros no banco.`)) return;
 
   showLoading(`Importando ${_importRows.length} itens...`);
   try {
-    const res = await DB.bulkCreateItems(_importRows);
-    hideLoading();
-    if (res.erros.length) {
-      showToast(`Importados: ${res.sucesso}. Falhas: ${res.erros.length}.`, 'err');
-      console.error('Erros de importação:', res.erros);
-    } else {
-      showToast(`✅ ${res.sucesso} patrimônios importados com sucesso!`);
+    const res = await DB.bulkCreateItems(_importRows, false);
+    if (!res.gravado) {
+      // Algo mudou entre a conferência e a gravação (outra pessoa cadastrou o
+      // mesmo número, por exemplo). Nada entrou; mostra o motivo.
+      _renderImportPreview(res);
+      return;
     }
-    // Recarrega dados e volta à lista
+    showToast(`✅ ${res.sucesso} patrimônios importados com sucesso!`);
+    _importRows = [];
     S.items = await DB.loadItems();
     S.lastFiltered = [...S.items];
     nav('lista');
   } catch(e) {
-    hideLoading();
     showToast('Erro na importação: ' + e.message, 'err');
-  }
+  } finally { hideLoading(); }
 }
 
 // ─── EXPORTAR EXCEL ──────────────────────────────────────────
@@ -1277,14 +1301,54 @@ function doExport() {
   document.getElementById('exp-modal').style.display='none';
 }
 
+// ─── AMBIENTE ────────────────────────────────────────────────
+// Mesmo desenho do Gerente Assist. GET /api/v1/ambiente (público) diz se o
+// servidor está em SOMENTE LEITURA e qual commit ele está rodando.
+//
+//   Só leitura                       -> selo âmbar "DADOS REAIS · SÓ LEITURA" + versão
+//   Servido pelo próprio Node, gravando (localhost / IP da rede)
+//                                    -> selo vermelho "PRODUÇÃO · GRAVANDO" + versão
+//   Endereço público (Vercel)        -> nada: é o uso normal
+//
+// O vermelho existe porque o notebook não tem banco de teste: `iniciar.bat`
+// liga no mesmo ESTOQUE_TI da empresa, e sem aviso a tela local é igual à de
+// produção.
+let _ambiente = null;
+
+async function carregarAmbiente() {
+  try {
+    const r = await fetch(API_URL + '/api/v1/ambiente');
+    // API antiga (sem a rota) devolve 404: o selo simplesmente não aparece.
+    _ambiente = r.ok ? await r.json() : null;
+  } catch(e) { _ambiente = null; }
+  marcarAmbiente();
+}
+
+function ambienteSoLeitura() { return !!(_ambiente && _ambiente.somenteLeitura); }
+
+function marcarAmbiente() {
+  let html = '';
+  if (_ambiente) {
+    const local = API_URL === '';   // tela servida pelo próprio Node, não pela Vercel
+    const versao = `<span class="selo-versao" title="Commit que esta API está rodando. Compare com git log --oneline -1.">API ${esc(_ambiente.versao || 'sem versão')}</span>`;
+    if (_ambiente.somenteLeitura) {
+      html = '<span class="selo-leitura" title="Dados reais do ESTOQUE_TI. A gravação está travada no servidor: cadastrar, movimentar, importar e mexer em usuário não passa.">DADOS REAIS · SÓ LEITURA</span>' + versao;
+    } else if (local) {
+      html = '<span class="selo-producao" title="Este servidor grava no banco ESTOQUE_TI de verdade. Para testar sem risco, suba com api\\iniciar-leitura.bat.">PRODUÇÃO · GRAVANDO</span>' + versao;
+    }
+  }
+  document.querySelectorAll('[data-selo-ambiente]').forEach(el => { el.innerHTML = html; });
+}
+
 // ─── INIT ────────────────────────────────────────────────────
 // Aguarda DOM completo antes de qualquer acesso a elementos
 window.addEventListener('DOMContentLoaded', () => {
   try {
+    carregarAmbiente();   // em paralelo: não segura a tela de login
     appInit();
   } catch(e) {
     document.body.innerHTML = `<div style="padding:2rem;font-family:sans-serif;color:#dc2626">
-      <h2>Erro ao iniciar</h2><pre style="background:#fee2e2;padding:1rem;border-radius:8px;font-size:13px">${e.message}\n${e.stack||''}</pre>
+      <h2>Erro ao iniciar</h2><pre style="background:#fee2e2;padding:1rem;border-radius:8px;font-size:13px">${esc(e.message)}\n${esc(e.stack||'')}</pre>
     </div>`;
   }
 });

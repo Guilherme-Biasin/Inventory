@@ -115,6 +115,9 @@ async function atualizar(q, body, usuario){
     .input('nome',  sql.VarChar(100), nome)
     .input('papel', sql.VarChar(10),  papel)
     .query('UPDATE app.usuario SET nome = @nome, papel = @papel WHERE usuario_id = @id');
+  // O papel novo vale ja na proxima chamada da pessoa, nao quando o token dela
+  // vencer (ver sessaoValida em authRoutes.js).
+  invalidarCacheAtivos();
 
   await auditar(usuario, {
     tabela: 'usuario', registroId: id, acao: 'UPDATE',

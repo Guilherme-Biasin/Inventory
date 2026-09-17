@@ -5,6 +5,16 @@ node_modules/
 api/config/db.json
 api/config/auth.secret
 
+# Arquivos com senha em texto puro. O certo e guardar isso num gerenciador de
+# senhas (Bitwarden, KeePassXC...) e apagar o arquivo — enquanto ele existir,
+# fica de fora do git. Um "git add ." nao pode mandar isto para o GitHub.
+senhas.txt
+*senha*.txt
+*senhas*.txt
+
+# Configuracao local da maquina (Claude Code)
+.claude/settings.local.json
+
 # Lixo de editor / sistema
 Thumbs.db
 desktop.ini

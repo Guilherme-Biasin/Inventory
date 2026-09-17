@@ -96,6 +96,7 @@
   <div class="login-card">
     <div class="login-logo">💻 Inventory <span>Guemat</span></div>
     <div class="login-sub">Faça login para continuar</div>
+    <div class="selo-ambiente" data-selo-ambiente></div>
     <div class="login-err" id="l-err"></div>
     <form onsubmit="doLogin(event)">
       <div class="login-fg">
@@ -148,6 +149,7 @@
         <div class="topbar-title" id="topbar-title">Dashboard</div>
       </div>
       <div class="topbar-actions">
+        <span class="selo-ambiente" data-selo-ambiente></span>
         <button class="btn mobile-dark-btn" onclick="toggleDark()" title="Modo escuro"><i class="ti ti-moon" id="mobile-dark-icon"></i></button>
         <button class="btn" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> <span class="btn-label">Exportar Excel</span></button>
         <button class="btn btn-primary" id="btn-novo-topbar" onclick="nav('cadastro')"><i class="ti ti-plus"></i> <span class="btn-label">Novo Patrimônio</span></button>
@@ -466,11 +468,11 @@
     <div style="display:flex;flex-direction:column;gap:.875rem;margin-top:1rem">
       <div>
         <label class="campo-lbl">Nome completo</label>
-        <input class="f-input" id="inv-nome" placeholder="Ex: Alex Guedes" style="width:100%">
+        <input class="f-input" id="inv-nome" placeholder="Ex: Fulano de Tal" style="width:100%">
       </div>
       <div>
         <label class="campo-lbl">Usuário <span class="campo-req">*</span></label>
-        <input class="f-input" id="inv-login" placeholder="ex: alex.guedes" style="width:100%" autocapitalize="none" spellcheck="false">
+        <input class="f-input" id="inv-login" placeholder="ex: fulano.tal" style="width:100%" autocapitalize="none" spellcheck="false">
         <div class="campo-dica">Letras, números, ponto, hífen ou underline — de 3 a 50 caracteres.</div>
       </div>
       <div>

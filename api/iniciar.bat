@@ -6,16 +6,22 @@ REM  PowerShell, "set PORT=3002" nao funciona igual ao prompt e o
 REM  servidor acaba subindo na porta errada.
 REM
 REM  A porta 3001 e do Gerente Assist. Este sobe na 3002.
+REM
+REM  ATENCAO: este GRAVA no banco ESTOQUE_TI de producao. E o modo do
+REM  SERVIDOR. No notebook use o iniciar-leitura.bat, que mostra os
+REM  mesmos dados e trava qualquer gravacao.
 REM ====================================================================
 
 cd /d "%~dp0"
 
+set SOMENTE_LEITURA=
 if "%PORT%"=="" set PORT=3002
 
 echo.
 echo  Inventory Guemat
-echo  banco : ESTOQUE_TI (SQL Server)
-echo  porta : %PORT%
+echo  banco    : ESTOQUE_TI (SQL Server - PRODUCAO)
+echo  gravacao : LIGADA
+echo  porta    : %PORT%
 echo.
 
 node server.js

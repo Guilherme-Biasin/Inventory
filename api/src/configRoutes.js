@@ -39,9 +39,28 @@ async function carregar(){
   };
 }
 
-// Aceita so array de verdade. Um `undefined` vindo da tela viraria a string
-// "undefined" no banco e a lista sumiria na proxima abertura.
-function lista(v){ return JSON.stringify(Array.isArray(v) ? v : []); }
+// Categorias e status: so {id, name, color}, com cor #rgb/#rrggbb. A cor entra
+// dentro de style="..." na tela; aceitar qualquer texto ali abria espaco para
+// injetar CSS na pagina de todos. Campo extra que vier da tela e descartado.
+const COR = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i;
+function opcoes(v){
+  if(!Array.isArray(v)) return JSON.stringify([]);
+  return JSON.stringify(v
+    .filter(o => o && o.id != null && String(o.name || '').trim())
+    .map(o => ({
+      id:    String(o.id).slice(0, 40),
+      name:  String(o.name).trim().slice(0, 60),
+      color: COR.test(String(o.color || '')) ? o.color : '#888888'
+    })));
+}
+
+// Pessoas e locais: lista de textos. Nada e removido da lista: os vinculos
+// Entrada/Saida apontam para os locais pela POSICAO, e tirar um item do meio
+// deslocaria todos os seguintes.
+function textos(v){
+  if(!Array.isArray(v)) return JSON.stringify([]);
+  return JSON.stringify(v.map(s => String(s == null ? '' : s).trim().slice(0, 120)));
+}
 
 // POST /api/v1/config
 async function salvar(q, body, usuario){
@@ -52,10 +71,10 @@ async function salvar(q, body, usuario){
   // comando "funcionava" gravando zero linhas e o usuario perdia a configuracao
   // sem receber erro nenhum.
   await p.request()
-    .input('cats',     sql.NVarChar(sql.MAX), lista(b.cats))
-    .input('pessoas',  sql.NVarChar(sql.MAX), lista(b.pessoas))
-    .input('locais',   sql.NVarChar(sql.MAX), lista(b.locais))
-    .input('status',   sql.NVarChar(sql.MAX), lista(b.statusOpts))
+    .input('cats',     sql.NVarChar(sql.MAX), opcoes(b.cats))
+    .input('pessoas',  sql.NVarChar(sql.MAX), textos(b.pessoas))
+    .input('locais',   sql.NVarChar(sql.MAX), textos(b.locais))
+    .input('status',   sql.NVarChar(sql.MAX), opcoes(b.statusOpts))
     .input('vinculos', sql.NVarChar(sql.MAX), JSON.stringify(b.vinculos || VINCULOS_VAZIOS))
     .query(`
       MERGE app.config AS destino

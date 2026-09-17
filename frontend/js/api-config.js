@@ -147,10 +147,11 @@ const DB = {
 
   deleteItem(id){ return _post('/patrimonios/excluir', { id }); },
 
-  // Manda a planilha inteira em UMA chamada. A API insere linha a linha e
-  // devolve { sucesso, erros:[{linha, motivo}] } — uma linha com problema nao
-  // impede as outras de entrar.
-  bulkCreateItems(rows){ return _post('/patrimonios/importar', { rows }); },
+  // Manda a planilha inteira em UMA chamada. Tudo ou nada: com qualquer erro
+  // nada e gravado, e a API devolve
+  //   { gravado:false, erros:[{linha, campo, motivo, correcao}] }.
+  // simular=true so confere (nunca grava) — usado para a previa.
+  bulkCreateItems(rows, simular){ return _post('/patrimonios/importar', { rows, simular: !!simular }); },
 
   // ── ATUALIZACAO AUTOMATICA ───────────────────────────────────
   // O SQL Server nao tem o "realtime" do Supabase. Em vez de abrir um canal, a
