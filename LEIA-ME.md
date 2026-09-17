@@ -8,6 +8,7 @@ O sistema **saiu do Supabase** e agora roda inteiro na empresa: banco
 
 - **Para instalar:** [api/sql/INSTALACAO.md](api/sql/INSTALACAO.md)
 - **Roteiro do projeto (o que está feito e o que falta):** [ETAPAS.txt](ETAPAS.txt)
+- **Regras de trabalho do agente (Claude Code):** [CLAUDE.md](CLAUDE.md)
 
 ---
 
@@ -118,6 +119,7 @@ cd api && npm test
 guemat-estoque/
 ├── LEIA-ME.md                 este arquivo
 ├── ETAPAS.txt                 roteiro: o que está feito e o que falta
+├── CLAUDE.md                  regras de trabalho do agente
 ├── api/                       servidor Node (também entrega as telas)
 │   ├── server.js                registro das rotas, login, permissões, CORS,
 │   │                            gzip, trava de SOMENTE_LEITURA, /ambiente

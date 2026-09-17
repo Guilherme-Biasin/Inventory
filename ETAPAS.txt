@@ -60,9 +60,17 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
       [ ] Apagar o senhas.txt local depois de passar para um
           gerenciador de senhas.
 
-[    ] ETAPA 5 - CLAUDE.md DO PROJETO
-      Importar do Gerente Assist so as regras escolhidas pelo gerente
-      (lista apresentada em 17/09/2026) + as regras proprias daqui.
+[ OK ] ETAPA 5 - CLAUDE.md DO PROJETO
+      Criado com as regras escolhidas do Gerente Assist: explicar antes
+      de codar, perguntar em regra ambigua, agente nao da git push,
+      prints anotados, testar de verdade (npm test + navegador + console
+      limpo), subir no notebook so em modo leitura, limpar dado de teste,
+      parar o servidor de teste, conferir a versao antes de investigar,
+      migracao no SSMS pelo dono do banco e numerada, portugues, JS puro,
+      comentar o porque. Mais as regras daqui: docs a cada etapa e as
+      tres de seguranca (esc(), permissao no servidor, nenhuma senha no
+      repositorio). Ficaram de fora, com o motivo no proprio CLAUDE.md:
+      logica antes de estilo, mock, 2 empresas e carrossel.
 
 [    ] ETAPA 6 - AMBIENTE DE TESTE QUE GRAVA  (decisao pendente)
       Hoje o notebook so tem "so leitura" contra a producao. Para testar
