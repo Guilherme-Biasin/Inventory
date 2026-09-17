@@ -307,10 +307,15 @@ console.log('\n— ALMOXARIFADO —');
 const CFG_ALMOX = [{ cats_almox: '[{"id":"a1","name":"Bobina","color":"#2563eb"}]' }];
 const linhaAlmox = (linha, item) => ({ linha, item, categoria: 'bobina', modelo: '80mm',
   serie: 'S' + item, quantidade: '10', validade: '2027-03-31' });
+// A conferencia da importacao le, nesta ordem: config, itens existentes e os
+// modelos de patrimonio (para o "Usado em").
+const MODELOS_PAT = [{ modelo: 'Epson M105' }];
 
 await teste('listar monta saldo, lotes e validade mais proxima', async () => {
   respostas = [
-    [{ id: 1, item: 'Bobina 80mm', categoria: 'a1', modelo: '80mm', serie: null, obs: null }],
+    [{ n: 1 }],   // conferencia "a coluna usado_em existe?" (migracao 06)
+    [{ id: 1, item: 'Bobina 80mm', categoria: 'a1', modelo: '80mm', serie: null, obs: null,
+       usado_em: '["Epson M105"]' }],
     [{ id: 10, almox_id: 1, tipo: 'entrada', data_mov: '2026-01-10', validade: '2027-06-30',
        quantidade: '10', lote_id: null, usuario: null, obs_mov: null, criado_em: new Date('2026-01-10') },
      { id: 11, almox_id: 1, tipo: 'entrada', data_mov: '2026-02-10', validade: '2026-12-31',
@@ -323,6 +328,7 @@ await teste('listar monta saldo, lotes e validade mais proxima', async () => {
   igual(r[0].lotes.map(l => l.saldo), [6, 5], 'saldo de cada lote');
   igual(r[0].validadeProxima, '2026-12-31', 'lote que vence primeiro');
   igual(r[0].historico.length, 3, 'historico completo');
+  igual(r[0].usadoEm, ['Epson M105'], 'modelos vinculados');
 });
 
 await teste('criar item abre transacao e ja grava a primeira entrada', async () => {
@@ -338,24 +344,63 @@ await teste('criar item abre transacao e ja grava a primeira entrada', async () 
   igual([mov.entradas.tipo, mov.entradas.qtd, mov.entradas.val], ['entrada', 3, '2027-01-31'], 'lote de entrada');
 });
 
+const ITEM_OK = { item: 'Etiqueta 40x25', categoria: 'a1', modelo: 'rolo 1000un', serie: 'SN-ET-1' };
+
+await teste('criar exige item, categoria, modelo e serie', async () => {
+  await lanca(() => rota('POST', '/api/v1/almoxarifado').handler(qs(), {
+    item: { item: 'Etiqueta' }, mov: { quantidade: '5' }
+  }, ADMIN), 'preencha Categoria, Modelo, N° de Série');
+  igual(consultas.length, 0, 'consultas disparadas');
+});
+
 await teste('criar sem quantidade e recusado antes de tocar no banco', async () => {
   await lanca(() => rota('POST', '/api/v1/almoxarifado').handler(qs(), {
-    item: { item: 'Etiqueta' }, mov: {}
+    item: ITEM_OK, mov: {}
   }, ADMIN), 'informe a quantidade');
   igual(consultas.length, 0, 'consultas disparadas');
+});
+
+await teste('usado em: modelo que nao existe no patrimonio e recusado', async () => {
+  respostas = [[{ modelo: 'Epson M105' }]];
+  await lanca(() => rota('POST', '/api/v1/almoxarifado').handler(qs(), {
+    item: Object.assign({}, ITEM_OK, { usadoEm: ['Epson M105', 'Impressora Inventada'] }),
+    mov: { quantidade: '5' }
+  }, ADMIN), 'modelo nao encontrado no patrimonio: Impressora Inventada');
+  if (consultas.some(c => c.sql.startsWith('INSERT'))) throw new Error('gravou mesmo assim');
+});
+
+await teste('usado em: modelo cadastrado e gravado como lista, sem repetidos', async () => {
+  respostas = [[{ modelo: 'Epson M105' }], [{ id: 9 }], [{ id: 90 }]];
+  await rota('POST', '/api/v1/almoxarifado').handler(qs(), {
+    item: Object.assign({}, ITEM_OK, { usadoEm: ['Epson M105', 'epson m105 '] }),
+    mov: { quantidade: '5' }
+  }, ADMIN);
+  const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.almoxarifado ('));
+  igual(JSON.parse(ins.entradas.usado), ['Epson M105'], 'lista gravada');
+  if (!ins.sql.includes('usado_em')) throw new Error('coluna usado_em fora do INSERT');
+});
+
+await teste('usado em: vinculo antigo continua valendo se o modelo sumiu do patrimonio', async () => {
+  respostas = [[{ item: 'Bobina', categoria: 'a1', modelo: '80mm', serie: 'S1', obs: null,
+                  usado_em: '["Epson M105"]' }],
+               [{ modelo: 'Dell Vostro' }], [], []];
+  const r = await rota('POST', '/api/v1/almoxarifado/atualizar').handler(qs(), {
+    id: 1, item: Object.assign({}, ITEM_OK, { usadoEm: ['Epson M105'] })
+  }, ADMIN);
+  igual(r.ok, true, 'edicao passou');
 });
 
 await teste('item repetido e serie repetida viram frases diferentes', async () => {
   const dupItem = new Error("Violation of UNIQUE KEY constraint 'ux_almox_item'"); dupItem.number = 2601;
   respostas = [dupItem];
   await lanca(() => rota('POST', '/api/v1/almoxarifado').handler(qs(), {
-    item: { item: 'Bobina 80mm' }, mov: { quantidade: '1' }
+    item: Object.assign({}, ITEM_OK, { item: 'Bobina 80mm' }), mov: { quantidade: '1' }
   }, ADMIN), 'ja existe um item de almoxarifado chamado "Bobina 80mm"');
 
   const dupSerie = new Error("Violation of UNIQUE KEY constraint 'ux_almox_serie'"); dupSerie.number = 2601;
   respostas = [dupSerie];
   await lanca(() => rota('POST', '/api/v1/almoxarifado').handler(qs(), {
-    item: { item: 'Outro', serie: 'SN1' }, mov: { quantidade: '1' }
+    item: Object.assign({}, ITEM_OK, { item: 'Outro', serie: 'SN1' }), mov: { quantidade: '1' }
   }, ADMIN), 'numero de serie "SN1"');
 });
 
@@ -413,7 +458,7 @@ await teste('entrada sem data usa a data de hoje', async () => {
 });
 
 await teste('importar: planilha certa grava item + lote numa transacao', async () => {
-  respostas = [CFG_ALMOX, [], [{ id: 1 }], [{ id: 11 }], [{ id: 2 }], [{ id: 22 }], []];
+  respostas = [CFG_ALMOX, [], MODELOS_PAT, [{ id: 1 }], [{ id: 11 }], [{ id: 2 }], [{ id: 22 }], []];
   const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
     rows: [linhaAlmox(2, 'Bobina 80mm'), linhaAlmox(3, 'Bobina 57mm')]
   }, ADMIN);
@@ -422,7 +467,7 @@ await teste('importar: planilha certa grava item + lote numa transacao', async (
 });
 
 await teste('importar: erro em uma linha nao grava nada', async () => {
-  respostas = [CFG_ALMOX, []];
+  respostas = [CFG_ALMOX, [], MODELOS_PAT];
   const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
     rows: [linhaAlmox(2, 'Bobina 80mm'), Object.assign(linhaAlmox(3, 'X'), { quantidade: '0' })]
   }, ADMIN);
@@ -431,7 +476,7 @@ await teste('importar: erro em uma linha nao grava nada', async () => {
 });
 
 await teste('importar: item repetido manda registrar entrada no que existe', async () => {
-  respostas = [CFG_ALMOX, [{ item: 'Bobina 80mm', serie: null }]];
+  respostas = [CFG_ALMOX, [{ item: 'Bobina 80mm', serie: null }], MODELOS_PAT];
   const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
     rows: [linhaAlmox(2, 'Bobina 80mm')]
   }, ADMIN);
@@ -439,7 +484,7 @@ await teste('importar: item repetido manda registrar entrada no que existe', asy
 });
 
 await teste('importar: validade invalida e categoria inexistente sao explicadas', async () => {
-  respostas = [CFG_ALMOX, []];
+  respostas = [CFG_ALMOX, [], MODELOS_PAT];
   const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
     rows: [Object.assign(linhaAlmox(2, 'Item A'), { validade: '31/03/2027', categoria: 'Papel' })]
   }, ADMIN);
@@ -447,8 +492,35 @@ await teste('importar: validade invalida e categoria inexistente sao explicadas'
   if(!r.erros.find(e => e.campo === 'Categoria').correcao.includes('Bobina')) throw new Error('nao listou as categorias validas');
 });
 
+await teste('importar: modelo e serie vazios na planilha viram erro', async () => {
+  respostas = [CFG_ALMOX, [], MODELOS_PAT];
+  const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
+    rows: [Object.assign(linhaAlmox(2, 'Item A'), { modelo: '', serie: '' })]
+  }, ADMIN);
+  igual(r.erros.map(e => e.campo), ['Modelo', 'N° Série'], 'campos cobrados');
+});
+
+await teste('importar: "Usado em" aceita varios modelos separados por |', async () => {
+  respostas = [CFG_ALMOX, [], MODELOS_PAT, [{ id: 1 }], [{ id: 11 }], []];
+  const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
+    rows: [Object.assign(linhaAlmox(2, 'Tinta 664'), { usado_em: 'Epson M105 | Epson M105' })]
+  }, ADMIN);
+  igual(r.gravado, true, 'gravou');
+  const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.almoxarifado ('));
+  igual(JSON.parse(ins.entradas.usado), ['Epson M105'], 'modelo da planilha, sem repetir');
+});
+
+await teste('importar: "Usado em" com modelo inexistente explica o que fazer', async () => {
+  respostas = [CFG_ALMOX, [], MODELOS_PAT];
+  const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
+    rows: [Object.assign(linhaAlmox(2, 'Tinta 664'), { usado_em: 'Impressora Inventada' })]
+  }, ADMIN);
+  igual(r.erros[0].campo, 'Usado em', 'campo');
+  if (!r.erros[0].correcao.includes('Modelo')) throw new Error('correcao vaga: ' + r.erros[0].correcao);
+});
+
 await teste('importar: simular nao grava', async () => {
-  respostas = [CFG_ALMOX, []];
+  respostas = [CFG_ALMOX, [], MODELOS_PAT];
   const r = await rota('POST', '/api/v1/almoxarifado/importar').handler(qs(), {
     rows: [linhaAlmox(2, 'Item A')], simular: true
   }, ADMIN);

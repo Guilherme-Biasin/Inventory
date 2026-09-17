@@ -197,7 +197,7 @@ saco plástico, tinta, toner. A diferença para o patrimônio é o que se contro
 | | Patrimônio | Almoxarifado |
 |---|---|---|
 | Unidade | o bem, um a um | **quantidade** |
-| Campos | Nº, Marca, Modelo, Série, Categoria, Status | **Item**, Categoria, Modelo, Série, Observações |
+| Campos | Nº, Marca, Modelo, Série, Categoria, Status | **Item**, Categoria, Modelo, Série, Usado em, Observações |
 | Movimentação | para onde foi e com quem | **entrada** (soma) ou **saída** (desconta) |
 | Data | de movimentação | de movimentação e **de validade** |
 
@@ -215,6 +215,18 @@ movimentações, para não existirem duas versões da mesma verdade.
 Nem o nome do item nem o número de série se repetem. Quem tenta cadastrar de
 novo um material que já existe é orientado a registrar uma **entrada** no item
 existente, que é o que faz o saldo somar em vez de duplicar.
+
+**Item, Categoria, Modelo e N° de Série são obrigatórios**, na tela e na
+planilha de importação. Item e série também não podem repetir.
+
+**"Usado em"** liga o material aos equipamentos: a tinta Epson 664 é usada na
+impressora Epson M105. O campo é opcional (nem todo material tem equipamento) e
+só deixa **escolher da lista** dos modelos já cadastrados em Patrimônios — dá
+para marcar vários, e eles aparecem como etiquetas. O vínculo é pelo **modelo**,
+não pelo bem: a tinta serve para qualquer M105, inclusive uma que entre depois,
+e excluir uma impressora não deixa o vínculo apontando para o vazio. Na
+planilha, a coluna aceita vários modelos separados por `|`. Precisa da migração
+`api/sql/06_almox_usado_em.sql`.
 
 As categorias do almoxarifado são uma lista separada, em **Personalizar ›
 Categorias do almoxarifado**. Exportar, Importar, Auditoria, permissões e o

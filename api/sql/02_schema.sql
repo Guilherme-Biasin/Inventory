@@ -173,6 +173,9 @@ CREATE TABLE app.almoxarifado (
   modelo        VARCHAR(120)   NULL,
   serie         VARCHAR(120)   NULL,
   obs           NVARCHAR(1000) NULL,       -- observacoes de cadastro
+  -- Modelos de patrimonio em que este material e usado, como JSON:
+  -- ["Epson M105", ...]. Ver 06_almox_usado_em.sql para o porque.
+  usado_em      NVARCHAR(MAX)  NULL,
   criado_em     DATETIME2(0)   NOT NULL CONSTRAINT df_almox_criado DEFAULT SYSDATETIME(),
   criado_por    VARCHAR(50)    NULL,
   atualizado_em DATETIME2(0)   NOT NULL CONSTRAINT df_almox_atualizado DEFAULT SYSDATETIME()

@@ -120,8 +120,15 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
            auditoria, permissoes e leitor de codigo de barras.
       [OK] Testes: 68 no npm test + navegador (cadastro, saida por
            lote, saldo insuficiente, filtros, importacao, exclusao).
-      [ ] PENDENTE: rodar 05_almoxarifado.sql no SSMS, atualizar a VM
-          (git pull + restart) e conferir na producao.
+      [OK] Campo "Usado em" (17/09/2026): liga o material aos MODELOS de
+           patrimonio em que e usado (tinta 664 -> impressora M105).
+           Seletor com o que ja esta cadastrado, varios por item, nunca
+           texto livre. Opcional. Item, Categoria, Modelo e N de Serie
+           passaram a ser obrigatorios na tela, na API e na planilha.
+           Migracao 06_almox_usado_em.sql.
+      [ ] PENDENTE: rodar 05_almoxarifado.sql e 06_almox_usado_em.sql
+          no SSMS, atualizar a VM (git pull + restart) e conferir na
+          producao.
 
 [    ] ETAPA 10 - FECHAMENTO DA VERSAO 1.0
       Revisao final, documentacao conferida contra o codigo, tag v1.0

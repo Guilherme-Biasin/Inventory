@@ -1285,9 +1285,82 @@ async function delAlmox(id) {
 // ─── FORMULÁRIO ──────────────────────────────────────────────
 let movModeAlmox = false;
 
+// ─── "USADO EM" ──────────────────────────────────────────────
+// Liga o material aos MODELOS de patrimônio em que ele é usado: a tinta Epson
+// 664 é da impressora Epson M105. Guarda o modelo, não o patrimônio: a tinta
+// serve para qualquer impressora daquele modelo, inclusive as que entrarem
+// depois, e excluir um bem não deixa o vínculo apontando para o vazio.
+//
+// Só dá para escolher da lista — digitar livre encheria o cadastro de
+// "M105", "m-105", "Epson M 105", e aí o vínculo não acha nada.
+let usadoEmSel = [];   // modelos escolhidos no formulário aberto
+
+// Modelos distintos já cadastrados em Patrimônios, em ordem alfabética.
+function modelosDoPatrimonio() {
+  const mapa = new Map();
+  S.items.forEach(p => {
+    const m = (p.modelo || '').trim();
+    if (m && !mapa.has(m.toLowerCase())) mapa.set(m.toLowerCase(), m);
+  });
+  return [...mapa.values()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+function campoUsadoEm() {
+  const modelos = modelosDoPatrimonio();
+  // Vínculo antigo cujo modelo saiu do patrimônio continua na lista, senão
+  // salvar o item o apagaria sem ninguém pedir.
+  const extras = usadoEmSel.filter(m => !modelos.some(x => x.toLowerCase() === m.toLowerCase()));
+  const opcoes = [...modelos, ...extras]
+    .filter(m => !usadoEmSel.some(x => x.toLowerCase() === m.toLowerCase()));
+
+  const dica = !modelosDoPatrimonio().length
+    ? 'Nenhum patrimônio cadastrado ainda — cadastre o equipamento primeiro.'
+    : 'Opcional. Escolha em qual modelo de patrimônio este material é usado; dá para marcar mais de um.';
+
+  return `<select class="finput" id="a_usado_em" onchange="addUsadoEm(this.value)">
+      <option value="">${opcoes.length ? 'Adicionar modelo...' : 'Nenhum modelo disponível'}</option>
+      ${opcoes.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}
+    </select>
+    <div class="tag-cloud" id="usado-em-tags" style="margin-top:.5rem">${tagsUsadoEm()}</div>
+    <div style="font-size:11px;color:var(--txt3);margin-top:3px">${esc(dica)}</div>`;
+}
+
+function tagsUsadoEm() {
+  if (!usadoEmSel.length) return '<span style="font-size:12px;color:var(--txt3)">Nenhum modelo vinculado</span>';
+  return usadoEmSel.map((m, i) =>
+    `<div class="tag">${esc(m)}<span class="tdel" onclick="delUsadoEm(${i})" title="Remover">×</span></div>`).join('');
+}
+
+function addUsadoEm(modelo) {
+  if (!modelo) return;
+  if (!usadoEmSel.some(m => m.toLowerCase() === modelo.toLowerCase())) usadoEmSel.push(modelo);
+  atualizarUsadoEm();
+}
+
+function delUsadoEm(i) {
+  usadoEmSel.splice(i, 1);
+  atualizarUsadoEm();
+}
+
+// Redesenha só o campo, e não o formulário inteiro: um render completo perderia
+// o que já estiver digitado nos outros campos.
+function atualizarUsadoEm() {
+  const tags = document.getElementById('usado-em-tags');
+  if (tags) tags.innerHTML = tagsUsadoEm();
+  const sel = document.getElementById('a_usado_em');
+  if (!sel) return;
+  const modelos = modelosDoPatrimonio();
+  const extras = usadoEmSel.filter(m => !modelos.some(x => x.toLowerCase() === m.toLowerCase()));
+  const opcoes = [...modelos, ...extras]
+    .filter(m => !usadoEmSel.some(x => x.toLowerCase() === m.toLowerCase()));
+  sel.innerHTML = `<option value="">${opcoes.length ? 'Adicionar modelo...' : 'Nenhum modelo disponível'}</option>` +
+    opcoes.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+}
+
 function renderFormAlmox() {
   const it     = S.editAlmoxId != null ? (S.almox.find(x => x.id === S.editAlmoxId) || {}) : {};
   const isEdit = S.editAlmoxId != null;
+  usadoEmSel = [...(it.usadoEm || [])];
   document.getElementById('form-title').textContent = movModeAlmox
     ? 'Entrada ou Saída'
     : (isEdit ? 'Editar Item' : 'Novo Item de Almoxarifado');
@@ -1307,10 +1380,12 @@ function renderFormAlmox() {
             <option value="">Selecione...</option>
             ${S.catsAlmox.map(c => `<option value="${esc(c.id)}"${it.categoria === c.id ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}
           </select></div>
-        <div class="fg"><label class="flabel">Modelo</label>
-          <input class="finput" id="a_modelo" value="${esc(it.modelo || '')}" placeholder="Ex: 80mm x 40m"></div>
-        <div class="fg"><label class="flabel">N° de Série</label>
-          <input class="finput" id="f_serie" value="${esc(it.serie || '')}" placeholder="Ex: SN-0001-XYZ"></div>
+        <div class="fg"><label class="flabel">Modelo<span class="req">*</span></label>
+          <input class="finput" id="a_modelo" value="${esc(it.modelo || '')}" required placeholder="Ex: 80mm x 40m"></div>
+        <div class="fg"><label class="flabel">N° de Série<span class="req">*</span></label>
+          <input class="finput" id="f_serie" value="${esc(it.serie || '')}" required placeholder="Ex: SN-0001-XYZ"></div>
+        <div class="fg full"><label class="flabel">Usado em</label>
+          ${campoUsadoEm()}</div>
         <div class="fg full"><label class="flabel">Observações de cadastro</label>
           <textarea class="finput" id="a_obs" rows="3" style="resize:vertical" placeholder="Fornecedor, onde fica guardado, o que for útil lembrar...">${esc(it.obs || '')}</textarea></div>
       </div>
@@ -1490,10 +1565,16 @@ async function saveAlmox(e) {
         categoria: val('a_categoria'),
         modelo:    val('a_modelo').trim(),
         serie:     val('f_serie').trim(),
-        obs:       val('a_obs').trim()
+        obs:       val('a_obs').trim(),
+        usadoEm:   [...usadoEmSel]
       };
+      // Os mesmos obrigatórios que a API cobra (OBRIGATORIOS em
+      // almoxarifadoRoutes.js). "Usado em" fica de fora: nem todo material é
+      // usado em algum equipamento.
       if (!item.item)      { showToast('Preencha o Item.', 'err'); return; }
       if (!item.categoria) { showToast('Selecione uma categoria.', 'err'); return; }
+      if (!item.modelo)    { showToast('Preencha o Modelo.', 'err'); return; }
+      if (!item.serie)     { showToast('Preencha o N° de Série.', 'err'); return; }
 
       if (S.editAlmoxId != null) {
         await DB.updateAlmox(S.editAlmoxId, item);
@@ -1553,6 +1634,7 @@ function linhaAlmoxExport(it) {
     'Saldo': Number(it.saldo || 0),
     'Validade mais próxima': it.validadeProxima ? fmtDate(it.validadeProxima) : '',
     'Lotes com saldo': (it.lotes || []).filter(l => l.saldo > 0).length,
+    'Usado em': (it.usadoEm || []).join(' | '),
     'Observações': it.obs || ''
   };
 }
@@ -1611,8 +1693,10 @@ function renderImportacao() {
   if (el) {
     const linhas = almox
       ? [['Categorias válidas', S.catsAlmox.map(c => c.name).join(', ')],
-         ['Quantidade', 'obrigatória, número maior que zero (ex.: 12 ou 2,5)'],
-         ['Validade', 'opcional, no formato AAAA-MM-DD (ex.: 2027-03-31)']]
+         ['Obrigatórios', 'Item, Categoria, Modelo, N° Série e Quantidade'],
+         ['Quantidade', 'número maior que zero (ex.: 12 ou 2,5)'],
+         ['Validade', 'opcional, no formato AAAA-MM-DD (ex.: 2027-03-31)'],
+         ['Usado em (opcional)', 'modelo do patrimônio; vários separados por | : ' + modelosDoPatrimonio().join(', ')]]
       : [['Categorias válidas', S.cats.map(c => c.name).join(', ')],
          ['Status válidos', S.statusOpts.map(s => s.name).join(', ')],
          ['Locais válidos', S.locais.join(', ')]];
@@ -1639,9 +1723,10 @@ function downloadModelo() {
     'Item': 'Bobina 80mm',
     'Categoria': S.catsAlmox[0]?.name || 'Bobina',
     'Modelo': '80mm x 40m',
-    'N° Série': '',
+    'N° Série': 'SN-BOB-0001',
     'Quantidade': 12,
     'Validade': '2027-03-31',
+    'Usado em': modelosDoPatrimonio()[0] || '',
     'Usuário': '',
     'Observações': 'Compra de janeiro'
   } : {
@@ -1663,10 +1748,12 @@ function downloadModelo() {
   const ref = almox ? [
     { 'Campo': 'Item',       'Valores aceitos': 'Obrigatório — não pode repetir um item já cadastrado' },
     { 'Campo': 'Categoria',  'Valores aceitos': S.catsAlmox.map(c => c.name).join(' | ') || '(cadastre em Personalizar)' },
-    { 'Campo': 'Modelo',     'Valores aceitos': 'Opcional — texto' },
-    { 'Campo': 'N° Série',   'Valores aceitos': 'Opcional — se preenchido, não pode repetir' },
+    { 'Campo': 'Modelo',     'Valores aceitos': 'Obrigatório — texto' },
+    { 'Campo': 'N° Série',   'Valores aceitos': 'Obrigatório — não pode repetir' },
     { 'Campo': 'Quantidade', 'Valores aceitos': 'Obrigatório — número maior que zero (12 ou 2,5)' },
     { 'Campo': 'Validade',   'Valores aceitos': 'Opcional — AAAA-MM-DD (ex.: 2027-03-31)' },
+    { 'Campo': 'Usado em',   'Valores aceitos': 'Opcional — modelo do patrimônio, vários separados por | : ' +
+                                                (modelosDoPatrimonio().join(' | ') || '(nenhum patrimônio cadastrado)') },
     { 'Campo': 'Usuário',    'Valores aceitos': 'Opcional — quem recebeu' },
     { 'Campo': 'Observações','Valores aceitos': 'Opcional — texto' }
   ] : [
@@ -1761,6 +1848,7 @@ function _linhaAlmoxDaPlanilha(r, idx) {
     // _dataDaPlanilha devolve sempre AAAA-MM-DD, que é o que a API espera.
     validade:   _dataDaPlanilha(r['Validade'] ?? r['Data de Validade']),
     data_mov:   _dataDaPlanilha(r['Data'] ?? r['Data de Movimentação']),
+    usado_em:   col('Usado em', 'Usado Em', 'Usado no', 'Aplicação'),
     usuario:    col('Usuário', 'Usuario', 'Usuário Atual'),
     obs:        col('Observações', 'Observacoes', 'Obs')
   };

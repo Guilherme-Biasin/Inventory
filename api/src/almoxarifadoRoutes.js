@@ -47,6 +47,95 @@ function qtd(v){
   return Math.round(n * 100) / 100;   // 2 casas, como a coluna DECIMAL(12,2)
 }
 
+function jsonLista(v){ try { const x = JSON.parse(v || '[]'); return Array.isArray(x) ? x : []; } catch(e){ return []; } }
+
+// A coluna usado_em vem da migracao 06. A API pode subir antes de ela ser
+// rodada: neste caso o almoxarifado funciona inteiro, so sem o vinculo com os
+// modelos de patrimonio — melhor do que a aba parar de abrir.
+let _temUsadoEm = null;
+async function temUsadoEm(p){
+  if(_temUsadoEm !== null) return _temUsadoEm;
+  try {
+    const r = await p.request().query(`SELECT COUNT(*) AS n FROM sys.columns
+      WHERE object_id = OBJECT_ID('app.almoxarifado') AND name = 'usado_em'`);
+    _temUsadoEm = r.recordset[0].n === 1;
+  } catch(e){ _temUsadoEm = false; }
+  return _temUsadoEm;
+}
+
+// Campos que o cadastro exige. Item e serie tambem sao chave unica; categoria e
+// modelo entraram na lista a pedido do gerente — sem eles o material nao se
+// distingue de outro parecido na hora de pedir reposicao.
+const OBRIGATORIOS = [
+  { chave: 'item',      nome: 'Item' },
+  { chave: 'categoria', nome: 'Categoria' },
+  { chave: 'modelo',    nome: 'Modelo' },
+  { chave: 'serie',     nome: 'N° de Série' }
+];
+
+function exigirCampos(item){
+  const falta = OBRIGATORIOS.filter(c => !txt(item[c.chave]));
+  if(falta.length){
+    throw new Error(`preencha ${falta.map(c => c.nome).join(', ')}`);
+  }
+}
+
+// "Usado em": modelos de PATRIMONIO em que este material e usado. A tela so
+// deixa escolher da lista, e o servidor confere de novo — quem chama a API
+// direto nao inventa modelo que nao existe, senao o vinculo nao serviria para
+// achar nada.
+//
+// O que ja estava gravado passa mesmo que o modelo tenha sumido do patrimonio
+// (o ultimo equipamento daquele modelo foi excluido): recusar ali travaria
+// qualquer edicao do item por causa de um vinculo antigo.
+// Devolve um mapa "modelo em minusculas" -> "modelo como esta cadastrado".
+// Guardar a grafia do patrimonio, e nao a que veio da chamada, evita o mesmo
+// modelo aparecer como "Epson M105" num item e "epson m105" em outro — a lista
+// de vinculos so serve se der para agrupar por ela.
+async function modelosValidos(p, jaGravados){
+  const r = await p.request()
+    .query("SELECT DISTINCT modelo FROM app.patrimonio WHERE modelo IS NOT NULL AND LTRIM(RTRIM(modelo)) <> ''");
+  const mapa = new Map(r.recordset.map(x => {
+    const m = String(x.modelo).trim();
+    return [m.toLowerCase(), m];
+  }));
+  (jaGravados || []).forEach(m => {
+    const s = String(m).trim();
+    if(s && !mapa.has(s.toLowerCase())) mapa.set(s.toLowerCase(), s);
+  });
+  return mapa;
+}
+
+async function limparUsadoEm(p, valor, jaGravados){
+  if(valor == null) return null;
+  if(!Array.isArray(valor)) throw new Error('"usado em" precisa ser uma lista de modelos');
+  const limpos = valor.map(v => txt(v, 120)).filter(Boolean);
+
+  // Sem a migracao 06 a coluna nao existe: cadastro sem vinculo continua
+  // passando, e so quem escolheu um modelo recebe o aviso do que falta.
+  if(!(await temUsadoEm(p))){
+    if(!limpos.length) return null;
+    throw Object.assign(new Error('o campo "usado em" ainda nao foi instalado neste banco — rode api/sql/06_almox_usado_em.sql'), { status: 500 });
+  }
+  if(!limpos.length) return JSON.stringify([]);
+
+  const validos = await modelosValidos(p, jaGravados);
+  const desconhecidos = limpos.filter(m => !validos.has(m.toLowerCase()));
+  if(desconhecidos.length){
+    throw new Error(`modelo nao encontrado no patrimonio: ${desconhecidos.join(', ')} — escolha um modelo ja cadastrado`);
+  }
+  // Sem repetidos, na ordem em que foram escolhidos e com a grafia do cadastro.
+  const vistos = new Set();
+  const finais = [];
+  limpos.forEach(m => {
+    const k = m.toLowerCase();
+    if(vistos.has(k)) return;
+    vistos.add(k);
+    finais.push(validos.get(k));
+  });
+  return JSON.stringify(finais);
+}
+
 // Violacao de indice unico vira frase que o usuario entende. As duas chaves
 // unicas do almoxarifado sao o item e o numero de serie.
 function traduzirErro(e, item, serie){
@@ -101,9 +190,11 @@ function resumir(movs){
 // ------------------------------------------------------------
 async function listar(){
   const p = await conexao();
+  const usado = await temUsadoEm(p);
   const [itens, movs] = await Promise.all([
     p.request().query(`
-      SELECT id, item, categoria, modelo, serie, obs
+      SELECT id, item, categoria, modelo, serie, obs,
+             ${usado ? 'usado_em' : 'NULL AS usado_em'}
       FROM app.almoxarifado ORDER BY item`),
     p.request().query(`
       SELECT id, almox_id, tipo, CONVERT(varchar(10), data_mov, 23) AS data_mov,
@@ -134,6 +225,7 @@ async function listar(){
       modelo:    r.modelo || '',
       serie:     r.serie || '',
       obs:       r.obs || '',
+      usadoEm:   jsonLista(r.usado_em),
       saldo:     resumo.saldo,
       validadeProxima: resumo.validadeProxima,
       lotes:     resumo.lotes,
@@ -205,14 +297,16 @@ async function inserirMov(pedido, sql, almoxId, mov, login){
 async function criar(q, body, usuario){
   const item = (body && body.item) || {};
   const mov  = (body && body.mov)  || {};
+  exigirCampos(item);
   const nome = txt(item.item, 120);
-  if(!nome) throw new Error('informe o nome do item');
   // Cadastrar sem quantidade criaria um item com saldo zero e sem lote — e o
   // primeiro "cade o estoque?" viria logo depois.
   if(qtd(mov.quantidade) == null) throw new Error('informe a quantidade que esta entrando');
 
   const p = await conexao(); const sql = tipos();
   const serie = txt(item.serie, 120);
+  const usadoEm = await limparUsadoEm(p, item.usadoEm, []);
+  const temUsado = await temUsadoEm(p);
 
   const tx = new (tipos().Transaction)(p);
   await tx.begin();
@@ -224,10 +318,11 @@ async function criar(q, body, usuario){
       .input('modelo',    sql.VarChar(120),   txt(item.modelo, 120))
       .input('serie',     sql.VarChar(120),   serie)
       .input('obs',       sql.NVarChar(1000), txt(item.obs, 1000))
+      .input('usado',     sql.NVarChar(sql.MAX), usadoEm)
       .input('por',       sql.VarChar(50),    usuario.login)
-      .query(`INSERT INTO app.almoxarifado (item, categoria, modelo, serie, obs, criado_por)
+      .query(`INSERT INTO app.almoxarifado (item, categoria, modelo, serie, obs${temUsado ? ', usado_em' : ''}, criado_por)
               OUTPUT INSERTED.id
-              VALUES (@item, @categoria, @modelo, @serie, @obs, @por)`);
+              VALUES (@item, @categoria, @modelo, @serie, @obs${temUsado ? ', @usado' : ''}, @por)`);
     const id = ins.recordset[0].id;
 
     await inserirMov(pedido, sql, id, Object.assign({}, mov, { tipo: 'entrada' }), usuario.login);
@@ -252,16 +347,20 @@ async function atualizar(q, body, usuario){
   const id   = parseInt(body && body.id, 10);
   const item = (body && body.item) || {};
   if(!Number.isFinite(id)) throw new Error('id do item invalido');
+  exigirCampos(item);
   const nome = txt(item.item, 120);
-  if(!nome) throw new Error('informe o nome do item');
 
   const p = await conexao(); const sql = tipos();
   const antesR = await p.request().input('id', sql.Int, id)
-    .query('SELECT item, categoria, modelo, serie, obs FROM app.almoxarifado WHERE id = @id');
+    .query(`SELECT item, categoria, modelo, serie, obs,
+                   ${await temUsadoEm(p) ? 'usado_em' : 'NULL AS usado_em'}
+            FROM app.almoxarifado WHERE id = @id`);
   const antes = antesR.recordset[0];
   if(!antes) throw new Error('item nao encontrado');
 
   const serie = txt(item.serie, 120);
+  const usadoEm = await limparUsadoEm(p, item.usadoEm, jsonLista(antes.usado_em));
+  const temUsado = await temUsadoEm(p);
   try {
     await p.request()
       .input('id',        sql.Int,            id)
@@ -270,9 +369,10 @@ async function atualizar(q, body, usuario){
       .input('modelo',    sql.VarChar(120),   txt(item.modelo, 120))
       .input('serie',     sql.VarChar(120),   serie)
       .input('obs',       sql.NVarChar(1000), txt(item.obs, 1000))
+      .input('usado',     sql.NVarChar(sql.MAX), usadoEm)
       .query(`UPDATE app.almoxarifado SET
                 item = @item, categoria = @categoria, modelo = @modelo,
-                serie = @serie, obs = @obs, atualizado_em = SYSDATETIME()
+                serie = @serie, obs = @obs${temUsado ? ', usado_em = @usado' : ''}, atualizado_em = SYSDATETIME()
               WHERE id = @id`);
   } catch(e){ throw traduzirErro(e, nome, serie); }
 
@@ -354,16 +454,16 @@ async function excluir(q, body, usuario){
 // { simular: true } so confere.
 const MAX_IMPORT = 2000;
 
+// Os mesmos obrigatorios da tela: a regra e uma so, em todo lugar.
 const CAMPOS_IMPORT = [
   { chave: 'item',      nome: 'Item',       max: 120, obrigatorio: true },
   { chave: 'categoria', nome: 'Categoria',  max: 60,  obrigatorio: true },
-  { chave: 'modelo',    nome: 'Modelo',     max: 120 },
-  { chave: 'serie',     nome: 'N° Série',   max: 120 },
+  { chave: 'modelo',    nome: 'Modelo',     max: 120, obrigatorio: true },
+  { chave: 'serie',     nome: 'N° Série',   max: 120, obrigatorio: true },
   { chave: 'obs',       nome: 'Observações', max: 1000 },
   { chave: 'usuario',   nome: 'Usuário',    max: 120 }
 ];
 
-function jsonLista(v){ try { const x = JSON.parse(v || '[]'); return Array.isArray(x) ? x : []; } catch(e){ return []; } }
 const chaveTexto = s => String(s || '').trim().toLowerCase();
 
 async function conferirImportacao(p, rows){
@@ -381,6 +481,11 @@ async function conferirImportacao(p, rows){
   const exR = await p.request().query('SELECT item, serie FROM app.almoxarifado');
   const itensExistentes = new Set(exR.recordset.map(r => chaveTexto(r.item)));
   const seriesExistentes = new Set(exR.recordset.filter(r => r.serie).map(r => chaveTexto(r.serie)));
+
+  // "Usado em" na planilha: modelos separados por | ou ;. Conferidos contra os
+  // modelos de patrimonio, como na tela.
+  const comUsadoEm = await temUsadoEm(p);
+  const modelosPat = comUsadoEm ? await modelosValidos(p, []) : new Map();
 
   const erros = [];
   const linhas = [];
@@ -458,9 +563,20 @@ async function conferirImportacao(p, rows){
            'Use o formato AAAA-MM-DD, ou deixe em branco para usar a data de hoje.');
     }
 
+    const usadoEm = String(r.usado_em == null ? '' : r.usado_em)
+      .split(/[|;]/).map(x => x.trim()).filter(Boolean);
+    const semModelo = comUsadoEm ? usadoEm.filter(m => !modelosPat.has(m.toLowerCase())) : [];
+    if(semModelo.length){
+      erro('Usado em', `modelo não cadastrado no patrimônio: ${semModelo.join(', ')}`,
+           'Escreva exatamente o Modelo como está no cadastro do patrimônio, separando vários por "|". Ou deixe a coluna vazia.');
+    }
+
     linhas.push({
       linha, item: v.item, categoria: catId, modelo: v.modelo, serie: v.serie || null,
-      obs: v.obs, quantidade, validade, data_mov: data, usuario: v.usuario
+      obs: v.obs, quantidade, validade, data_mov: data, usuario: v.usuario,
+      // Grafia do cadastro, como na tela; repetido na mesma linha entra uma vez.
+      usadoEm: JSON.stringify([...new Set(usadoEm.map(m => m.toLowerCase()))]
+        .map(k => modelosPat.get(k)).filter(Boolean))
     });
   });
 
@@ -476,6 +592,7 @@ async function importar(q, body, usuario){
 
   const p = await conexao(); const sql = tipos();
   const { linhas, erros } = await conferirImportacao(p, rows);
+  const temUsado = await temUsadoEm(p);
 
   if(erros.length || (body && body.simular)){
     return { gravado: false, total: rows.length, sucesso: 0, erros };
@@ -494,10 +611,11 @@ async function importar(q, body, usuario){
         .input('modelo',    sql.VarChar(120),   txt(r.modelo, 120))
         .input('serie',     sql.VarChar(120),   txt(r.serie, 120))
         .input('obs',       sql.NVarChar(1000), txt(r.obs, 1000))
+        .input('usado',     sql.NVarChar(sql.MAX), r.usadoEm)
         .input('por',       sql.VarChar(50),    usuario.login)
-        .query(`INSERT INTO app.almoxarifado (item, categoria, modelo, serie, obs, criado_por)
+        .query(`INSERT INTO app.almoxarifado (item, categoria, modelo, serie, obs${temUsado ? ', usado_em' : ''}, criado_por)
                 OUTPUT INSERTED.id
-                VALUES (@item, @categoria, @modelo, @serie, @obs, @por)`);
+                VALUES (@item, @categoria, @modelo, @serie, @obs${temUsado ? ', @usado' : ''}, @por)`);
 
       // O lote de entrada entra na MESMA transacao: nao existe item importado
       // sem a entrada que explica o saldo dele.
