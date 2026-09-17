@@ -1348,6 +1348,9 @@ function renderFormAlmox() {
       </div>
       <div class="fg"><label class="flabel">Quantidade<span class="req">*</span></label>
         <input class="finput" id="a_qtd" type="text" inputmode="decimal" placeholder="Ex: 12" required></div>
+      <div class="fg"><label class="flabel">Usuário</label>
+        <input class="finput" id="a_usuario" list="lista-pessoas" placeholder="Quem retirou ou recebeu"></div>
+      <datalist id="lista-pessoas">${S.pessoas.map(p => `<option value="${esc(p)}"></option>`).join('')}</datalist>
       <div class="fg" id="fg-validade"><label class="flabel">Data de Validade</label>
         <input class="finput" type="date" id="a_validade">
         <div style="font-size:11px;color:var(--txt3);margin-top:3px">Deixe em branco se o material não vence.</div></div>
@@ -1358,9 +1361,6 @@ function renderFormAlmox() {
             : '<option value="">Nenhum lote com saldo</option>'}
         </select>
         <div style="font-size:11px;color:var(--txt3);margin-top:3px">Os que vencem primeiro aparecem no topo.</div></div>
-      <div class="fg"><label class="flabel">Usuário</label>
-        <input class="finput" id="a_usuario" list="lista-pessoas" placeholder="Quem retirou ou recebeu"></div>
-      <datalist id="lista-pessoas">${S.pessoas.map(p => `<option value="${esc(p)}"></option>`).join('')}</datalist>
       <div class="fg full"><label class="flabel">Observações da Movimentação</label>
         <textarea class="finput" id="a_obs_mov" rows="3" style="resize:vertical" placeholder="Nota fiscal, motivo da retirada..."></textarea></div>
     </div>
