@@ -1399,7 +1399,10 @@ html.dark .modal {
     display:flex;
     flex-wrap:wrap;
     gap:1.5rem;
-    align-items:flex-start;
+    /* Centralizados na altura um do outro: quando um dos textos ocupa uma linha
+       a mais, os dois botões continuam na mesma altura e a divisória fica no
+       meio, em vez de sobrar um degrau de um lado. */
+    align-items:center;
     justify-content:center;
 }
 .import-passo { flex:1; min-width:260px; max-width:420px; }
