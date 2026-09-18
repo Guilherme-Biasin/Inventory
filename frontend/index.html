@@ -8,7 +8,7 @@
 <title>Inventory Guemat</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <link rel="stylesheet" href="css/style.css">
-<link rel="icon" type="image/png" href="https://cdn.awsli.com.br/1709/1709002/favicon/a48a060e0c.ico">
+<link rel="icon" type="image/png" href="img/icone-escuro.png">
 <style>
 /* ── LOGIN SCREEN ─────────────────────────────────────────── */
 #screen-login {
@@ -94,7 +94,11 @@
 <!-- ── TELA DE LOGIN ──────────────────────────────────────── -->
 <div id="screen-login">
   <div class="login-card">
-    <div class="login-logo">💻 Inventory <span>Guemat</span></div>
+    <div class="login-logo">
+      <img src="img/icone-claro.png" alt="Guemat" class="login-icon logo-claro">
+      <img src="img/icone-escuro.png" alt="Guemat" class="login-icon logo-escuro">
+      Inventory <span>Guemat</span>
+    </div>
     <div class="login-sub">Faça login para continuar</div>
     <div class="selo-ambiente" data-selo-ambiente></div>
     <div class="login-err" id="l-err"></div>
@@ -116,7 +120,11 @@
 <div id="screen-app" style="width:100%;height:100vh;">
 <div class="app">
   <div class="sidebar">
-    <div class="sidebar-logo"><div class="logo-icon">💻</div>Inventory Guemat</div>
+    <div class="sidebar-logo">
+      <img src="img/icone-claro.png" alt="Guemat" class="logo-icon logo-claro">
+      <img src="img/icone-escuro.png" alt="Guemat" class="logo-icon logo-escuro">
+      Inventory Guemat
+    </div>
     <div class="nav-group">
       <div class="nav-label">Principal</div>
       <div class="nav-item active" data-nav="dashboard" onclick="nav('dashboard')"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
@@ -152,8 +160,6 @@
       <div class="topbar-actions">
         <span class="selo-ambiente" data-selo-ambiente></span>
         <button class="btn mobile-dark-btn" onclick="toggleDark()" title="Modo escuro"><i class="ti ti-moon" id="mobile-dark-icon"></i></button>
-        <button class="btn" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> <span class="btn-label">Exportar Excel</span></button>
-        <button class="btn btn-primary" id="btn-novo-topbar" onclick="novoRegistro()"><i class="ti ti-plus"></i> <span class="btn-label" id="btn-novo-label">Novo Patrimônio</span></button>
         <button class="btn" onclick="openChangePassword()" title="Alterar minha senha"><i class="ti ti-key"></i></button>
         <div class="user-badge" onclick="doLogout()" title="Clique para sair">
           <i class="ti ti-user" style="font-size:15px"></i>

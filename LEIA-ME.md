@@ -164,6 +164,7 @@ guemat-estoque/
 │   └── iniciar-leitura.bat      notebook — só leitura
 └── frontend/                  as telas
     ├── index.html
+    ├── img/                     ícone "G" da Guemat (versão clara e escura)
     ├── css/style.css
     └── js/
         ├── config.js            endereço da API conforme o domínio
