@@ -59,6 +59,11 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
           (a senha antiga continua no historico do Git, commit 1612eef).
       [ ] Apagar o senhas.txt local depois de passar para um
           gerenciador de senhas.
+      [ ] VIRADA PARA PRODUCAO: rodar api/sql/zerar_dados.sql no SSMS
+          (trocando @CONFIRMO para 1) e reiniciar o servico. Zera
+          patrimonios, movimentacoes, almoxarifado, lotes e auditoria;
+          usuarios e configuracao ficam. Fazer backup do banco antes,
+          porque nao tem volta.
 
 [ OK ] ETAPA 5 - CLAUDE.md DO PROJETO
       Criado com as regras escolhidas do Gerente Assist: explicar antes

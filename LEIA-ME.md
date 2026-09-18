@@ -245,6 +245,24 @@ explicando o que falta e o resto do sistema continua funcionando.
 
 ---
 
+## Zerar os dados antes de começar a valer
+
+Depois dos testes, `api/sql/zerar_dados.sql` deixa o banco limpo para a
+produção começar do zero. Ele apaga **patrimônios, movimentações, almoxarifado,
+lotes e a auditoria**, e faz a numeração recomeçar do 1. Continuam de pé os
+**usuários** (logins e senhas) e a **configuração** — categorias, categorias do
+almoxarifado, pessoas, locais, status e os vínculos Entrada/Saída.
+
+É a única coisa do projeto que apaga dado, então ele tem uma trava: só apaga
+depois que você troca `@CONFIRMO` de `0` para `1` dentro do arquivo. Com `0`,
+rodar o script apenas mostra a contagem do que existe hoje. Tudo acontece numa
+transação: se qualquer passo falhar, nada é apagado.
+
+**Não tem volta.** Se quiser poder voltar atrás, faça um backup do banco antes.
+Depois de rodar, reinicie o serviço da API.
+
+---
+
 ## Importação por planilha
 
 **Tudo ou nada.** Ao escolher o arquivo, a API confere a planilha inteira e a

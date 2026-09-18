@@ -30,6 +30,13 @@ em algum momento, rode todos os `04+` na ordem.
 | `05_almoxarifado.sql` | Cria a aba **Almoxarifado**: tabelas de item e movimentação (lotes) e a lista de categorias própria. Sem ela a aba abre explicando que falta rodar isto — o resto do sistema continua funcionando |
 | `06_almox_usado_em.sql` | Acrescenta o campo **Usado em** (modelos de patrimônio em que o material é usado) |
 
+O `zerar_dados.sql` **não é migração** e não entra nessa ordem. Ele existe para
+uma situação só: terminar os testes e começar a produção com o inventário
+limpo. Apaga patrimônios, movimentações, almoxarifado, lotes e a auditoria, e
+preserva os usuários e a configuração (categorias, locais, status). Só apaga
+depois que você troca `@CONFIRMO` de `0` para `1` dentro do arquivo; com `0`
+ele apenas mostra o que existe hoje.
+
 > **Antes de rodar o 01**: troque o texto `TROQUE_ESTA_SENHA` pela senha real
 > do `estoque_rw`. É essa senha que vai para o `db.json` do passo 3. Não salve
 > o `01` com a senha real dentro — ele está no Git.
