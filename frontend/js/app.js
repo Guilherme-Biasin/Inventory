@@ -333,9 +333,9 @@ function actionButtons(id) {
   const delOk = can('excluir');
   const dis   = (ok, tip) => !ok ? `disabled title="${tip}" style="opacity:.4;cursor:not-allowed"` : '';
   return `<div class="actions-cell">
-    <button class="btn btn-sm" onclick="${edOk?`editItem(${id})`:''}" ${dis(edOk,'Sem permissão para editar')} title="${edOk?'Editar':'Sem permissão'}"><i class="ti ti-edit"></i></button>
-    <button class="btn btn-sm btn-warn" onclick="${movOk?`novaMovimentacao(${id})`:''}" ${dis(movOk,'Sem permissão para movimentar')} title="${movOk?'Movimentar':'Sem permissão'}"><i class="ti ti-transfer"></i></button>
-    <button class="btn btn-sm" style="${delOk?'border-color:var(--danger-txt);color:var(--danger-txt)':'opacity:.4;cursor:not-allowed'}" onclick="${delOk?`delItem(${id})`:''}" ${dis(delOk,'Sem permissão para excluir')} title="${delOk?'Excluir':'Sem permissão'}"><i class="ti ti-trash"></i></button>
+    <button class="btn btn-sm" onclick="${edOk?`editItem(${id})`:''}" ${dis(edOk,'Sem permissão para editar')} title="${edOk?'Editar':'Sem permissão'}"><i class="ti ti-edit"></i> <span class="btn-label">Editar</span></button>
+    <button class="btn btn-sm btn-warn" onclick="${movOk?`novaMovimentacao(${id})`:''}" ${dis(movOk,'Sem permissão para movimentar')} title="${movOk?'Movimentar':'Sem permissão'}"><i class="ti ti-transfer"></i> <span class="btn-label">Movimentar</span></button>
+    <button class="btn btn-sm" style="${delOk?'border-color:var(--danger-txt);color:var(--danger-txt)':'opacity:.4;cursor:not-allowed'}" onclick="${delOk?`delItem(${id})`:''}" ${dis(delOk,'Sem permissão para excluir')} title="${delOk?'Excluir':'Sem permissão'}"><i class="ti ti-trash"></i> <span class="btn-label">Excluir</span></button>
   </div>`;
 }
 
@@ -1331,9 +1331,9 @@ function acoesAlmox(id) {
   const delOk = can('excluir');
   const dis   = (ok, tip) => !ok ? `disabled title="${esc(tip)}" style="opacity:.4;cursor:not-allowed"` : '';
   return `<div class="actions-cell">
-    <button class="btn btn-sm" onclick="${edOk ? `editAlmox(${id})` : ''}" ${dis(edOk, 'Sem permissão para editar')} title="${edOk ? 'Editar' : 'Sem permissão'}"><i class="ti ti-edit"></i></button>
-    <button class="btn btn-sm btn-warn" onclick="${movOk ? `movimentarAlmox(${id})` : ''}" ${dis(movOk, 'Sem permissão para movimentar')} title="${movOk ? 'Entrada ou saída' : 'Sem permissão'}"><i class="ti ti-transfer"></i></button>
-    <button class="btn btn-sm" style="${delOk ? 'border-color:var(--danger-txt);color:var(--danger-txt)' : 'opacity:.4;cursor:not-allowed'}" onclick="${delOk ? `delAlmox(${id})` : ''}" ${dis(delOk, 'Sem permissão para excluir')} title="${delOk ? 'Excluir' : 'Sem permissão'}"><i class="ti ti-trash"></i></button>
+    <button class="btn btn-sm" onclick="${edOk ? `editAlmox(${id})` : ''}" ${dis(edOk, 'Sem permissão para editar')} title="${edOk ? 'Editar' : 'Sem permissão'}"><i class="ti ti-edit"></i> <span class="btn-label">Editar</span></button>
+    <button class="btn btn-sm btn-warn" onclick="${movOk ? `movimentarAlmox(${id})` : ''}" ${dis(movOk, 'Sem permissão para movimentar')} title="${movOk ? 'Entrada ou saída' : 'Sem permissão'}"><i class="ti ti-transfer"></i> <span class="btn-label">Movimentar</span></button>
+    <button class="btn btn-sm" style="${delOk ? 'border-color:var(--danger-txt);color:var(--danger-txt)' : 'opacity:.4;cursor:not-allowed'}" onclick="${delOk ? `delAlmox(${id})` : ''}" ${dis(delOk, 'Sem permissão para excluir')} title="${delOk ? 'Excluir' : 'Sem permissão'}"><i class="ti ti-trash"></i> <span class="btn-label">Excluir</span></button>
   </div>`;
 }
 
@@ -1492,6 +1492,11 @@ function renderFormAlmox() {
     </div>`;
   }
 
+  // Editar mexe no CADASTRO do item; entrada e saída têm a tela própria
+  // (Movimentar). Misturar os dois num formulário só fazia a edição de um nome
+  // parecer que ia gravar uma movimentação junto.
+  const mostraMov = movModeAlmox || !isEdit;
+
   // No cadastro é sempre ENTRADA: o item nasce com o primeiro lote. A escolha
   // entrada/saída só faz sentido depois, em cima de um item que já existe.
   // Quem vence primeiro no topo: é o que deve sair antes, e numa lista de dez
@@ -1499,7 +1504,7 @@ function renderFormAlmox() {
   const lotesComSaldo = (it.lotes || []).filter(l => l.saldo > 0)
     .sort((a, b) => (a.validade || '9999-12-31').localeCompare(b.validade || '9999-12-31'));
   lotesDoItemAberto = lotesComSaldo;
-  h += `<div class="${movModeAlmox ? 'scard' : 'mov-card'}">
+  if (mostraMov) h += `<div class="${movModeAlmox ? 'scard' : 'mov-card'}">
     <div class="scard-title"><i class="ti ti-transfer"></i> Dados da Movimentação
     </div>
     <div class="form-grid">
@@ -1652,7 +1657,6 @@ function blocoLotes(it) {
       <span class="badge b-gray" style="margin-left:6px">${comSaldo} com saldo</span>
       <span style="margin-left:8px;font-size:12px;font-weight:500;color:var(--txt2)">Saldo total: ${saldoPill(it.saldo)}</span>
     </div>
-    <div style="font-size:12px;color:var(--txt3);margin-bottom:.6rem">Clique num lote para ver as movimentações dele.</div>
     ${lotes.length ? lotes.map(cartao).join('')
                    : '<div style="color:var(--txt3);font-size:13px;padding:.5rem 0">Nenhum lote ainda. Registre uma entrada.</div>'}
   </div>`;
@@ -1709,10 +1713,9 @@ async function saveAlmox(e) {
       if (!item.serie)     { showToast('Preencha o N° de Série.', 'err'); return; }
 
       if (S.editAlmoxId != null) {
+        // Só o cadastro do item: a edição não tem mais campos de movimentação
+        // (entrada e saída se registram em Movimentar).
         await DB.updateAlmox(S.editAlmoxId, item);
-        // Na edição a movimentação é opcional: só registra se digitou a
-        // quantidade. Sem isso, salvar um nome corrigido criaria um lote novo.
-        if (mov.quantidade) await DB.movimentarAlmox(S.editAlmoxId, mov);
         showToast('✅ Item atualizado!');
       } else {
         if (!mov.quantidade) { showToast('Informe a quantidade que está entrando.', 'err'); return; }

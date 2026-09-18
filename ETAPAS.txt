@@ -138,6 +138,9 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
            cartao que abre e mostra as movimentacoes dele (a entrada
            que o criou e as saidas que sairam dele), um aberto por vez;
            lote zerado continua na lista, apagado e marcado.
+           Editar so mexe no CADASTRO do item (18/09/2026): entrada,
+           saida, quantidade e validade ficaram so no Movimentar.
+           Os botoes da lista ganharam o nome ao lado do icone.
       [OK] Somar a um lote existente (18/09/2026): compra nova com a
            mesma validade entra no MESMO lote em vez de abrir outro.
            Campo "Somar a um lote?" na entrada; em branco abre lote

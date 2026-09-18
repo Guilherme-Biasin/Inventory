@@ -586,6 +586,13 @@ tbody tr:hover td {
     height:100%; /* mesma altura */
 }
 
+/* Editar item do almoxarifado mostra só um card: sozinho, ele ocupa a linha
+   inteira em vez de ficar espremido em metade da tela. */
+.form-two-col > .scard:only-child,
+.form-two-col > .mov-card:only-child {
+    grid-column:1 / -1;
+}
+
 /* Hist-card ocupa largura total */
 .hist-card {
     width:100%;
