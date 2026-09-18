@@ -275,12 +275,38 @@ function servirEstatico(req, res, parsed){
     return res.end('acesso negado');
   }
 
-  fs.readFile(arquivo, (err, buf) => {
-    if(err){
+  // ---------- CACHE DA TELA ----------
+  // Depois de um deploy, o navegador precisa PERGUNTAR se o arquivo mudou. Sem
+  // isto ele reaproveita o que tem por conta propria, e da para ficar com o
+  // app.js novo e o style.css velho ao mesmo tempo — foi exatamente o que
+  // aconteceu em 18/09/2026: a tela parecia desalinhada e o codigo ja estava
+  // certo. "no-cache" NAO significa "nao guarde": significa "guarde, mas
+  // confirme antes de usar". Com a etiqueta abaixo a confirmacao volta 304
+  // (sem corpo) quando nada mudou, entao custa quase nada.
+  fs.stat(arquivo, (errStat, st) => {
+    if(errStat || !st.isFile()){
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       return res.end('arquivo nao encontrado');
     }
-    enviar(req, res, 200, buf, MIME[path.extname(arquivo).toLowerCase()] || 'application/octet-stream');
+
+    // Etiqueta da versao do arquivo: tamanho + data de modificacao. Muda a cada
+    // "git pull" que tocar no arquivo, e so nesse caso.
+    const etiqueta = `W/"${st.size}-${Math.floor(st.mtimeMs)}"`;
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('ETag', etiqueta);
+
+    if(req.headers['if-none-match'] === etiqueta){
+      res.writeHead(304);
+      return res.end();
+    }
+
+    fs.readFile(arquivo, (err, buf) => {
+      if(err){
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        return res.end('arquivo nao encontrado');
+      }
+      enviar(req, res, 200, buf, MIME[path.extname(arquivo).toLowerCase()] || 'application/octet-stream');
+    });
   });
 }
 

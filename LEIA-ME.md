@@ -94,6 +94,12 @@ Como os dois lados sobem separados, dá para a tela estar numa versão e a API
 noutra. Ao mexer nos dois no mesmo commit, atualize a VM logo depois do push.
 Se o serviço não subir, o motivo está em `C:\guemat-estoque\api\log.txt`.
 
+A tela não fica velha por cache: o servidor manda o navegador **conferir** cada
+arquivo antes de reaproveitar (`Cache-Control: no-cache` + `ETag`). Quando nada
+mudou, a resposta é um `304` sem conteúdo, então conferir custa quase nada. Isso
+evita o caso em que o `app.js` novo convive com o `style.css` velho e a tela
+parece quebrada com o código certo.
+
 **"Atualizei e não mudou nada"?** Abra
 `https://inventory-api.guematpro.com/api/v1/ambiente`: o campo `versao` é o
 commit que a API está rodando. Compare com `git log --oneline -1`. Diferente =
