@@ -168,6 +168,7 @@ guemat-estoque/
     └── js/
         ├── config.js            endereço da API conforme o domínio
         ├── api-config.js        conversa com a API
+        ├── seletor.js           lista suspensa e calendário próprios
         ├── app.js               a aplicação
         └── mobile-scanner.js    leitor de código de barras
 ```

@@ -1178,6 +1178,106 @@ html.dark .modal {
 }
 .user-badge:hover { background:var(--hover); }
 
+/* ── LISTA SUSPENSA E CALENDÁRIO PRÓPRIOS ─────────────────
+   O <select> e o <input type="date"> nativos herdam a aparência do Windows:
+   fonte, cantos e cores que mudam de máquina para máquina. O campo nativo
+   continua no HTML (escondido) para o resto do sistema seguir lendo .value;
+   o que aparece é o controle abaixo. Ver frontend/js/seletor.js. */
+.pk, .dp { position:relative; width:100%; }
+
+/* O nativo fica atrás, sem receber clique nem foco. Não usamos display:none
+   porque um campo escondido assim sai de validações e de .focus(). */
+.pk-nativo, .dp-nativo {
+    position:absolute; inset:0;
+    opacity:0; pointer-events:none;
+    width:100%; height:100%;
+}
+
+.pk-btn, .dp-btn {
+    display:flex; align-items:center; gap:8px;
+    width:100%; text-align:left; cursor:pointer;
+    font-family:inherit;
+    background:var(--bg); color:var(--txt);
+}
+.pk-btn:hover, .dp-btn:hover { border-color:var(--border2); }
+.pk-btn:focus-visible, .dp-btn:focus-visible {
+    outline:none; border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(255,145,0,.18);
+}
+.pk-btn:disabled, .dp-btn:disabled { opacity:.55; cursor:not-allowed; }
+
+.pk-rot, .dp-rot {
+    flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.pk-rot.vazio, .dp-rot.vazio { color:var(--txt3); }
+.pk-ico, .dp-ico { font-size:15px; color:var(--txt3); flex:0 0 auto; }
+.pk.aberto .pk-ico { transform:rotate(180deg); color:var(--accent); }
+.pk.aberto .pk-btn, .dp.aberto .dp-btn { border-color:var(--accent); }
+
+.pk-painel, .dp-painel {
+    display:none; position:absolute; z-index:120;
+    left:0; right:0; top:calc(100% + 4px);
+    background:var(--bg); border:1px solid var(--border2);
+    border-radius:10px; box-shadow:0 12px 32px rgba(0,0,0,.28);
+    padding:5px;
+}
+.pk.aberto .pk-painel, .dp.aberto .dp-painel { display:block; }
+/* Sem espaço embaixo, abre para cima. */
+.pk-painel.acima, .dp-painel.acima { top:auto; bottom:calc(100% + 4px); }
+
+.pk-painel { max-height:264px; overflow-y:auto; }
+.pk-item {
+    display:block; width:100%; text-align:left;
+    padding:9px 10px; border:none; border-radius:7px;
+    background:transparent; color:var(--txt);
+    font-size:13.5px; font-family:inherit; cursor:pointer;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.pk-item:hover, .pk-item:focus-visible { background:var(--hover); outline:none; }
+.pk-item.sel { background:var(--accent); color:#fff; font-weight:600; }
+.pk-item.off { opacity:.45; cursor:not-allowed; }
+.pk-vazio { padding:10px; font-size:12.5px; color:var(--txt3); }
+
+/* ---- calendário ---- */
+.dp-painel { width:268px; right:auto; padding:12px; }
+.dp-cab {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:10px;
+}
+.dp-cab b { font-size:13.5px; color:var(--accent); text-transform:capitalize; }
+.dp-nav {
+    width:28px; height:28px; border-radius:7px;
+    border:1px solid var(--border2); background:transparent;
+    color:var(--txt2); cursor:pointer; display:flex;
+    align-items:center; justify-content:center;
+}
+.dp-nav:hover { border-color:var(--accent); color:var(--accent); }
+.dp-semana, .dp-grade { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.dp-semana span {
+    text-align:center; font-size:11px; font-weight:700;
+    color:var(--txt3); padding-bottom:4px;
+}
+.dp-dia {
+    padding:7px 0; border-radius:7px; border:1px solid transparent;
+    background:transparent; color:var(--txt);
+    font-size:12.5px; font-family:inherit; cursor:pointer;
+}
+.dp-dia:hover { border-color:var(--accent); color:var(--accent); }
+/* Hoje fica marcado mesmo sem estar escolhido: é a referência de quem abre. */
+.dp-dia.hoje { border-color:var(--border2); font-weight:700; }
+.dp-dia.sel { background:var(--accent); color:#fff; font-weight:700; border-color:var(--accent); }
+.dp-rodape {
+    display:flex; justify-content:space-between; gap:8px;
+    margin-top:10px; padding-top:8px; border-top:1px solid var(--border);
+}
+.dp-acao {
+    background:transparent; border:none; cursor:pointer;
+    font-size:12.5px; font-family:inherit; font-weight:600; color:var(--txt3);
+    padding:4px 6px; border-radius:6px;
+}
+.dp-acao:hover { color:var(--txt); background:var(--hover); }
+.dp-acao.forte { color:var(--accent); }
+
 /* ── SELETOR PATRIMÔNIO | ALMOXARIFADO ────────────────────
    Centralizado no topo do Cadastro e da Importação: é a primeira
    decisão da tela, e o resto do formulário depende dela. */
