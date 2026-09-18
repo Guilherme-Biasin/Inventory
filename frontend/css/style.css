@@ -136,11 +136,13 @@ html.dark {
     padding:4px 1.25rem;
     font-size:10.5px;
     font-weight:600;
-    color:var(--txt3);
+    color:var(--txt);
     text-transform:uppercase;
     letter-spacing:.08em;
 }
 
+/* Texto em branco (a cor principal do tema): o menu e o cabeçalho da tabela
+   são leitura o tempo todo, e o cinza de apoio pesava para ler. */
 .nav-item {
     display:flex;
     align-items:center;
@@ -149,7 +151,7 @@ html.dark {
     margin:1px .5rem;
     border-radius:7px;
     font-size:13.5px;
-    color:var(--txt2);
+    color:var(--txt);
     cursor:pointer;
     transition:background .12s,color .12s;
 }
@@ -468,7 +470,7 @@ th {
     text-align:left;
     font-size:11px;
     font-weight:600;
-    color:var(--txt3);
+    color:var(--txt);
     text-transform:uppercase;
     letter-spacing:.07em;
     border-bottom:1px solid var(--border);
@@ -1257,7 +1259,7 @@ html.dark .modal {
     align-items:center;
     gap:6px;
     font-size:12.5px;
-    color:var(--txt2);
+    color:var(--txt);
     padding:5px 10px;
     border-radius:8px;
     border:1px solid var(--border2);
