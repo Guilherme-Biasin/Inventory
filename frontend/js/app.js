@@ -480,11 +480,14 @@ function renderForm() {
       <div class="fg"><label class="flabel">Data de Movimentação</label>
         <input class="finput" type="date" id="f_data_mov"></div>
       <div class="fg"><label class="flabel">Entrada ou Saída?</label>
-        <select class="finput" id="f_quem_recebeu_retirou" onchange="onEntradaSaidaChange()">
-          <option value="">Selecione...</option>
-          <option value="Entrada">📥 Entrada</option>
-          <option value="Saída">📤 Saída</option>
-        </select></div>
+        ${(movMode || isEdit)
+          ? `<select class="finput" id="f_quem_recebeu_retirou" onchange="onEntradaSaidaChange()">
+               <option value="">Selecione...</option>
+               <option value="Entrada">📥 Entrada</option>
+               <option value="Saída">📤 Saída</option>
+             </select>`
+          : `<input class="finput" value="📥 Entrada" disabled title="Cadastrar o bem é a entrada dele; saída se registra em Movimentar">`}
+        </div>
       <div class="fg"><label class="flabel">Usuário Atual</label>
         <input class="finput" id="f_usuario_atual" placeholder="Nome do usuário atual" value="${(!movMode && it.usuario_atual) ? esc(it.usuario_atual) : ''}"></div>
       <div class="fg"><label class="flabel">Local Atual</label>
@@ -538,10 +541,23 @@ function renderForm() {
 
   document.getElementById('form-wrap').innerHTML = h;
   document.getElementById('form-alert').style.display = 'none';
+  // No cadastro novo o tipo já está decidido (entrada), então os vínculos de
+  // Status e Local valem desde já — antes só passavam a valer quando a pessoa
+  // escolhia no seletor.
+  if (!movMode && !isEdit) onEntradaSaidaChange();
+}
+
+// Igual ao almoxarifado, onde o item nasce da primeira entrada: cadastrar um
+// patrimônio É a entrada dele, então o campo vem travado em Entrada no cadastro
+// novo. Na edição e no Movimentar continua seletor — ali a movimentação
+// registrada junto pode ser entrada ou saída.
+function tipoMovDoForm() {
+  const sel = document.getElementById('f_quem_recebeu_retirou');
+  return sel ? (sel.value || '') : 'Entrada';   // sem seletor = cadastro novo
 }
 
 function onEntradaSaidaChange() {
-  const tipo = (document.getElementById('f_quem_recebeu_retirou')||{}).value || '';
+  const tipo = tipoMovDoForm();
   const v    = S.vinculos || {};
   const cfg  = tipo === 'Entrada' ? v.entrada : tipo === 'Saída' ? v.saida : null;
 
@@ -614,7 +630,7 @@ async function saveItem(e) {
   btn.disabled = true;
 
   const data_mov            = document.getElementById('f_data_mov')?.value || '';
-  const quem_recebeu_retirou = document.getElementById('f_quem_recebeu_retirou')?.value || '';
+  const quem_recebeu_retirou = tipoMovDoForm();
   const local               = document.getElementById('f_local_atual')?.value || '';
   const usuario_atual       = document.getElementById('f_usuario_atual')?.value || '';
   const obs_mov             = document.getElementById('f_obs_mov')?.value || '';
