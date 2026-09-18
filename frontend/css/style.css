@@ -17,6 +17,9 @@ html.dark,html.dark body {
 }
 
 :root {
+    /* Altura da faixa do topo: vale para a barra superior E para a faixa do
+       logo na lateral, para as duas fecharem na mesma linha. */
+    --altura-topo:60px;
     --bg:#ffffff;
     --bg2:#f5f5f2;
     --bg3:#ebebeb;
@@ -87,8 +90,12 @@ html.dark {
     transition:background .2s;
 }
 
+/* A faixa do logo e a barra do topo têm a MESMA altura (--altura-topo), então a
+   linha que fecha as duas é uma só, atravessando a tela. Antes o logo tinha
+   61px (padding + ícone) e a barra 53px, e a emenda aparecia. */
 .sidebar-logo {
-    padding:1rem 1.25rem;
+    height:var(--altura-topo);
+    padding:0 1.25rem;
     font-size:15px;
     font-weight:600;
     letter-spacing:-.3px;
@@ -217,7 +224,7 @@ html.dark .toggle-thumb {
     background:var(--topbar-bg);
     border-bottom:1px solid var(--border);
     padding:0 1.25rem;
-    height:52px;
+    height:var(--altura-topo);   /* igual à faixa do logo, na lateral */
     display:flex;
     align-items:center;
     justify-content:space-between;
