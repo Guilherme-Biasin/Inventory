@@ -1146,12 +1146,16 @@ html.dark .modal {
     text-overflow: ellipsis;
 }
 
-/* Select, campo de data e botão do leitor na mesma altura do input de texto:
-   o <input type="date"> e o <select> nascem 2px maiores por causa do controle
-   nativo, e 2px já desencontram a linha seguinte. */
-.form-grid select.finput,
-.form-grid input[type="date"].finput { height: 36px; }
-.form-grid .scan-btn { height: 36px; }
+/* TODOS os controles do formulário com a MESMA altura: 38px.
+   Esse é o tamanho natural do <select> e do <input type="date"> no Chrome, por
+   causa do controle nativo que eles desenham dentro. A tentativa anterior era o
+   contrário — espremer os dois em 36px —, e aí o texto do select aparecia
+   cortado embaixo ("Selecione" sem a perna do "ç"). Puxar o input de texto para
+   38px resolve os dois lados: mesma altura e nada cortado.
+   A caixa de observações fica de fora: a altura dela vem do rows. */
+.form-grid .finput { height: 38px; }
+.form-grid textarea.finput { height: auto; }
+.form-grid .scan-btn { height: 38px; width: 38px; }
 
 /* ── USER BADGE no topbar ─────────────────────────────── */
 .user-badge {
