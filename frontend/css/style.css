@@ -1396,14 +1396,22 @@ html.dark .modal {
 }
 
 /* A tela da importação tem pouco conteúdo: o bloco fica no meio da área
-   visível em vez de grudado no topo com um vazio embaixo. Quando a prévia da
+   visível em vez de grudado no topo com um vazio embaixo. O botão de exportar
+   não entra nessa conta - ele continua no topo, alinhado com o das outras
+   telas; quem se centraliza é só o miolo (.import-centro). Quando a prévia da
    planilha aparece, o conteúdo volta a crescer de cima para baixo (o
    justify-content só centraliza enquanto sobra espaço). */
 #page-importacao.active {
     display:flex;
     flex-direction:column;
-    justify-content:center;
     min-height:100%;
+}
+#page-importacao .page-header { flex:0 0 auto; }
+.import-centro {
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
 }
 
 /* Fontes maiores neste bloco: são poucas linhas numa tela larga, e no tamanho
