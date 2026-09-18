@@ -156,8 +156,21 @@ function resumir(movs){
   const porId = new Map();
   let saldo = 0;
 
+  const cent = n => Math.round(n * 100) / 100;
+
   for(const m of movs){
     if(m.tipo === 'entrada'){
+      // Entrada com lote_id e uma compra nova que entrou no MESMO lote (mesma
+      // validade): soma nele em vez de abrir outro cartao. Se o lote apontado
+      // nao existir, ela vira um lote proprio — melhor um lote a mais do que
+      // material que entrou e nao aparece em lugar nenhum.
+      const alvo = m.lote_id != null ? porId.get(m.lote_id) : null;
+      if(alvo){
+        alvo.quantidade = cent(alvo.quantidade + m.quantidade);
+        alvo.saldo      = cent(alvo.saldo + m.quantidade);
+        saldo += m.quantidade;
+        continue;
+      }
       const lote = {
         id: m.id, data_mov: m.data_mov, validade: m.validade,
         quantidade: m.quantidade, saldo: m.quantidade,
@@ -245,12 +258,16 @@ async function saldoDoLote(pedido, sql, almoxId, loteId){
     .input('lote', sql.Int, loteId)
     .input('item', sql.Int, almoxId)
     .query(`
-      SELECT (SELECT quantidade FROM app.almoxarifado_mov WITH (UPDLOCK, HOLDLOCK)
-               WHERE id = @lote AND almox_id = @item AND tipo = 'entrada') AS entrada,
+      SELECT (SELECT COUNT(*) FROM app.almoxarifado_mov WITH (UPDLOCK, HOLDLOCK)
+               WHERE id = @lote AND almox_id = @item AND tipo = 'entrada') AS existe,
+             -- A entrada que abriu o lote mais as que somaram nele depois.
+             (SELECT ISNULL(SUM(quantidade), 0) FROM app.almoxarifado_mov WITH (UPDLOCK, HOLDLOCK)
+               WHERE almox_id = @item AND tipo = 'entrada'
+                 AND (id = @lote OR lote_id = @lote)) AS entrada,
              (SELECT ISNULL(SUM(quantidade), 0) FROM app.almoxarifado_mov WITH (UPDLOCK, HOLDLOCK)
                WHERE lote_id = @lote AND tipo = 'saida') AS saidas`);
   const l = r.recordset[0];
-  if(l.entrada == null) return null;                      // lote de outro item, ou inexistente
+  if(!l.existe) return null;                              // lote de outro item, ou inexistente
   return Math.round((Number(l.entrada) - Number(l.saidas)) * 100) / 100;
 }
 
@@ -270,6 +287,14 @@ async function inserirMov(pedido, sql, almoxId, mov, login){
     if(quantidade > saldo){
       throw new Error(`o lote escolhido tem apenas ${saldo} em estoque — ajuste a quantidade ou escolha outro lote`);
     }
+  } else if(m.loteId != null && String(m.loteId).trim() !== ''){
+    // Compra nova que entrou no MESMO lote (mesma validade): em vez de abrir um
+    // cartao novo, ela soma no lote escolhido. A validade continua sendo a do
+    // lote — a linha nova nao repete, para as duas nunca divergirem.
+    loteId = parseInt(m.loteId, 10);
+    if(!Number.isFinite(loteId)) throw new Error('lote invalido');
+    const saldo = await saldoDoLote(pedido, sql, almoxId, loteId);
+    if(saldo == null) throw new Error('lote nao encontrado neste item');
   }
 
   const r = await pedido()
@@ -277,7 +302,7 @@ async function inserirMov(pedido, sql, almoxId, mov, login){
     .input('tipo',  sql.VarChar(10),    tipo)
     .input('data',  sql.VarChar(10),    dataISO(m.data_mov) || hojeISO())
     // Validade e do LOTE: numa saida ela nao existe (o lote ja tem a dele).
-    .input('val',   sql.VarChar(10),    tipo === 'entrada' ? dataISO(m.validade) : null)
+    .input('val',   sql.VarChar(10),    (tipo === 'entrada' && loteId == null) ? dataISO(m.validade) : null)
     .input('qtd',   sql.Decimal(12, 2), quantidade)
     .input('lote',  sql.Int,            loteId)
     .input('usu',   sql.VarChar(120),   txt(m.usuario, 120))

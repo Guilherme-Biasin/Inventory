@@ -405,7 +405,7 @@ await teste('item repetido e serie repetida viram frases diferentes', async () =
 });
 
 await teste('saida abate do lote escolhido', async () => {
-  respostas = [[{ item: 'Bobina 80mm' }], [{ entrada: '10', saidas: '4' }], [{ id: 99 }], []];
+  respostas = [[{ item: 'Bobina 80mm' }], [{ existe: 1, entrada: '10', saidas: '4' }], [{ id: 99 }], []];
   await rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
     almoxId: 1, mov: { tipo: 'saida', quantidade: '6', loteId: 10, usuario: 'Ana' }
   }, ADMIN);
@@ -415,7 +415,7 @@ await teste('saida abate do lote escolhido', async () => {
 });
 
 await teste('saida maior que o lote e recusada dizendo quanto tem', async () => {
-  respostas = [[{ item: 'Bobina 80mm' }], [{ entrada: '10', saidas: '4' }]];
+  respostas = [[{ item: 'Bobina 80mm' }], [{ existe: 1, entrada: '10', saidas: '4' }]];
   await lanca(() => rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
     almoxId: 1, mov: { tipo: 'saida', quantidade: '7', loteId: 10 }
   }, ADMIN), 'apenas 6 em estoque');
@@ -428,10 +428,44 @@ await teste('saida sem lote e saida em lote de outro item sao recusadas', async 
     almoxId: 1, mov: { tipo: 'saida', quantidade: '1' }
   }, ADMIN), 'escolha de qual lote');
 
-  respostas = [[{ item: 'Bobina' }], [{ entrada: null, saidas: '0' }]];
+  respostas = [[{ item: 'Bobina' }], [{ existe: 0, entrada: '0', saidas: '0' }]];
   await lanca(() => rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
     almoxId: 1, mov: { tipo: 'saida', quantidade: '1', loteId: 555 }
   }, ADMIN), 'lote nao encontrado');
+});
+
+await teste('entrada com lote soma nele em vez de abrir outro', async () => {
+  respostas = [[{ item: 'Bobina 80mm' }], [{ existe: 1, entrada: '10', saidas: '4' }], [{ id: 98 }], []];
+  await rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
+    almoxId: 1, mov: { tipo: 'entrada', quantidade: '5', loteId: 10, validade: '2030-01-01' }
+  }, ADMIN);
+  const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.almoxarifado_mov'));
+  igual([ins.entradas.tipo, ins.entradas.qtd, ins.entradas.lote], ['entrada', 5, 10], 'entrada somada no lote 10');
+  // A validade e do lote: a linha nova nao repete, senao as duas divergiriam.
+  igual(ins.entradas.val, null, 'entrada somada nao carrega validade propria');
+
+  respostas = [[{ item: 'Bobina' }], [{ existe: 0, entrada: '0', saidas: '0' }]];
+  await lanca(() => rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {
+    almoxId: 1, mov: { tipo: 'entrada', quantidade: '1', loteId: 555 }
+  }, ADMIN), 'lote nao encontrado');
+});
+
+await teste('listar: entrada somada engorda o lote, nao cria outro', async () => {
+  // A conferencia da coluna usado_em ja rodou antes: o resultado fica em cache.
+  respostas = [
+    [{ id: 1, item: 'Etiqueta', categoria: 'a1', modelo: '80mm', serie: null, obs: null, usado_em: null }],
+    [{ id: 10, almox_id: 1, tipo: 'entrada', data_mov: '2026-01-10', validade: '2026-12-31',
+       quantidade: '10', lote_id: null, usuario: null, obs_mov: null, criado_em: new Date('2026-01-10') },
+     { id: 11, almox_id: 1, tipo: 'entrada', data_mov: '2026-02-10', validade: null,
+       quantidade: '4', lote_id: 10, usuario: null, obs_mov: null, criado_em: new Date('2026-02-10') },
+     { id: 12, almox_id: 1, tipo: 'saida', data_mov: '2026-03-01', validade: null,
+       quantidade: '6', lote_id: 10, usuario: 'Ana', obs_mov: null, criado_em: new Date('2026-03-01') }]
+  ];
+  const r = await rota('GET', '/api/v1/almoxarifado').handler(qs(), null, ADMIN);
+  igual(r[0].lotes.length, 1, 'um lote so');
+  igual([r[0].lotes[0].quantidade, r[0].lotes[0].saldo], [14, 8], 'entrou 14, resta 8');
+  igual(r[0].lotes[0].validade, '2026-12-31', 'validade continua a do lote');
+  igual(r[0].saldo, 8, 'saldo do item');
 });
 
 await teste('quantidade zero, negativa ou com virgula', async () => {

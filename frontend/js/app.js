@@ -1498,6 +1498,7 @@ function renderFormAlmox() {
   // lotes ninguém vai comparar data por data.
   const lotesComSaldo = (it.lotes || []).filter(l => l.saldo > 0)
     .sort((a, b) => (a.validade || '9999-12-31').localeCompare(b.validade || '9999-12-31'));
+  lotesDoItemAberto = lotesComSaldo;
   h += `<div class="${movModeAlmox ? 'scard' : 'mov-card'}">
     <div class="scard-title"><i class="ti ti-transfer"></i> Dados da Movimentação
     </div>
@@ -1524,13 +1525,7 @@ function renderFormAlmox() {
       <div class="fg" id="fg-validade"><label class="flabel">Data de Validade</label>
         <input class="finput" type="date" id="a_validade">
         <div class="fhint">Deixe em branco se o material não vence</div></div>
-      <div class="fg" id="fg-lote" style="display:none"><label class="flabel">De qual lote sai?<span class="req">*</span></label>
-        <select class="finput" id="a_lote">
-          ${lotesComSaldo.length
-            ? lotesComSaldo.map(l => `<option value="${l.id}">${esc(rotuloLote(l))}</option>`).join('')
-            : '<option value="">Nenhum lote com saldo</option>'}
-        </select>
-        <div class="fhint">Os que vencem primeiro aparecem no topo</div></div>
+      <div class="fg" id="fg-lote"${(movModeAlmox && lotesComSaldo.length) ? '' : ' style="display:none"'}>${movModeAlmox ? campoLote(false) : ''}</div>
       <div class="fg full"><label class="flabel">Observações da Movimentação</label>
         <textarea class="finput" id="a_obs_mov" rows="3" style="resize:vertical" placeholder="Nota fiscal, motivo da retirada..."></textarea></div>
     </div>
@@ -1561,12 +1556,44 @@ function rotuloLote(l) {
 }
 
 // Saída pede o lote e não tem validade própria (a validade é do lote).
+// Lotes com saldo do item aberto no formulário, para o campo Lote se remontar
+// quando o tipo muda sem ter de redesenhar tudo.
+let lotesDoItemAberto = [];
+
+// O mesmo campo serve aos dois casos: na saída é de QUAL lote sai; na entrada é
+// para SOMAR a um lote que já existe — compra nova, mesma validade, mesmo lote
+// de verdade — em vez de abrir um cartão novo ao lado.
+function campoLote(saida) {
+  const lotes = lotesDoItemAberto;
+  const primeira = saida
+    ? (lotes.length ? '' : '<option value="">Nenhum lote com saldo</option>')
+    : '<option value="">➕ Abrir um lote novo</option>';
+  return `<label class="flabel">${saida ? 'De qual lote sai?<span class="req">*</span>' : 'Somar a um lote?'}</label>
+    <select class="finput" id="a_lote" onchange="onLoteAlmoxChange()">
+      ${primeira}${lotes.map(l => `<option value="${esc(l.id)}">${esc(rotuloLote(l))}</option>`).join('')}
+    </select>
+    <div class="fhint">${saida
+      ? 'Os que vencem primeiro aparecem no topo'
+      : 'Em branco abre um lote novo, com a validade que você informar'}</div>`;
+}
+
 function onTipoAlmoxChange() {
   const saida = (document.getElementById('a_tipo') || {}).value === 'saida';
-  const lote = document.getElementById('fg-lote');
-  const val  = document.getElementById('fg-validade');
-  if (lote) lote.style.display = saida ? '' : 'none';
-  if (val)  val.style.display  = saida ? 'none' : '';
+  const lote  = document.getElementById('fg-lote');
+  if (lote) {
+    // Numa entrada sem nenhum lote aberto não há o que somar: o campo some.
+    lote.innerHTML = campoLote(saida);
+    lote.style.display = (saida || lotesDoItemAberto.length) ? '' : 'none';
+  }
+  onLoteAlmoxChange();
+}
+
+// A validade é do LOTE: ela só aparece quando a entrada vai abrir um lote novo.
+function onLoteAlmoxChange() {
+  const saida   = (document.getElementById('a_tipo') || {}).value === 'saida';
+  const somando = !!(document.getElementById('a_lote') || {}).value;
+  const val = document.getElementById('fg-validade');
+  if (val) val.style.display = (!saida && !somando) ? '' : 'none';
 }
 
 // Lotes e histórico do item aberto.
@@ -1584,9 +1611,9 @@ function blocoLotes(it) {
   });
   const comSaldo = lotes.filter(l => l.saldo > 0).length;
 
-  // A entrada é o próprio lote (mesmo id); as saídas apontam para ele.
-  const movsDoLote = l =>
-    hist.filter(m => m.tipo === 'entrada' ? m.id === l.id : m.lote_id === l.id);
+  // A entrada que abriu o lote tem o id dele; as entradas que somaram depois e
+  // as saídas apontam para ele.
+  const movsDoLote = l => hist.filter(m => m.id === l.id || m.lote_id === l.id);
 
   const linhaMov = m => {
     const entrada = m.tipo === 'entrada';

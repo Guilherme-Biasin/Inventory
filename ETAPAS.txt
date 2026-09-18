@@ -138,6 +138,11 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
            cartao que abre e mostra as movimentacoes dele (a entrada
            que o criou e as saidas que sairam dele), um aberto por vez;
            lote zerado continua na lista, apagado e marcado.
+      [OK] Somar a um lote existente (18/09/2026): compra nova com a
+           mesma validade entra no MESMO lote em vez de abrir outro.
+           Campo "Somar a um lote?" na entrada; em branco abre lote
+           novo. Sem mudanca de banco - a coluna lote_id, que so as
+           saidas usavam, agora tambem marca a entrada que somou.
       [ ] PENDENTE: rodar 05_almoxarifado.sql e 06_almox_usado_em.sql
           no SSMS, atualizar a VM (git pull + restart) e conferir na
           producao.

@@ -216,6 +216,12 @@ primeiro aparecem no topo da lista. O saldo do item é a soma do que resta em
 cada lote, e a lista mostra a validade mais próxima a vencer, em verde, âmbar
 (30 dias ou menos) ou vermelho (vencido).
 
+**Uma compra nova pode entrar num lote que já existe.** Quando é o mesmo lote de
+verdade — mesma validade —, a entrada tem um campo *Somar a um lote?*: em branco
+abre um lote novo, escolhendo um dos abertos a quantidade soma nele e a validade
+continua sendo a do lote. Na tela o lote é um cartão só, que abre mostrando
+todas as movimentações dele (as entradas que somaram e as saídas que saíram).
+
 O servidor recusa saída maior do que o lote tem e diz quanto existe: **saldo
 não fica negativo**. O saldo nunca é gravado em coluna — é sempre somado das
 movimentações, para não existirem duas versões da mesma verdade.
