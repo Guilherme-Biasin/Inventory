@@ -1736,7 +1736,7 @@ function renderImportacao() {
       : [['Categorias válidas', S.cats.map(c => c.name).join(', ')],
          ['Status válidos', S.statusOpts.map(s => s.name).join(', ')],
          ['Locais válidos', S.locais.join(', ')]];
-    el.innerHTML = `<div style="font-size:12.5px;color:var(--txt2);line-height:1.9">
+    el.innerHTML = `<div class="import-ref-lista">
       ${linhas.map(([t, v]) => `<div><strong>${esc(t)}:</strong> ${esc(v) || '<em>nenhum</em>'}</div>`).join('')}
     </div>`;
   }
