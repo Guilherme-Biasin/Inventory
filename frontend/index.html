@@ -187,16 +187,16 @@
       <!-- LISTA -->
       <div class="page" id="page-lista">
         <div class="page-header">
-          <div class="ph-title">Todos os Patrimônios</div>
+          <div class="ph-title">Patrimônios</div>
+          <div class="filtros-topo">
+            <input class="f-input busca" id="srch" placeholder="🔍  Buscar marca, modelo, nº ou série..." oninput="renderLista()">
+            <select class="f-input" id="fcat" onchange="renderLista()"><option value="">Todas as categorias</option></select>
+            <select class="f-input" id="fstat" onchange="renderLista()"><option value="">Todos os status</option></select>
+          </div>
           <div style="display:flex;gap:6px">
             <button class="btn btn-success" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
-            <button class="btn btn-primary" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo</button>
+            <button class="btn btn-primary" onclick="novoRegistro()"><i class="ti ti-plus"></i> Novo</button>
           </div>
-        </div>
-        <div class="filter-bar">
-          <input class="f-input" id="srch" placeholder="🔍  Buscar marca, modelo, nº ou série..." oninput="renderLista()" style="flex:1;min-width:180px">
-          <select class="f-input" id="fcat" onchange="renderLista()"><option value="">Todas as categorias</option></select>
-          <select class="f-input" id="fstat" onchange="renderLista()"><option value="">Todos os status</option></select>
         </div>
         <div class="card"><div class="table-wrap"><table><thead><tr id="lista-head"></tr></thead><tbody id="lista-tbody"></tbody></table></div></div>
       </div>
@@ -205,21 +205,21 @@
       <div class="page" id="page-almoxarifado">
         <div class="page-header">
           <div class="ph-title">Almoxarifado</div>
+          <div class="filtros-topo">
+            <input class="f-input busca" id="srch-almox" placeholder="🔍  Buscar item, modelo ou série..." oninput="renderAlmox()">
+            <select class="f-input" id="fcat-almox" onchange="renderAlmox()"><option value="">Todas as categorias</option></select>
+            <select class="f-input" id="fsaldo-almox" onchange="renderAlmox()">
+              <option value="">Todos os itens</option>
+              <option value="com">Com saldo</option>
+              <option value="sem">Sem saldo</option>
+              <option value="vencendo">Vencendo em 30 dias</option>
+              <option value="vencido">Com lote vencido</option>
+            </select>
+          </div>
           <div style="display:flex;gap:6px">
             <button class="btn btn-success" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
             <button class="btn btn-primary" onclick="novoAlmox()"><i class="ti ti-plus"></i> Novo</button>
           </div>
-        </div>
-        <div class="filter-bar">
-          <input class="f-input" id="srch-almox" placeholder="🔍  Buscar item, modelo ou série..." oninput="renderAlmox()" style="flex:1;min-width:180px">
-          <select class="f-input" id="fcat-almox" onchange="renderAlmox()"><option value="">Todas as categorias</option></select>
-          <select class="f-input" id="fsaldo-almox" onchange="renderAlmox()">
-            <option value="">Todos os itens</option>
-            <option value="com">Com saldo</option>
-            <option value="sem">Sem saldo</option>
-            <option value="vencendo">Vencendo em 30 dias</option>
-            <option value="vencido">Com lote vencido</option>
-          </select>
         </div>
         <div class="card"><div class="table-wrap"><table><thead><tr id="almox-head"></tr></thead><tbody id="almox-tbody"></tbody></table></div></div>
       </div>

@@ -965,8 +965,23 @@ html.dark .modal {
     display:flex;
     align-items:center;
     justify-content:space-between;
+    gap:1rem;
     margin-bottom:1.25rem;
 }
+
+/* Busca e filtros na MESMA linha do título, entre ele e os botões: eles
+   pertencem à lista que vem logo abaixo, e ocupando uma faixa inteira só para
+   si empurravam a tabela para baixo sem necessidade. */
+.filtros-topo {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex:1;
+    min-width:0;
+    flex-wrap:wrap;
+}
+.filtros-topo .f-input { height:34px; }
+.filtros-topo .busca { flex:1; min-width:170px; max-width:340px; }
 
 .ph-title {
     font-size:17px;
@@ -1201,7 +1216,12 @@ html.dark .modal {
    fonte, cantos e cores que mudam de máquina para máquina. O campo nativo
    continua no HTML (escondido) para o resto do sistema seguir lendo .value;
    o que aparece é o controle abaixo. Ver frontend/js/seletor.js. */
-.pk, .dp { position:relative; width:100%; }
+/* Largura: dentro do formulário o controle ocupa a célula toda; numa barra de
+   filtros ele fica do tamanho que precisa, lado a lado com os outros. Sem esta
+   distinção o invólucro empurrava cada filtro para uma linha. */
+.pk, .dp { position:relative; }
+.fg .pk, .fg .dp { width:100%; }
+.filtros-topo .pk { min-width:170px; }
 
 /* O nativo fica atrás, sem receber clique nem foco. Não usamos display:none
    porque um campo escondido assim sai de validações e de .focus(). */
@@ -1444,6 +1464,13 @@ html.dark .modal {
     /* Filtros empilham */
     .filter-bar { flex-direction: column; }
     .filter-bar .f-input { width: 100%; }
+
+    /* No celular não cabem três filtros na linha do título: eles passam para
+       baixo, um por linha, e os botões ficam ao lado do título. */
+    /* flex-basis 100% (e não width): dentro de um flex, o flex:1 da regra
+       principal venceria a largura e os filtros encolhiam para 48px. */
+    .filtros-topo { flex: 1 0 100%; order: 3; flex-direction: column; align-items: stretch; }
+    .filtros-topo .busca, .filtros-topo .pk { max-width: none; width: 100%; }
 
     /* Modal full width */
     .modal { width: calc(100vw - 2rem); max-width: 400px; margin: 0 1rem; }
