@@ -193,10 +193,7 @@ function nav(p) {
     renderConfig();
   }
   if (p === 'auditoria') renderAuditoria();
-  if (p === 'importacao') {
-    if (!can('cadastrar')) { showToast('Sem permissão para importar.','err'); return; }
-    renderImportacao();
-  }
+  if (p === 'importacao') renderImportacao();
   if (p === 'usuarios')  {
     if (!can('gerenciar_usuarios')) { showToast('Acesso restrito a administradores.','err'); return; }
     renderUsuarios();
@@ -270,8 +267,10 @@ function applyPapelUI() {
   const navUsuarios = document.getElementById('nav-usuarios');
   if (navUsuarios) navUsuarios.style.display = can('gerenciar_usuarios') ? '' : 'none';
 
-  const navImport = document.getElementById('nav-importacao');
-  if (navImport) navImport.style.display = can('cadastrar') ? '' : 'none';
+  // O item Importar/Exportar fica visível para todos: exportar é permitido
+  // até para o leitor. Quem não pode importar vê só o botão de exportar.
+  const partesDeImportar = document.querySelectorAll('#tipo-import, #page-importacao .import-card');
+  partesDeImportar.forEach(el => { el.style.display = can('cadastrar') ? '' : 'none'; });
 
   // Botão "Novo Patrimônio" no topbar
   const btnNovo = document.getElementById('btn-novo-topbar');
@@ -1719,8 +1718,13 @@ function trocarTipoImport(tipo) {
 function renderImportacao() {
   const almox = ehAlmoxImport();
 
+  // O botão exporta o que o seletor estiver mostrando.
   document.getElementById('import-titulo').textContent =
-    almox ? 'Importar itens de almoxarifado' : 'Importar Patrimônios';
+    almox ? 'Exportar almoxarifado' : 'Exportar patrimônios';
+
+  const podeImportar = can('cadastrar');
+  document.querySelectorAll('#tipo-import, #page-importacao .import-card')
+    .forEach(el => { el.style.display = podeImportar ? '' : 'none'; });
   document.querySelectorAll('#tipo-import .tipo-opt').forEach(b =>
     b.classList.toggle('active', b.dataset.tipo === _importTipo));
 
@@ -2023,7 +2027,19 @@ async function confirmImport() {
 }
 
 // ─── EXPORTAR EXCEL ──────────────────────────────────────────
-function openExportModal()   { document.getElementById('exp-modal').style.display='flex'; }
+function openExportModal(preSelecionar) {
+  // A tela de Importar/Exportar manda qual opção já vem marcada, para o que
+  // está escolhido ali (Patrimônio ou Almoxarifado) valer também na exportação.
+  if (preSelecionar) {
+    const op = document.querySelector(`input[name=exptype][value="${preSelecionar}"]`);
+    if (op) op.checked = true;
+  }
+  document.getElementById('exp-modal').style.display = 'flex';
+}
+
+function exportarDaImportacao() {
+  openExportModal(ehAlmoxImport() ? 'almox' : 'todos');
+}
 function closeExportModal(e) { if (e.target.id==='exp-modal') document.getElementById('exp-modal').style.display='none'; }
 function buildRow(it) {
   const last = (it.historico||[]).slice(-1)[0] || {};

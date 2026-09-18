@@ -132,8 +132,7 @@
     </div>
     <div class="nav-group">
       <div class="nav-label">Dados</div>
-      <div class="nav-item" data-nav="exportar" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</div>
-      <div class="nav-item" id="nav-importacao" data-nav="importacao" onclick="nav('importacao')"><i class="ti ti-upload"></i> Importar Excel</div>
+      <div class="nav-item" id="nav-importacao" data-nav="importacao" onclick="nav('importacao')"><i class="ti ti-file-spreadsheet"></i> Importar/Exportar</div>
       <div class="nav-item" data-nav="auditoria" onclick="nav('auditoria')"><i class="ti ti-shield-check"></i> Auditoria</div>
       <div class="nav-item" id="nav-usuarios" data-nav="usuarios" onclick="nav('usuarios')"><i class="ti ti-users"></i> Usuários</div>
     </div>
@@ -197,7 +196,7 @@
             <select class="f-input" id="fstat" onchange="renderLista()"><option value="">Todos os status</option></select>
           </div>
           <div style="display:flex;gap:6px">
-            <button class="btn btn-success" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+            <button class="btn btn-success" onclick="openExportModal('todos')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
             <button class="btn btn-primary" onclick="novoRegistro()"><i class="ti ti-plus"></i> Novo</button>
           </div>
         </div>
@@ -219,7 +218,7 @@
             </select>
           </div>
           <div style="display:flex;gap:6px">
-            <button class="btn btn-success" onclick="openExportModal()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+            <button class="btn btn-success" onclick="openExportModal('almox')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
             <button class="btn btn-primary" onclick="novoAlmox()"><i class="ti ti-plus"></i> Novo</button>
           </div>
         </div>
@@ -273,8 +272,10 @@
       </div>
       <!-- IMPORTAÇÃO -->
       <div class="page" id="page-importacao">
-        <div class="page-header">
-          <div class="ph-sub"><i class="ti ti-upload"></i> <span id="import-titulo">Importar Patrimônios</span></div>
+        <div class="page-header" style="justify-content:flex-end">
+          <button class="btn btn-success" onclick="exportarDaImportacao()">
+            <i class="ti ti-file-spreadsheet"></i> <span id="import-titulo">Exportar Excel</span>
+          </button>
         </div>
 
         <!-- Mesmo seletor do cadastro: a planilha e as regras são diferentes
