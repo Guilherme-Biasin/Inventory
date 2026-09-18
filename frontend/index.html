@@ -191,7 +191,6 @@
       <!-- LISTA -->
       <div class="page" id="page-lista">
         <div class="page-header">
-          <div class="ph-title">Patrimônios</div>
           <div class="filtros-topo">
             <input class="f-input busca" id="srch" placeholder="🔍  Buscar marca, modelo, nº ou série..." oninput="renderLista()">
             <select class="f-input" id="fcat" onchange="renderLista()"><option value="">Todas as categorias</option></select>
@@ -208,7 +207,6 @@
       <!-- ALMOXARIFADO -->
       <div class="page" id="page-almoxarifado">
         <div class="page-header">
-          <div class="ph-title">Almoxarifado</div>
           <div class="filtros-topo">
             <input class="f-input busca" id="srch-almox" placeholder="🔍  Buscar item, modelo ou série..." oninput="renderAlmox()">
             <select class="f-input" id="fcat-almox" onchange="renderAlmox()"><option value="">Todas as categorias</option></select>
@@ -251,7 +249,6 @@
       <!-- AUDITORIA -->
       <div class="page" id="page-auditoria">
         <div class="page-header">
-          <div class="ph-title"><i class="ti ti-shield-check" style="color:var(--accent)"></i> Log de Auditoria</div>
           <button class="btn" onclick="renderAuditoria()"><i class="ti ti-refresh"></i> Atualizar</button>
         </div>
         <div class="filter-bar">
@@ -277,7 +274,7 @@
       <!-- IMPORTAÇÃO -->
       <div class="page" id="page-importacao">
         <div class="page-header">
-          <div class="ph-title"><i class="ti ti-upload" style="color:var(--accent)"></i> <span id="import-titulo">Importar Patrimônios</span></div>
+          <div class="ph-sub"><i class="ti ti-upload"></i> <span id="import-titulo">Importar Patrimônios</span></div>
         </div>
 
         <!-- Mesmo seletor do cadastro: a planilha e as regras são diferentes
@@ -339,7 +336,6 @@
       <!-- USUÁRIOS -->
       <div class="page" id="page-usuarios">
         <div class="page-header">
-          <div class="ph-title"><i class="ti ti-users" style="color:var(--accent)"></i> Gerenciar Usuários</div>
           <button class="btn btn-primary" onclick="openInviteUser()"><i class="ti ti-user-plus"></i> Novo Usuário</button>
         </div>
         <div class="card">
@@ -379,7 +375,6 @@
         </div>
       </div>
       <div class="page" id="page-config">
-        <div class="page-header"><div class="ph-title">Personalizar Sistema</div></div>
         <div class="tab-bar">
           <div class="stab active" onclick="switchTab('tc')">Categorias</div>
           <div class="stab" onclick="switchTab('ta')">Categorias do almoxarifado</div>

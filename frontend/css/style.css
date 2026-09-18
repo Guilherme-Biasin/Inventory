@@ -245,11 +245,13 @@ html.dark .toggle-thumb {
     overflow:hidden;
 }
 
+/* É o título da tela: ele ficou sendo o ÚNICO (o das páginas repetia o mesmo
+   texto logo abaixo), então cresceu e ganhou o laranja da marca. */
 .topbar-title {
-    font-size:15px;
-    font-weight:600;
-    color:var(--txt);
-    letter-spacing:-.2px;
+    font-size:19px;
+    font-weight:700;
+    color:var(--accent);
+    letter-spacing:-.3px;
     white-space:nowrap;
 }
 
@@ -1039,6 +1041,17 @@ html.dark .modal {
     letter-spacing:-.3px;
     color:var(--txt);
 }
+
+/* Texto de apoio no cabeçalho da página: usado onde o título mudaria conforme
+   a escolha da tela (a importação diz se é de patrimônio ou de almoxarifado). */
+.ph-sub {
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:13px;
+    color:var(--txt2);
+}
+.ph-sub i { color:var(--accent); font-size:16px; }
 
 
 /* ═══════════════════════════════════════════════════
