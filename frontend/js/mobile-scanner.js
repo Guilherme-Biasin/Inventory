@@ -431,7 +431,9 @@ function _injectScanButton() {
 
   const hint     = document.createElement('div');
   hint.className = 'scan-hint';
-  hint.innerHTML = '📷 Toque para ler <strong>código de barras</strong> ou <strong>QR Code</strong>';
+  // Curto de propósito: a dica ocupa uma linha só, na largura da coluna do
+  // campo. Se quebrar em duas, invade o campo de baixo (ver .scan-hint no CSS).
+  hint.innerHTML = '📷 Ler <strong>código de barras</strong> ou <strong>QR Code</strong>';
   wrap.parentNode.insertBefore(hint, wrap.nextSibling);
 }
 

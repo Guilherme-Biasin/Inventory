@@ -1381,9 +1381,8 @@ function renderFormAlmox() {
           <div class="fhint"></div></div>
         <div class="fg"><label class="flabel">N° de Série<span class="req">*</span></label>
           <input class="finput" id="f_serie" value="${esc(it.serie || '')}" required placeholder="Ex: SN-0001-XYZ"></div>
-        <div class="fg"><label class="flabel">Usado em</label>
+        <div class="fg full"><label class="flabel">Usado em</label>
           ${campoUsadoEm()}</div>
-        <div class="fg"></div>
         <div class="fg full"><label class="flabel">Observações de cadastro</label>
           <textarea class="finput" id="a_obs" rows="3" style="resize:vertical" placeholder="Fornecedor, onde fica guardado, o que for útil lembrar...">${esc(it.obs || '')}</textarea></div>
       </div>

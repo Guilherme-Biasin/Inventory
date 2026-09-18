@@ -1106,24 +1106,35 @@ html.dark .modal {
     font-size: 11px;
     color: var(--txt3);
     line-height: 16px;
-    min-height: 32px;   /* mesma reserva do .fhint — ver abaixo */
-    margin-top: 0;
+    margin-top: 2px;
 }
 
 /* Linha de dica embaixo do campo. Ocupa a mesma altura mesmo VAZIA, e é isso
    que mantém os campos de "Dados do Item" e "Dados da Movimentação" na mesma
    linha: sem ela, um único campo com dica empurrava a coluna inteira para
    baixo e os dois blocos ficavam desencontrados. */
-.fhint {
-    font-size: 11px;
-    color: var(--txt3);
-    line-height: 16px;
-    min-height: 32px;   /* duas linhas: a dica mais longa cabe sem cortar */
-}
+/* Dica abaixo do campo. FORA DO FLUXO, de propósito: ela mora no vão entre as
+   linhas da grade. Assim um campo com dica não fica mais alto que o campo ao
+   lado, e as linhas dos dois blocos (Dados do Item e Dados da Movimentação)
+   continuam casando sem precisar reservar espaço vazio em todo campo — foi o
+   que deixou o formulário espaçado demais na primeira tentativa. */
+.form-grid .fg { align-self: start; position: relative; }
+.form-grid { row-gap: 1.25rem; }
 
-/* Cada campo começa no topo da sua célula, para a altura da linha ser a mesma
-   dos dois lados. */
-.form-grid .fg { align-self: start; }
+.fhint,
+.form-grid .scan-hint {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 2px;
+    font-size: 11px;
+    line-height: 14px;
+    color: var(--txt3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
 /* Select, campo de data e botão do leitor na mesma altura do input de texto:
    o <input type="date"> e o <select> nascem 2px maiores por causa do controle
