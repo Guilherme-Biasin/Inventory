@@ -670,10 +670,13 @@ html.dark .ms-dropdown {
     margin-bottom:1rem;
 }
 
+/* Título dos cards do formulário. Âmbar nos dois ("Dados do Item" e "Dados da
+   Movimentação"): os dois blocos são o mesmo cartão, e o que diferencia é o
+   texto, não a moldura. */
 .scard-title {
     font-size:13px;
     font-weight:600;
-    color:var(--txt2);
+    color:#92400e;
     margin-bottom:1rem;
     padding-bottom:.75rem;
     border-bottom:1px solid var(--border);
@@ -683,27 +686,18 @@ html.dark .ms-dropdown {
     flex-wrap:wrap;
 }
 
-/* Mesmo fundo do card ao lado (Dados do Item / do Patrimônio). O fundo âmbar
-   marcava o bloco de movimentação, mas deixava as duas metades do formulário
-   com cara de coisas diferentes — o que separa os dois agora é a borda e a cor
-   do título. */
+html.dark .scard-title { color:#fbbf24; }
+
+/* O bloco de movimentação é IGUAL ao bloco ao lado: mesmo fundo, mesma borda,
+   mesmo título. O fundo âmbar e a borda laranja que ele tinha davam às duas
+   metades do formulário cara de coisas diferentes. A classe continua existindo
+   porque o HTML a usa e porque as telas de celular ajustam o padding dela. */
 .mov-card {
     background:var(--bg);
-    /* 1px, igual ao .scard: com 1.5px o card sobrava meio pixel de borda e os
-       campos de dentro ficavam 1px mais estreitos que os do card ao lado. */
-    border:1px solid var(--mov-border);
+    border:1px solid var(--border);
     border-radius:12px;
     padding:1.25rem;
     margin-bottom:1rem;
-}
-
-.mov-card .scard-title {
-    border-bottom-color:var(--mov-border);
-    color:#92400e;
-}
-
-html.dark .mov-card .scard-title {
-    color:#fbbf24;
 }
 
 .hist-card {
