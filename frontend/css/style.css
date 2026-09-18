@@ -29,8 +29,11 @@ html.dark,html.dark body {
     --txt2:#555;
     --txt3:#999;
     --accent:#ff9100;
-    --accent-bg:#dbeafe;
-    --accent-txt:#1d4ed8;
+    /* Par de realce suave da marca: fundo claro + texto forte, os dois no
+       laranja. Eram azuis (#dbeafe/#1d4ed8), sobra do tema antigo, e
+       apareciam no item ativo do menu, nos chips e no card "Movimentando". */
+    --accent-bg:#ffe8cc;
+    --accent-txt:#b45309;
     --sidebar-bg:#ffffff;
     --topbar-bg:#ffffff;
     --hover:#f0f0ed;
@@ -68,8 +71,8 @@ html.dark {
     --gray-bg:#2a2a2d;
     --gray-txt:#aaa;
     --row-hover:#212124;
-    --accent-bg:#1e3a8a;
-    --accent-txt:#93c5fd;
+    --accent-bg:#4a2d00;
+    --accent-txt:#ffb457;
     --mov-bg:#2a2200;
     --mov-border:#92400e;
 }
@@ -906,9 +909,8 @@ html.dark .modal {
 }
 
 /* Hover discreto: o mesmo cinza de realce das outras listas do sistema.
-   Antes pintava o bloco inteiro com --accent-bg, que e AZUL (#1e3a8a no
-   tema escuro) — destoava do laranja da marca e chamava mais atencao
-   que o botao de confirmar. */
+   Antes pintava o bloco inteiro com --accent-bg, que chamava mais atenção
+   que o próprio botão de confirmar. */
 .exp-opt:hover {
     border-color:var(--border2);
     background:var(--hover);
