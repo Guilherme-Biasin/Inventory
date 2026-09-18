@@ -459,7 +459,7 @@ function renderForm() {
           ${S.statusOpts.map(x=>`<option value="${esc(x.id)}"${Array.isArray(it.status)&&it.status[0]===x.id?' selected':''}>${esc(x.name)}</option>`).join('')}
         </select></div>` : ''}
       <div class="fg full"><label class="flabel">Observações da Movimentação</label>
-        <textarea class="finput" id="f_obs_mov" rows="4" style="resize:vertical" placeholder="Descreva esta movimentação..."></textarea></div>
+        <textarea class="finput" id="f_obs_mov" rows="3" style="resize:vertical" placeholder="Descreva esta movimentação..."></textarea></div>
     </div>
   </div>`;
 

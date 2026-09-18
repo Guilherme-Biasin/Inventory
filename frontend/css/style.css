@@ -479,7 +479,11 @@ tbody tr:hover td {
 
 .form-grid {
     display:grid;
-    grid-template-columns:1fr 1fr;
+    /* minmax(0,1fr) e nao 1fr: com 1fr puro, uma coluna que tem conteudo de
+       largura fixa (o botao do leitor de codigo, 38px) empurra a divisao e as
+       duas colunas deixam de ter o mesmo tamanho — os campos ficavam 215px de
+       um lado e 219px do outro. */
+    grid-template-columns:repeat(2, minmax(0, 1fr));
     gap:1rem;
 }
 
@@ -681,7 +685,9 @@ html.dark .ms-dropdown {
 
 .mov-card {
     background:var(--mov-bg);
-    border:1.5px solid var(--mov-border);
+    /* 1px, igual ao .scard: com 1.5px o card sobrava meio pixel de borda e os
+       campos de dentro ficavam 1px mais estreitos que os do card ao lado. */
+    border:1px solid var(--mov-border);
     border-radius:12px;
     padding:1.25rem;
     margin-bottom:1rem;
@@ -762,6 +768,10 @@ html.dark .mov-card .scard-title {
     color:var(--accent);
     border-bottom-color:var(--accent);
 }
+
+/* Nuvem sem etiqueta nenhuma não ocupa espaço (ex.: "Usado em" sem modelo
+   escolhido) — senão sobra um vão no rodapé do card. */
+.tag-cloud:empty { display:none; }
 
 .tag-cloud {
     display:flex;
