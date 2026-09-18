@@ -448,6 +448,66 @@ async function movimentar(q, body, usuario){
 }
 
 // ------------------------------------------------------------
+// POST /api/v1/almoxarifado/lotes — corrige o cadastro de um lote
+// ------------------------------------------------------------
+// Validade, data da entrada, quem recebeu e observacao. A QUANTIDADE fica de
+// fora de proposito: o saldo e a soma das movimentacoes, e reescrever a entrada
+// faria o saldo divergir do historico. Quantidade errada se corrige com uma
+// entrada ou saida nova.
+async function editarLote(q, body, usuario){
+  const almoxId = parseInt(body && body.almoxId, 10);
+  const loteId  = parseInt(body && body.loteId, 10);
+  const dados   = (body && body.dados) || {};
+  if(!Number.isFinite(almoxId) || !Number.isFinite(loteId)) throw new Error('lote invalido');
+
+  const p = await conexao(); const sql = tipos();
+  // lote_id IS NULL garante que e a entrada que ABRIU o lote, e nao uma entrada
+  // que somou nele depois (essa nao tem validade propria).
+  const antesR = await p.request()
+    .input('lote', sql.Int, loteId)
+    .input('item', sql.Int, almoxId)
+    .query(`SELECT CONVERT(varchar(10), m.data_mov, 23) AS data_mov,
+                   CONVERT(varchar(10), m.validade, 23) AS validade,
+                   m.usuario, m.obs_mov, a.item
+            FROM app.almoxarifado_mov m
+            JOIN app.almoxarifado a ON a.id = m.almox_id
+            WHERE m.id = @lote AND m.almox_id = @item
+              AND m.tipo = 'entrada' AND m.lote_id IS NULL`);
+  const antes = antesR.recordset[0];
+  if(!antes) throw new Error('lote nao encontrado neste item');
+
+  const depois = {
+    data_mov: dataISO(dados.data_mov) || antes.data_mov,
+    validade: dataISO(dados.validade),
+    usuario:  txt(dados.usuario, 120),
+    obs_mov:  txt(dados.obs_mov, 1000)
+  };
+
+  await p.request()
+    .input('lote', sql.Int,            loteId)
+    .input('item', sql.Int,            almoxId)
+    .input('data', sql.VarChar(10),    depois.data_mov)
+    .input('val',  sql.VarChar(10),    depois.validade)
+    .input('usu',  sql.VarChar(120),   depois.usuario)
+    .input('obs',  sql.NVarChar(1000), depois.obs_mov)
+    .query(`UPDATE app.almoxarifado_mov
+              SET data_mov = @data, validade = @val, usuario = @usu, obs_mov = @obs
+            WHERE id = @lote AND almox_id = @item AND tipo = 'entrada' AND lote_id IS NULL`);
+
+  await p.request().input('id', sql.Int, almoxId)
+    .query('UPDATE app.almoxarifado SET atualizado_em = SYSDATETIME() WHERE id = @id');
+
+  await auditar(usuario, {
+    tabela: 'almoxarifado_mov', registroId: loteId, acao: 'UPDATE',
+    descricao: `Corrigiu o lote de ${antes.data_mov} do item ${antes.item}`,
+    antes: { data_mov: antes.data_mov, validade: antes.validade,
+             usuario: antes.usuario, obs_mov: antes.obs_mov },
+    depois
+  });
+  return { ok: true };
+}
+
+// ------------------------------------------------------------
 // POST /api/v1/almoxarifado/excluir
 // ------------------------------------------------------------
 async function excluir(q, body, usuario){
@@ -677,7 +737,8 @@ const almoxarifadoRoutes = [
   { method: 'POST', path: '/api/v1/almoxarifado/atualizar',      handler: atualizar,  permissao: 'editar' },
   { method: 'POST', path: '/api/v1/almoxarifado/excluir',        handler: excluir,    permissao: 'excluir' },
   { method: 'POST', path: '/api/v1/almoxarifado/importar',       handler: importar,   permissao: 'cadastrar', simulavel: true },
-  { method: 'POST', path: '/api/v1/almoxarifado/movimentacoes',  handler: movimentar, permissao: 'movimentar' }
+  { method: 'POST', path: '/api/v1/almoxarifado/movimentacoes',  handler: movimentar, permissao: 'movimentar' },
+  { method: 'POST', path: '/api/v1/almoxarifado/lotes',          handler: editarLote, permissao: 'editar' }
 ];
 
 module.exports = { almoxarifadoRoutes };

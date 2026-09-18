@@ -170,6 +170,10 @@ const DB = {
   // registra escolhe de qual lote sai o material.
   movimentarAlmox(almoxId, mov){ return _post('/almoxarifado/movimentacoes', { almoxId, mov }); },
 
+  // Corrige o cadastro de um lote: validade, data da entrada, usuario e
+  // observacoes. A quantidade nao entra (ver editarLote na API).
+  editarLote(almoxId, loteId, dados){ return _post('/almoxarifado/lotes', { almoxId, loteId, dados }); },
+
   deleteAlmox(id){ return _post('/almoxarifado/excluir', { id }); },
 
   // Mesmas regras da importacao de patrimonio: tudo ou nada, e simular=true

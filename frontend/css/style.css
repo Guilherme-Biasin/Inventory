@@ -1014,6 +1014,14 @@ html.dark .modal {
 .lote-seta { margin-left:auto; color:var(--txt3); transition:transform .15s; }
 .lote-card.aberto .lote-seta { transform:rotate(180deg); }
 .lote-corpo { display:none; padding:0 .9rem .7rem; }
+.lote-acoes {
+    display:flex;
+    gap:6px;
+    justify-content:flex-end;
+    margin-bottom:.6rem;
+}
+.lote-editor:empty { display:none; }
+.lote-editor .form-grid { margin-bottom:.6rem; }
 .lote-card.aberto .lote-corpo { display:block; }
 
 .modal-title {

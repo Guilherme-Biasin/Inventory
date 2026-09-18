@@ -222,6 +222,13 @@ abre um lote novo, escolhendo um dos abertos a quantidade soma nele e a validade
 continua sendo a do lote. Na tela o lote é um cartão só, que abre mostrando
 todas as movimentações dele (as entradas que somaram e as saídas que saíram).
 
+**Lote cadastrado errado se corrige no próprio lote.** Abrindo o lote dentro de
+Editar item há um botão *Editar lote*, que altera validade, data da entrada,
+usuário e observações. A **quantidade fica de fora**: o saldo é a soma das
+movimentações, então quantidade errada se acerta com uma entrada ou saída nova,
+nunca reescrevendo a que já existe. A correção vai para a auditoria com o antes
+e o depois.
+
 O servidor recusa saída maior do que o lote tem e diz quanto existe: **saldo
 não fica negativo**. O saldo nunca é gravado em coluna — é sempre somado das
 movimentações, para não existirem duas versões da mesma verdade.

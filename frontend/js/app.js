@@ -1665,13 +1665,17 @@ function blocoLotes(it) {
         <span class="lote-seta">▾</span>
       </button>
       <div class="lote-corpo">
+        ${can('editar') ? `<div class="lote-acoes" id="lote-acoes-${esc(l.id)}">
+          <button type="button" class="btn btn-sm" onclick="editarLote('${escJs(l.id)}')"><i class="ti ti-edit"></i> Editar lote</button>
+        </div>` : ''}
+        <div class="lote-editor" id="lote-editor-${esc(l.id)}"></div>
         ${movs.length ? movs.map(linhaMov).join('')
                       : '<div style="color:var(--txt3);font-size:12.5px">Sem movimentações neste lote.</div>'}
       </div>
     </div>`;
   };
 
-  return `<div class="hist-card">
+  return `<div class="hist-card" id="bloco-lotes">
     <div class="hist-card-title"><i class="ti ti-package" style="color:var(--accent)"></i> Lotes e movimentações
       <span class="badge b-gray" style="margin-left:6px">${comSaldo} com saldo</span>
       <span style="margin-left:8px;font-size:12px;font-weight:500;color:var(--txt2)">Saldo total: ${saldoPill(it.saldo)}</span>
@@ -1679,6 +1683,75 @@ function blocoLotes(it) {
     ${lotes.length ? lotes.map(cartao).join('')
                    : '<div style="color:var(--txt3);font-size:13px;padding:.5rem 0">Nenhum lote ainda. Registre uma entrada.</div>'}
   </div>`;
+}
+
+// Correção do cadastro do lote, dentro do próprio cartão. A QUANTIDADE não
+// entra: o saldo é a soma das movimentações, então quantidade errada se corrige
+// com uma entrada ou saída nova, nunca reescrevendo a que já existe.
+function editarLote(loteId) {
+  const it = S.almox.find(x => x.id === S.editAlmoxId) || {};
+  const l  = (it.lotes || []).find(x => String(x.id) === String(loteId));
+  if (!l) return;
+  const acoes = document.getElementById('lote-acoes-' + loteId);
+  if (acoes) acoes.style.display = 'none';
+
+  // Enter aqui dentro salva o LOTE; sem isto ele enviaria o formulário do item,
+  // que é quem envolve este bloco.
+  document.getElementById('lote-editor-' + loteId).innerHTML = `
+    <div onkeydown="if(event.key==='Enter'&&event.target.tagName!=='TEXTAREA'){event.preventDefault();salvarLote('${escJs(l.id)}')}">
+      <div class="form-grid">
+        <div class="fg"><label class="flabel">Data de Validade</label>
+          <input class="finput" type="date" id="le_validade_${esc(l.id)}" value="${esc(l.validade || '')}">
+          <div class="fhint">Deixe em branco se o material não vence</div></div>
+        <div class="fg"><label class="flabel">Data da entrada</label>
+          <input class="finput" type="date" id="le_data_${esc(l.id)}" value="${esc(l.data_mov || '')}">
+          <div class="fhint">Quantidade (${esc(fmtQtd(l.quantidade))}) só muda com entrada ou saída</div></div>
+        <div class="fg"><label class="flabel">Usuário</label>
+          <input class="finput" id="le_usuario_${esc(l.id)}" list="lista-pessoas" value="${esc(l.usuario || '')}" placeholder="Quem recebeu">
+          <div class="fhint"></div></div>
+        <div class="fg full"><label class="flabel">Observações do lote</label>
+          <textarea class="finput" id="le_obs_${esc(l.id)}" rows="2" style="resize:vertical" placeholder="Nota fiscal, fornecedor...">${esc(l.obs_mov || '')}</textarea></div>
+      </div>
+      <div class="lote-acoes">
+        <button type="button" class="btn btn-sm btn-ghost" onclick="fecharEditorLote('${escJs(l.id)}')">Cancelar</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="salvarLote('${escJs(l.id)}')"><i class="ti ti-device-floppy"></i> Salvar lote</button>
+      </div>
+    </div>`;
+}
+
+function fecharEditorLote(loteId) {
+  const ed = document.getElementById('lote-editor-' + loteId);
+  if (ed) ed.innerHTML = '';
+  const acoes = document.getElementById('lote-acoes-' + loteId);
+  if (acoes) acoes.style.display = '';
+}
+
+async function salvarLote(loteId) {
+  const v = id => (document.getElementById(id) || {}).value || '';
+  const dados = {
+    validade: v('le_validade_' + loteId),
+    data_mov: v('le_data_' + loteId),
+    usuario:  v('le_usuario_' + loteId),
+    obs_mov:  v('le_obs_' + loteId)
+  };
+  showLoading('Salvando...');
+  try {
+    await DB.editarLote(S.editAlmoxId, Number(loteId), dados);
+    S.almox = await DB.loadAlmox();
+    const it = S.almox.find(x => x.id === S.editAlmoxId) || {};
+    // Só este bloco é redesenhado: redesenhar o formulário inteiro perderia o
+    // que já estivesse digitado nos campos do item.
+    lotesDoItemAberto = (it.lotes || []).filter(l => l.saldo > 0)
+      .sort((a, b) => (a.validade || '9999-12-31').localeCompare(b.validade || '9999-12-31'));
+    const bloco = document.getElementById('bloco-lotes');
+    if (bloco) bloco.outerHTML = blocoLotes(it);
+    abrirLote(loteId);
+    showToast('✅ Lote atualizado!');
+  } catch (e) {
+    showToast('Erro ao salvar o lote: ' + e.message, 'err');
+  } finally {
+    hideLoading();
+  }
 }
 
 // Abrir um lote fecha o que estava aberto. Mexe só em classe, sem redesenhar o

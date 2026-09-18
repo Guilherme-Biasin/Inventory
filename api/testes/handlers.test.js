@@ -468,6 +468,30 @@ await teste('listar: entrada somada engorda o lote, nao cria outro', async () =>
   igual(r[0].saldo, 8, 'saldo do item');
 });
 
+await teste('corrigir lote grava so o cadastro dele, nunca a quantidade', async () => {
+  respostas = [[{ data_mov: '2026-01-10', validade: '2026-12-31', usuario: 'Ana',
+                  obs_mov: 'NF 1', item: 'Etiqueta' }], [], []];
+  await rota('POST', '/api/v1/almoxarifado/lotes').handler(qs(), {
+    almoxId: 1, loteId: 10,
+    dados: { validade: '2027-06-30', data_mov: '2026-01-11', usuario: 'Bia',
+             obs_mov: 'NF 2', quantidade: '999' }
+  }, ADMIN);
+  const upd = consultas.find(c => c.sql.startsWith('UPDATE app.almoxarifado_mov'));
+  igual([upd.entradas.val, upd.entradas.data, upd.entradas.usu, upd.entradas.obs],
+        ['2027-06-30', '2026-01-11', 'Bia', 'NF 2'], 'campos corrigidos');
+  if(upd.sql.includes('quantidade')) throw new Error('nao pode mexer na quantidade');
+  // So a entrada que ABRIU o lote: a que somou nele depois nao tem validade propria.
+  if(!upd.sql.includes('lote_id IS NULL')) throw new Error('faltou travar no lote de origem');
+});
+
+await teste('corrigir lote inexistente ou de outro item e recusado', async () => {
+  respostas = [[]];
+  await lanca(() => rota('POST', '/api/v1/almoxarifado/lotes').handler(qs(), {
+    almoxId: 1, loteId: 555, dados: { validade: '2027-01-01' }
+  }, ADMIN), 'lote nao encontrado');
+  if(consultas.some(c => c.sql.startsWith('UPDATE'))) throw new Error('atualizou mesmo assim');
+});
+
 await teste('quantidade zero, negativa ou com virgula', async () => {
   respostas = [[{ item: 'Bobina' }]];
   await lanca(() => rota('POST', '/api/v1/almoxarifado/movimentacoes').handler(qs(), {

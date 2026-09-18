@@ -146,6 +146,11 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
            Campo "Somar a um lote?" na entrada; em branco abre lote
            novo. Sem mudanca de banco - a coluna lote_id, que so as
            saidas usavam, agora tambem marca a entrada que somou.
+      [OK] Corrigir lote (18/09/2026): botao "Editar lote" dentro do
+           lote aberto altera validade, data da entrada, usuario e
+           observacoes (rota POST /almoxarifado/lotes, permissao
+           editar, com auditoria). Quantidade fica de fora - se
+           corrige com entrada ou saida nova.
       [ ] PENDENTE: rodar 05_almoxarifado.sql e 06_almox_usado_em.sql
           no SSMS, atualizar a VM (git pull + restart) e conferir na
           producao.
