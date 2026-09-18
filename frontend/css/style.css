@@ -1384,6 +1384,33 @@ html.dark .modal {
 .dp-acao:hover { color:var(--txt); background:var(--hover); }
 .dp-acao.forte { color:var(--accent); }
 
+/* ── BLOCO DA IMPORTAÇÃO ──────────────────────────────────
+   O card acompanha a largura do conteúdo em vez de atravessar a tela: são dois
+   passos curtos, e esticá-los de ponta a ponta deixava um vazio enorme dos dois
+   lados do texto. */
+.import-card {
+    max-width:960px;
+    margin:0 auto 1rem;
+    padding:1.5rem;
+    text-align:center;
+}
+
+.import-passos {
+    display:flex;
+    flex-wrap:wrap;
+    gap:1.5rem;
+    align-items:flex-start;
+    justify-content:center;
+}
+.import-passo { flex:1; min-width:260px; max-width:420px; }
+
+/* Divisória entre os dois passos: são etapas distintas (primeiro baixa, depois
+   envia), e sem a linha viravam um bloco só de texto centralizado. */
+.import-passos > .import-passo + .import-passo {
+    border-left:1px solid var(--border);
+    padding-left:1.5rem;
+}
+
 /* ── SELETOR PATRIMÔNIO | ALMOXARIFADO ────────────────────
    Centralizado no topo do Cadastro e da Importação: é a primeira
    decisão da tela, e o resto do formulário depende dela. */
@@ -1538,6 +1565,10 @@ html.dark .modal {
     /* flex-basis 100% (e não width): dentro de um flex, o flex:1 da regra
        principal venceria a largura e os filtros encolhiam para 48px. */
     .filtros-topo { flex: 1 0 100%; order: 3; flex-direction: column; align-items: stretch; }
+
+    /* Empilhados, os dois passos da importação não têm mais um "ao lado" — a
+       divisória vertical viraria um risco solto na lateral. */
+    .import-passos > .import-passo + .import-passo { border-left:0; padding-left:0; }
     .filtros-topo .busca, .filtros-topo .pk { max-width: none; width: 100%; }
 
     /* Modal full width */
