@@ -20,9 +20,6 @@ html.dark,html.dark body {
     /* Altura da faixa do topo: vale para a barra superior E para a faixa do
        logo na lateral, para as duas fecharem na mesma linha. */
     --altura-topo:60px;
-    /* Qual versão do "G" aparece. Tema claro mostra a de fundo claro. */
-    --logo-claro:block;
-    --logo-escuro:none;
     --bg:#ffffff;
     --bg2:#f5f5f2;
     --bg3:#ebebeb;
@@ -51,8 +48,6 @@ html.dark,html.dark body {
 }
 
 html.dark {
-    --logo-claro:none;
-    --logo-escuro:block;
     --bg:#1c1c1e;
     --bg2:#111;
     --bg3:#252525;
@@ -111,12 +106,9 @@ html.dark {
     color:var(--txt);
 }
 
-/* O "G" da Guemat, o mesmo do Gerente Assist. São duas imagens: a de fundo
-   claro e a de fundo escuro. Qual aparece é decidido pelo tema, e não por
-   JavaScript — trocar o src na mão faria o ícone piscar a cada render. */
-.logo-claro  { display:var(--logo-claro); }
-.logo-escuro { display:var(--logo-escuro); }
-
+/* O "G" da Guemat, o mesmo do Gerente Assist. Um arquivo só, o laranja, nos
+   dois temas: o laranja tem contraste tanto no fundo claro quanto no escuro, e
+   um ícone que muda de cara com o tema deixa a marca menos reconhecível. */
 .sidebar-logo .logo-icon {
     width:30px;
     height:30px;
