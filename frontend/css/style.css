@@ -941,6 +941,66 @@ html.dark .modal {
     box-shadow:0 20px 60px rgba(0,0,0,.6);
 }
 
+/* O formulário de edição precisa das duas colunas do cadastro, então este
+   modal é largo e rola por dentro. */
+.modal.modal-form {
+    width:min(1180px,94vw);
+    max-height:92vh;
+    overflow:auto;
+    padding:1.25rem 1.5rem;
+}
+.fm-topo {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    margin-bottom:1rem;
+}
+.fm-fechar {
+    background:none;
+    border:none;
+    color:var(--txt2);
+    font-size:24px;
+    line-height:1;
+    cursor:pointer;
+    padding:0 4px;
+}
+.fm-fechar:hover { color:var(--txt); }
+
+/* ── LOTES QUE ABREM ──────────────────────────────────────
+   Cada lote é um cartão; clicar nele mostra as movimentações daquele lote.
+   Um aberto por vez (abrirLote em app.js). */
+.lote-card {
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:var(--bg2);
+    margin-bottom:.5rem;
+    overflow:hidden;
+}
+.lote-card.zerado { opacity:.6; }
+.lote-cab {
+    width:100%;
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:14px;
+    padding:.7rem .9rem;
+    background:none;
+    border:none;
+    font-family:inherit;
+    font-size:12.5px;
+    color:var(--txt);
+    text-align:left;
+    cursor:pointer;
+}
+.lote-cab:hover { background:var(--hover); }
+.lote-tit  { font-weight:600; }
+.lote-info { color:var(--txt2); }
+.lote-seta { margin-left:auto; color:var(--txt3); transition:transform .15s; }
+.lote-card.aberto .lote-seta { transform:rotate(180deg); }
+.lote-corpo { display:none; padding:0 .9rem .7rem; }
+.lote-card.aberto .lote-corpo { display:block; }
+
 .modal-title {
     font-size:16px;
     font-weight:600;

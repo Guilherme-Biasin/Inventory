@@ -507,6 +507,20 @@
 </div>
 
 <!-- Modal: Editar Usuário -->
+<!-- Editar e movimentar acontecem aqui, por cima da lista. O conteúdo é o
+     MESMO formulário do cadastro (renderForm/renderFormAlmox desenham aqui
+     quando formEmModal está ligado). -->
+<div id="form-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)cancelEdit()">
+  <div class="modal modal-form">
+    <div class="fm-topo">
+      <div class="modal-title" id="fm-titulo">Editar</div>
+      <button type="button" class="fm-fechar" onclick="cancelEdit()" aria-label="Fechar">&times;</button>
+    </div>
+    <div class="alert" id="fm-alert" style="display:none"></div>
+    <div id="fm-corpo"></div>
+  </div>
+</div>
+
 <div id="user-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal" style="max-width:440px">
     <div class="modal-title"><i class="ti ti-user-edit" style="color:var(--accent);margin-right:6px"></i>Editar Usuário</div>

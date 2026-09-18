@@ -131,6 +131,13 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
            texto livre. Opcional. Item, Categoria, Modelo e N de Serie
            passaram a ser obrigatorios na tela, na API e na planilha.
            Migracao 06_almox_usado_em.sql.
+      [OK] Editar e movimentar viraram POPUP (18/09/2026), nas duas
+           listas (patrimonio e almoxarifado): o formulario e o mesmo
+           do cadastro, aberto por cima da lista em vez de trocar de
+           tela. No almoxarifado, embaixo do formulario cada LOTE e um
+           cartao que abre e mostra as movimentacoes dele (a entrada
+           que o criou e as saidas que sairam dele), um aberto por vez;
+           lote zerado continua na lista, apagado e marcado.
       [ ] PENDENTE: rodar 05_almoxarifado.sql e 06_almox_usado_em.sql
           no SSMS, atualizar a VM (git pull + restart) e conferir na
           producao.

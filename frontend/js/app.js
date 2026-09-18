@@ -164,6 +164,47 @@ function toggleDark() {
   localStorage.setItem('dark', S.dark ? '1' : '0');
 }
 
+// ─── ONDE O FORMULÁRIO É DESENHADO ───────────────────────────
+// O mesmo formulário serve à aba Novo Cadastro e ao modal de edição; muda só o
+// lugar em que ele aparece.
+let formEmModal = false;
+
+function alvoForm() {
+  return formEmModal
+    ? { wrap:'fm-corpo',  titulo:'fm-titulo',  alerta:'fm-alert'  }
+    : { wrap:'form-wrap', titulo:'form-title', alerta:'form-alert' };
+}
+
+// Editar e movimentar abrem o formulário por cima da lista, sem trocar de tela.
+// O formulário da página é limpo antes: os dois usam os mesmos ids de campo, e
+// com os dois no ar o getElementById acharia primeiro o da página.
+function abrirFormModal() {
+  const pagina = document.getElementById('form-wrap');
+  if (pagina) pagina.innerHTML = '';
+  formEmModal = true;
+  const m = document.getElementById('form-modal');
+  m.style.display = 'flex';
+  renderForm();
+  m.querySelector('.modal-form').scrollTop = 0;
+}
+
+function fecharFormModal() {
+  const m = document.getElementById('form-modal');
+  if (m) m.style.display = 'none';
+  const corpo = document.getElementById('fm-corpo');
+  if (corpo) corpo.innerHTML = '';
+  formEmModal = false;
+}
+
+// Saiu do formulário (salvou ou cancelou): no modal, fecha e redesenha a lista
+// que está atrás; na página, navega como antes.
+function voltarDoForm(pagina) {
+  if (!formEmModal) { nav(pagina); return; }
+  fecharFormModal();
+  if (pagina === 'almoxarifado') { populateFiltersAlmox(); renderAlmox(); }
+  else                           { populateFilters();      renderLista(); }
+}
+
 // ─── NAVEGAÇÃO ───────────────────────────────────────────────
 function nav(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
@@ -430,7 +471,7 @@ function renderForm() {
   msState = {};
   const it     = S.editId != null ? (S.items.find(x => x.id === S.editId) || {}) : {};
   const isEdit = S.editId != null;
-  document.getElementById('form-title').textContent = movMode
+  document.getElementById(alvoForm().titulo).textContent = movMode
     ? 'Registrar Movimentação'
     : (isEdit ? 'Editar Patrimônio' : 'Novo Patrimônio');
 
@@ -539,8 +580,8 @@ function renderForm() {
     <button type="submit" class="btn btn-primary" id="save-btn"><i class="ti ti-device-floppy"></i> ${movMode?'Registrar Movimentação':(isEdit?'Salvar Alterações':'Cadastrar')}</button>
   </div></form>`;
 
-  document.getElementById('form-wrap').innerHTML = h;
-  document.getElementById('form-alert').style.display = 'none';
+  document.getElementById(alvoForm().wrap).innerHTML = h;
+  document.getElementById(alvoForm().alerta).style.display = 'none';
   // No cadastro novo o tipo já está decidido (entrada), então os vínculos de
   // Status e Local valem desde já — antes só passavam a valer quando a pessoa
   // escolhia no seletor.
@@ -589,14 +630,14 @@ function novoRegistro() {
   nav('cadastro');
 }
 
-function editItem(id)          { S.editId = id; movMode = false; S.tipoCadastro = 'patrimonio'; nav('cadastro'); }
-function novaMovimentacao(id)  { S.editId = id; movMode = true;  S.tipoCadastro = 'patrimonio'; nav('cadastro'); }
+function editItem(id)          { S.editId = id; movMode = false; S.tipoCadastro = 'patrimonio'; abrirFormModal(); }
+function novaMovimentacao(id)  { S.editId = id; movMode = true;  S.tipoCadastro = 'patrimonio'; abrirFormModal(); }
 
 function cancelEdit() {
   const voltarPara = S.tipoCadastro === 'almoxarifado' ? 'almoxarifado' : 'lista';
   S.editId = null; S.editAlmoxId = null;
   movMode = false; movModeAlmox = false;
-  nav(voltarPara);
+  voltarDoForm(voltarPara);
 }
 
 // O seletor só aparece em cadastro NOVO: ao editar ou movimentar, o tipo já
@@ -674,7 +715,7 @@ async function saveItem(e) {
     }
     // Recarrega lista
     S.items = await DB.loadItems();
-    nav('lista');
+    voltarDoForm('lista');
   } catch(ex) {
     showToast('Erro ao salvar: ' + ex.message, 'err');
     console.error(ex);
@@ -1302,8 +1343,8 @@ function novoAlmox() {
   S.editAlmoxId = null; movModeAlmox = false; S.tipoCadastro = 'almoxarifado';
   nav('cadastro');
 }
-function editAlmox(id)       { S.editAlmoxId = id; movModeAlmox = false; S.tipoCadastro = 'almoxarifado'; nav('cadastro'); }
-function movimentarAlmox(id) { S.editAlmoxId = id; movModeAlmox = true;  S.tipoCadastro = 'almoxarifado'; nav('cadastro'); }
+function editAlmox(id)       { S.editAlmoxId = id; movModeAlmox = false; S.tipoCadastro = 'almoxarifado'; abrirFormModal(); }
+function movimentarAlmox(id) { S.editAlmoxId = id; movModeAlmox = true;  S.tipoCadastro = 'almoxarifado'; abrirFormModal(); }
 
 // Seletor Patrimônio | Almoxarifado do topo do cadastro.
 function trocarTipoCadastro(tipo) {
@@ -1409,7 +1450,7 @@ function renderFormAlmox() {
   const it     = S.editAlmoxId != null ? (S.almox.find(x => x.id === S.editAlmoxId) || {}) : {};
   const isEdit = S.editAlmoxId != null;
   usadoEmSel = [...(it.usadoEm || [])];
-  document.getElementById('form-title').textContent = movModeAlmox
+  document.getElementById(alvoForm().titulo).textContent = movModeAlmox
     ? 'Entrada ou Saída'
     : (isEdit ? 'Editar Item' : 'Novo Item de Almoxarifado');
 
@@ -1504,8 +1545,8 @@ function renderFormAlmox() {
     <button type="submit" class="btn btn-primary" id="save-btn"><i class="ti ti-device-floppy"></i> ${movModeAlmox ? 'Registrar Movimentação' : (isEdit ? 'Salvar Alterações' : 'Cadastrar')}</button>
   </div></form>`;
 
-  document.getElementById('form-wrap').innerHTML = h;
-  document.getElementById('form-alert').style.display = 'none';
+  document.getElementById(alvoForm().wrap).innerHTML = h;
+  document.getElementById(alvoForm().alerta).style.display = 'none';
 }
 
 // Data de hoje no formato do <input type="date">.
@@ -1529,64 +1570,74 @@ function onTipoAlmoxChange() {
 }
 
 // Lotes e histórico do item aberto.
+// Um cartão por lote; clicar nele abre as movimentações DAQUELE lote — a
+// entrada que o criou e as saídas que saíram dele. Substituiu a lista de lotes
+// + um histórico geral separado, que obrigava a cruzar os dois na mão.
+// Lote zerado continua aqui, apagado e marcado: é o único lugar onde as saídas
+// antigas ainda aparecem.
 function blocoLotes(it) {
-  const lotes = it.lotes || [];
-  const comSaldo = lotes.filter(l => l.saldo > 0)
-    .sort((a, b) => (a.validade || '9999-12-31').localeCompare(b.validade || '9999-12-31'));
-  const zerados = lotes.filter(l => !(l.saldo > 0));
+  const hist  = it.historico || [];
+  const lotes = [...(it.lotes || [])].sort((a, b) => {
+    const za = a.saldo > 0 ? 0 : 1, zb = b.saldo > 0 ? 0 : 1;
+    if (za !== zb) return za - zb;                                  // zerado no fim
+    return (a.validade || '9999-12-31').localeCompare(b.validade || '9999-12-31');
+  });
+  const comSaldo = lotes.filter(l => l.saldo > 0).length;
 
-  const cartao = l => `
-    <div class="hist-item">
-      <div class="hist-meta">📦 Lote de ${esc(fmtDate(l.data_mov))} · entrou ${esc(fmtQtd(l.quantidade))}</div>
+  // A entrada é o próprio lote (mesmo id); as saídas apontam para ele.
+  const movsDoLote = l =>
+    hist.filter(m => m.tipo === 'entrada' ? m.id === l.id : m.lote_id === l.id);
+
+  const linhaMov = m => {
+    const entrada = m.tipo === 'entrada';
+    return `<div class="hist-item">
+      <div class="hist-meta">${esc(fmtDT(m.criado_em))} · ${entrada ? '📥 Entrada' : '📤 Saída'}</div>
       <div class="hist-detail">
-        <span>Resta: <strong>${esc(fmtQtd(l.saldo))}</strong>&nbsp;·&nbsp;</span>
-        <span>Validade: ${validadePill(l.validade)}</span>
-        ${l.usuario ? `<span>&nbsp;·&nbsp;Usuário: <strong>${esc(l.usuario)}</strong></span>` : ''}
-        ${l.obs_mov ? `<div style="margin-top:3px;color:var(--txt2)">📝 ${esc(l.obs_mov)}</div>` : ''}
+        <span>Quantidade: <strong>${entrada ? '+' : '−'}${esc(fmtQtd(m.quantidade))}</strong>&nbsp;·&nbsp;</span>
+        <span>Data: <strong>${esc(fmtDate(m.data_mov))}</strong></span>
+        ${m.usuario ? `<span>&nbsp;·&nbsp;Usuário: <strong>${esc(m.usuario)}</strong></span>` : ''}
+        ${m.obs_mov ? `<div style="margin-top:3px;color:var(--txt2)">📝 ${esc(m.obs_mov)}</div>` : ''}
       </div>
     </div>`;
+  };
 
-  let h = `<div class="hist-card">
-    <div class="hist-card-title"><i class="ti ti-package" style="color:var(--accent)"></i> Lotes em estoque
-      <span class="badge b-gray" style="margin-left:6px">${comSaldo.length}</span>
+  const cartao = l => {
+    const zerado = !(l.saldo > 0);
+    const movs   = movsDoLote(l);
+    return `<div class="lote-card${zerado ? ' zerado' : ''}" id="lote-${esc(l.id)}">
+      <button type="button" class="lote-cab" onclick="abrirLote('${escJs(l.id)}')">
+        <span class="lote-tit">📦 Lote de ${esc(fmtDate(l.data_mov))}</span>
+        <span class="lote-info">Entrou ${esc(fmtQtd(l.quantidade))} · Resta <strong>${esc(fmtQtd(l.saldo))}</strong></span>
+        <span class="lote-info">Validade: ${validadePill(l.validade)}</span>
+        ${zerado ? '<span class="badge b-gray">zerado</span>' : ''}
+        <span class="lote-info">${movs.length} mov.</span>
+        <span class="lote-seta">▾</span>
+      </button>
+      <div class="lote-corpo">
+        ${movs.length ? movs.map(linhaMov).join('')
+                      : '<div style="color:var(--txt3);font-size:12.5px">Sem movimentações neste lote.</div>'}
+      </div>
+    </div>`;
+  };
+
+  return `<div class="hist-card">
+    <div class="hist-card-title"><i class="ti ti-package" style="color:var(--accent)"></i> Lotes e movimentações
+      <span class="badge b-gray" style="margin-left:6px">${comSaldo} com saldo</span>
       <span style="margin-left:8px;font-size:12px;font-weight:500;color:var(--txt2)">Saldo total: ${saldoPill(it.saldo)}</span>
-    </div>`;
-  h += comSaldo.length
-    ? `<div class="hist-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:.75rem">${comSaldo.map(cartao).join('')}</div>`
-    : '<div style="color:var(--txt3);font-size:13px;padding:.5rem 0">Nenhum lote com saldo. Registre uma entrada.</div>';
-  if (zerados.length) {
-    h += `<div style="margin-top:.75rem;font-size:12px;color:var(--txt3)">${zerados.length} lote(s) já zerado(s) — aparecem no histórico abaixo.</div>`;
-  }
-  h += '</div>';
+    </div>
+    <div style="font-size:12px;color:var(--txt3);margin-bottom:.6rem">Clique num lote para ver as movimentações dele.</div>
+    ${lotes.length ? lotes.map(cartao).join('')
+                   : '<div style="color:var(--txt3);font-size:13px;padding:.5rem 0">Nenhum lote ainda. Registre uma entrada.</div>'}
+  </div>`;
+}
 
-  const hist = it.historico || [];
-  h += `<div class="hist-card">
-    <div class="hist-card-title"><i class="ti ti-history" style="color:var(--accent)"></i> Histórico de Movimentações
-      <span class="badge b-gray" style="margin-left:6px">${hist.length}</span>
-    </div>`;
-  if (hist.length) {
-    h += `<div class="hist-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:.75rem">`;
-    h += [...hist].reverse().map(m => {
-      const entrada = m.tipo === 'entrada';
-      const lote = entrada ? null : lotes.find(l => l.id === m.lote_id);
-      return `<div class="hist-item">
-        <div class="hist-meta">${esc(fmtDT(m.criado_em))} · ${entrada ? '📥 Entrada' : '📤 Saída'}</div>
-        <div class="hist-detail">
-          <span>Quantidade: <strong>${entrada ? '+' : '−'}${esc(fmtQtd(m.quantidade))}</strong>&nbsp;·&nbsp;</span>
-          <span>Data: <strong>${esc(fmtDate(m.data_mov))}</strong></span>
-          ${entrada && m.validade ? `<span>&nbsp;·&nbsp;Validade: ${validadePill(m.validade)}</span>` : ''}
-          ${lote ? `<span>&nbsp;·&nbsp;Lote de ${esc(fmtDate(lote.data_mov))}</span>` : ''}
-          ${m.usuario ? `<span>&nbsp;·&nbsp;Usuário: <strong>${esc(m.usuario)}</strong></span>` : ''}
-          ${m.obs_mov ? `<div style="margin-top:3px;color:var(--txt2)">📝 ${esc(m.obs_mov)}</div>` : ''}
-        </div>
-      </div>`;
-    }).join('');
-    h += '</div>';
-  } else {
-    h += '<div style="color:var(--txt3);font-size:13px;padding:.5rem 0">Nenhuma movimentação registrada ainda.</div>';
-  }
-  h += '</div>';
-  return h;
+// Abrir um lote fecha o que estava aberto. Mexe só em classe, sem redesenhar o
+// formulário: redesenhar perderia o que já tivesse sido digitado nos campos.
+function abrirLote(id) {
+  const card  = document.getElementById('lote-' + id);
+  const abrir = card && !card.classList.contains('aberto');
+  document.querySelectorAll('.lote-card.aberto').forEach(el => el.classList.remove('aberto'));
+  if (abrir) card.classList.add('aberto');
 }
 
 async function saveAlmox(e) {
@@ -1644,7 +1695,7 @@ async function saveAlmox(e) {
       S.editAlmoxId = null;
     }
     S.almox = await DB.loadAlmox();
-    nav('almoxarifado');
+    voltarDoForm('almoxarifado');
   } catch (ex) {
     showToast('Erro ao salvar: ' + ex.message, 'err');
     console.error(ex);
