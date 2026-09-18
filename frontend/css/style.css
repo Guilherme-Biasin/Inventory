@@ -683,8 +683,12 @@ html.dark .ms-dropdown {
     flex-wrap:wrap;
 }
 
+/* Mesmo fundo do card ao lado (Dados do Item / do Patrimônio). O fundo âmbar
+   marcava o bloco de movimentação, mas deixava as duas metades do formulário
+   com cara de coisas diferentes — o que separa os dois agora é a borda e a cor
+   do título. */
 .mov-card {
-    background:var(--mov-bg);
+    background:var(--bg);
     /* 1px, igual ao .scard: com 1.5px o card sobrava meio pixel de borda e os
        campos de dentro ficavam 1px mais estreitos que os do card ao lado. */
     border:1px solid var(--mov-border);
