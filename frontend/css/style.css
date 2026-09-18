@@ -1105,8 +1105,32 @@ html.dark .modal {
 .scan-hint {
     font-size: 11px;
     color: var(--txt3);
-    margin-top: 2px;
+    line-height: 16px;
+    min-height: 32px;   /* mesma reserva do .fhint — ver abaixo */
+    margin-top: 0;
 }
+
+/* Linha de dica embaixo do campo. Ocupa a mesma altura mesmo VAZIA, e é isso
+   que mantém os campos de "Dados do Item" e "Dados da Movimentação" na mesma
+   linha: sem ela, um único campo com dica empurrava a coluna inteira para
+   baixo e os dois blocos ficavam desencontrados. */
+.fhint {
+    font-size: 11px;
+    color: var(--txt3);
+    line-height: 16px;
+    min-height: 32px;   /* duas linhas: a dica mais longa cabe sem cortar */
+}
+
+/* Cada campo começa no topo da sua célula, para a altura da linha ser a mesma
+   dos dois lados. */
+.form-grid .fg { align-self: start; }
+
+/* Select, campo de data e botão do leitor na mesma altura do input de texto:
+   o <input type="date"> e o <select> nascem 2px maiores por causa do controle
+   nativo, e 2px já desencontram a linha seguinte. */
+.form-grid select.finput,
+.form-grid input[type="date"].finput { height: 36px; }
+.form-grid .scan-btn { height: 36px; }
 
 /* ── USER BADGE no topbar ─────────────────────────────── */
 .user-badge {

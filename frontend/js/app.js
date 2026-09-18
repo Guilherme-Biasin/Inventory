@@ -1306,27 +1306,27 @@ function modelosDoPatrimonio() {
 }
 
 function campoUsadoEm() {
+  return `<select class="finput" id="a_usado_em" onchange="addUsadoEm(this.value)">
+      ${opcoesUsadoEm()}
+    </select>
+    <div class="fhint">Deixe em branco se não for usado em nenhum modelo</div>`;
+}
+
+// As opções são os modelos ainda não escolhidos. Um vínculo antigo cujo modelo
+// saiu do patrimônio continua na lista, senão salvar o item o apagaria sem
+// ninguém pedir.
+function opcoesUsadoEm() {
   const modelos = modelosDoPatrimonio();
-  // Vínculo antigo cujo modelo saiu do patrimônio continua na lista, senão
-  // salvar o item o apagaria sem ninguém pedir.
   const extras = usadoEmSel.filter(m => !modelos.some(x => x.toLowerCase() === m.toLowerCase()));
   const opcoes = [...modelos, ...extras]
     .filter(m => !usadoEmSel.some(x => x.toLowerCase() === m.toLowerCase()));
-
-  const dica = !modelosDoPatrimonio().length
-    ? 'Nenhum patrimônio cadastrado ainda — cadastre o equipamento primeiro.'
-    : 'Opcional. Escolha em qual modelo de patrimônio este material é usado; dá para marcar mais de um.';
-
-  return `<select class="finput" id="a_usado_em" onchange="addUsadoEm(this.value)">
-      <option value="">${opcoes.length ? 'Adicionar modelo...' : 'Nenhum modelo disponível'}</option>
-      ${opcoes.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}
-    </select>
-    <div class="tag-cloud" id="usado-em-tags" style="margin-top:.5rem">${tagsUsadoEm()}</div>
-    <div style="font-size:11px;color:var(--txt3);margin-top:3px">${esc(dica)}</div>`;
+  return `<option value="">${opcoes.length ? 'Adicionar modelo...' : 'Nenhum modelo disponível'}</option>` +
+    opcoes.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
 }
 
+// As etiquetas ficam FORA da grade, no rodapé do card: dentro dela, cada modelo
+// escolhido aumentaria a linha e desalinharia os dois blocos.
 function tagsUsadoEm() {
-  if (!usadoEmSel.length) return '<span style="font-size:12px;color:var(--txt3)">Nenhum modelo vinculado</span>';
   return usadoEmSel.map((m, i) =>
     `<div class="tag">${esc(m)}<span class="tdel" onclick="delUsadoEm(${i})" title="Remover">×</span></div>`).join('');
 }
@@ -1348,13 +1348,7 @@ function atualizarUsadoEm() {
   const tags = document.getElementById('usado-em-tags');
   if (tags) tags.innerHTML = tagsUsadoEm();
   const sel = document.getElementById('a_usado_em');
-  if (!sel) return;
-  const modelos = modelosDoPatrimonio();
-  const extras = usadoEmSel.filter(m => !modelos.some(x => x.toLowerCase() === m.toLowerCase()));
-  const opcoes = [...modelos, ...extras]
-    .filter(m => !usadoEmSel.some(x => x.toLowerCase() === m.toLowerCase()));
-  sel.innerHTML = `<option value="">${opcoes.length ? 'Adicionar modelo...' : 'Nenhum modelo disponível'}</option>` +
-    opcoes.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+  if (sel) sel.innerHTML = opcoesUsadoEm();
 }
 
 function renderFormAlmox() {
@@ -1374,21 +1368,26 @@ function renderFormAlmox() {
       </div>
       <div class="form-grid">
         <div class="fg"><label class="flabel">Item<span class="req">*</span></label>
-          <input class="finput" id="a_item" value="${esc(it.item || '')}" required placeholder="Ex: Bobina 80mm"></div>
+          <input class="finput" id="a_item" value="${esc(it.item || '')}" required placeholder="Ex: Bobina 80mm">
+          <div class="fhint"></div></div>
         <div class="fg"><label class="flabel">Categoria<span class="req">*</span></label>
           <select class="finput" id="a_categoria">
             <option value="">Selecione...</option>
             ${S.catsAlmox.map(c => `<option value="${esc(c.id)}"${it.categoria === c.id ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}
-          </select></div>
+          </select>
+          <div class="fhint"></div></div>
         <div class="fg"><label class="flabel">Modelo<span class="req">*</span></label>
-          <input class="finput" id="a_modelo" value="${esc(it.modelo || '')}" required placeholder="Ex: 80mm x 40m"></div>
+          <input class="finput" id="a_modelo" value="${esc(it.modelo || '')}" required placeholder="Ex: 80mm x 40m">
+          <div class="fhint"></div></div>
         <div class="fg"><label class="flabel">N° de Série<span class="req">*</span></label>
           <input class="finput" id="f_serie" value="${esc(it.serie || '')}" required placeholder="Ex: SN-0001-XYZ"></div>
-        <div class="fg full"><label class="flabel">Usado em</label>
+        <div class="fg"><label class="flabel">Usado em</label>
           ${campoUsadoEm()}</div>
+        <div class="fg"></div>
         <div class="fg full"><label class="flabel">Observações de cadastro</label>
           <textarea class="finput" id="a_obs" rows="3" style="resize:vertical" placeholder="Fornecedor, onde fica guardado, o que for útil lembrar...">${esc(it.obs || '')}</textarea></div>
       </div>
+      <div class="tag-cloud" id="usado-em-tags" style="margin-top:.75rem">${tagsUsadoEm()}</div>
     </div>`;
   } else {
     h += `<div class="scard" style="background:var(--accent-bg);border-color:var(--accent)">
@@ -1412,7 +1411,8 @@ function renderFormAlmox() {
     </div>
     <div class="form-grid">
       <div class="fg"><label class="flabel">Data de Movimentação</label>
-        <input class="finput" type="date" id="a_data_mov" value="${esc(hojeCampo())}"></div>
+        <input class="finput" type="date" id="a_data_mov" value="${esc(hojeCampo())}">
+        <div class="fhint"></div></div>
       <div class="fg"><label class="flabel">Entrada ou Saída?</label>
         ${movModeAlmox
           ? `<select class="finput" id="a_tipo" onchange="onTipoAlmoxChange()">
@@ -1420,22 +1420,25 @@ function renderFormAlmox() {
                <option value="saida">📤 Saída</option>
              </select>`
           : `<input class="finput" value="📥 Entrada" disabled title="O item nasce com a primeira entrada">`}
+        <div class="fhint"></div>
       </div>
       <div class="fg"><label class="flabel">Quantidade<span class="req">*</span></label>
-        <input class="finput" id="a_qtd" type="text" inputmode="decimal" placeholder="Ex: 12" required></div>
+        <input class="finput" id="a_qtd" type="text" inputmode="decimal" placeholder="Ex: 12" required>
+        <div class="fhint"></div></div>
       <div class="fg"><label class="flabel">Usuário</label>
-        <input class="finput" id="a_usuario" list="lista-pessoas" placeholder="Quem retirou ou recebeu"></div>
+        <input class="finput" id="a_usuario" list="lista-pessoas" placeholder="Quem retirou ou recebeu">
+        <div class="fhint"></div></div>
       <datalist id="lista-pessoas">${S.pessoas.map(p => `<option value="${esc(p)}"></option>`).join('')}</datalist>
       <div class="fg" id="fg-validade"><label class="flabel">Data de Validade</label>
         <input class="finput" type="date" id="a_validade">
-        <div style="font-size:11px;color:var(--txt3);margin-top:3px">Deixe em branco se o material não vence.</div></div>
+        <div class="fhint">Deixe em branco se o material não vence</div></div>
       <div class="fg" id="fg-lote" style="display:none"><label class="flabel">De qual lote sai?<span class="req">*</span></label>
         <select class="finput" id="a_lote">
           ${lotesComSaldo.length
             ? lotesComSaldo.map(l => `<option value="${l.id}">${esc(rotuloLote(l))}</option>`).join('')
             : '<option value="">Nenhum lote com saldo</option>'}
         </select>
-        <div style="font-size:11px;color:var(--txt3);margin-top:3px">Os que vencem primeiro aparecem no topo.</div></div>
+        <div class="fhint">Os que vencem primeiro aparecem no topo</div></div>
       <div class="fg full"><label class="flabel">Observações da Movimentação</label>
         <textarea class="finput" id="a_obs_mov" rows="3" style="resize:vertical" placeholder="Nota fiscal, motivo da retirada..."></textarea></div>
     </div>
