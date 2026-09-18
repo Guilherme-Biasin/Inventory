@@ -487,6 +487,14 @@ th {
     background:var(--bg2);
 }
 
+/* Listas de Patrimônios e Almoxarifado: cada coluna centralizada, título e
+   conteúdo na mesma linha de centro (pedido em 18/09/2026). As tabelas de
+   Auditoria e Usuários continuam alinhadas à esquerda. */
+#page-lista th, #page-lista td,
+#page-almoxarifado th, #page-almoxarifado td { text-align:center; }
+#page-lista .actions-cell,
+#page-almoxarifado .actions-cell { justify-content:center; }
+
 td {
     padding:9px 1rem;
     border-bottom:1px solid var(--border);

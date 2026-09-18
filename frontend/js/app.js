@@ -1527,9 +1527,7 @@ function renderFormAlmox() {
         <input class="finput" id="a_usuario" list="lista-pessoas" placeholder="Quem retirou ou recebeu">
         <div class="fhint"></div></div>
       <datalist id="lista-pessoas">${S.pessoas.map(p => `<option value="${esc(p)}"></option>`).join('')}</datalist>
-      <div class="fg" id="fg-validade"><label class="flabel">Data de Validade</label>
-        <input class="finput" type="date" id="a_validade">
-        <div class="fhint">Deixe em branco se o material não vence</div></div>
+      <div class="fg" id="fg-validade" data-modo="novo">${campoValidade('')}</div>
       <div class="fg" id="fg-lote"${(movModeAlmox && lotesComSaldo.length) ? '' : ' style="display:none"'}>${movModeAlmox ? campoLote(false) : ''}</div>
       <div class="fg full"><label class="flabel">Observações da Movimentação</label>
         <textarea class="finput" id="a_obs_mov" rows="3" style="resize:vertical" placeholder="Nota fiscal, motivo da retirada..."></textarea></div>
@@ -1593,12 +1591,33 @@ function onTipoAlmoxChange() {
   onLoteAlmoxChange();
 }
 
-// A validade é do LOTE: ela só aparece quando a entrada vai abrir um lote novo.
+// A validade é do LOTE. Abrindo um lote novo, ela é um campo de data normal;
+// somando a um lote que já existe, ela continua à vista — travada, com a data
+// daquele lote — para quem registra conferir que é o lote certo.
+function campoValidade(loteId) {
+  const lote = lotesDoItemAberto.find(l => String(l.id) === String(loteId));
+  if (!lote) {
+    return `<label class="flabel">Data de Validade</label>
+      <input class="finput" type="date" id="a_validade">
+      <div class="fhint">Deixe em branco se o material não vence</div>`;
+  }
+  return `<label class="flabel">Data de Validade</label>
+    <input class="finput" value="${esc(lote.validade ? fmtDate(lote.validade) : 'sem validade')}"
+           disabled title="A validade é a do lote escolhido">
+    <div class="fhint">Vem do lote escolhido</div>`;
+}
+
 function onLoteAlmoxChange() {
-  const saida   = (document.getElementById('a_tipo') || {}).value === 'saida';
-  const somando = !!(document.getElementById('a_lote') || {}).value;
+  const saida  = (document.getElementById('a_tipo') || {}).value === 'saida';
+  const loteId = (document.getElementById('a_lote') || {}).value || '';
   const val = document.getElementById('fg-validade');
-  if (val) val.style.display = (!saida && !somando) ? '' : 'none';
+  if (!val) return;
+  val.style.display = saida ? 'none' : '';
+  const modo = saida ? val.dataset.modo : (loteId || 'novo');
+  if (!saida && val.dataset.modo !== modo) {
+    val.dataset.modo = modo;
+    val.innerHTML = campoValidade(loteId);
+  }
 }
 
 // Lotes e histórico do item aberto.
