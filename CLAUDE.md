@@ -36,6 +36,11 @@ Regras escolhidas do `CLAUDE.md` do Gerente Assist em 17/09/2026. As que
    leia cada uma como uma instrução separada.
 6. **Comunicação**: em português, objetiva, com um resumo claro do que foi feito
    no fim de cada rodada — não relatório longo de processo.
+7. **Fileira de cards que quebraria para a segunda linha vira carrossel**
+   (pedido em 18/09/2026, mesma regra do GA). A linha extra empurra para fora da
+   tela justamente o que se veio ver. O padrão é `faixa-wrap`/`faixa-pista`/
+   `faixa-seta`, **manual** — seta ou arraste, sem tempo automático —, com os
+   cards do mesmo tamanho e as setas só aparecendo quando há o que rolar.
 
 ## 2. Testar de verdade antes de dizer "pronto"
 
@@ -103,4 +108,3 @@ Regras escolhidas do `CLAUDE.md` do Gerente Assist em 17/09/2026. As que
 | Lógica antes de estilo (HTML cru até o fim) | A tela deste sistema já está estilizada |
 | Nunca remover o modo mock | Aqui não existe mock — decisão pendente na ETAPA 6 do `ETAPAS.txt`. Se o mock for criado, a regra passa a valer |
 | Nunca mostrar 2 empresas ao mesmo tempo | Não há loja/empresa no banco do estoque: o inventário de TI é um só |
-| Fileira de cards que quebraria linha vira carrossel | Só se o gerente pedir o mesmo visual do GA |

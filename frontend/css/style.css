@@ -366,13 +366,63 @@ html.dark .toggle-thumb {
     color:var(--txt);
 }
 
-.stats-row {
-    display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:10px;
+/* ── FAIXA DE CARDS (carrossel) ───────────────────────────
+   Mesma ideia do Gerente Assist: fileira de cards que não cabe na linha corre
+   para o lado, com setas, em vez de quebrar para a segunda linha. A linha extra
+   empurra para fora da tela justamente o que se veio ver, e a altura do bloco
+   deixa de ser previsível. Sem tempo automático: quem anda é quem clica ou
+   arrasta. */
+.faixa-wrap {
+    position:relative;
     margin-bottom:1.25rem;
-    width:100%;
 }
+/* O corredor das setas só existe quando elas aparecem, e é aberto nas laterais:
+   a seta fica AO LADO do card, nunca por cima dele. */
+.faixa-wrap.tem-setas { padding:0 26px; }
+
+.faixa-pista {
+    display:flex;
+    gap:10px;
+    overflow-x:auto;
+    overscroll-behavior-x:contain;
+    scroll-snap-type:x mandatory;
+    scroll-behavior:smooth;
+    scrollbar-width:none;
+    /* "safe": enquanto cabe, a fila fica centralizada; quando não cabe, encosta
+       na esquerda. Com center puro, o excesso sobra para os DOIS lados e os
+       primeiros cards ficam antes do início da rolagem, inalcançáveis. */
+    justify-content:safe center;
+    /* Respiro para a sombra do card não ser cortada pela rolagem; a margem
+       negativa devolve o espaço. */
+    padding:6px 0 10px;
+    margin:-6px 0 -10px;
+}
+.faixa-pista::-webkit-scrollbar { display:none; }
+/* Card de largura fixa (como no Gerente Assist, que usa 200px): é o que
+   permite a seta andar de card em card. O clamp dá um pouco de folga em telas
+   grandes sem deixar os cinco cards estourarem a linha num monitor comum —
+   assim a faixa só vira carrossel quando realmente não cabe. */
+.faixa-pista > * {
+    flex:0 0 clamp(180px, 16vw, 212px);
+    scroll-snap-align:start;
+}
+
+.faixa-seta {
+    position:absolute; top:0; bottom:0; z-index:3;
+    width:26px; display:none;
+    align-items:center; justify-content:center;
+    border:0; background:none; padding:0; cursor:pointer;
+    color:var(--txt3); font-size:28px; line-height:1;
+    transition:color .15s, opacity .15s;
+}
+.faixa-wrap.tem-setas .faixa-seta { display:flex; }
+.faixa-seta:hover { color:var(--accent); }
+.faixa-seta:disabled { opacity:.2; pointer-events:none; }
+.faixa-seta.esq { left:0; }
+.faixa-seta.dir { right:0; }
+
+/* A faixa de números da importação usa cards menores. */
+.faixa-pista.miuda > * { flex:0 0 clamp(150px, 15vw, 200px); }
 
 .stat {
     background:var(--bg);
@@ -1378,7 +1428,7 @@ html.dark .modal {
     .hist-card { padding:1.5rem; }
     /* Histórico em 3 colunas em telas muito largas */
     .hist-grid { grid-template-columns:repeat(3,1fr) !important; }
-    .stats-row { gap:1.25rem; }
+    .faixa-pista { gap:1.25rem; }
     .stat { padding:1.25rem 1.5rem; }
     .stat-val { font-size:30px; }
 }
@@ -1407,7 +1457,7 @@ html.dark .modal {
     .sidebar { width:180px; }
     .content { padding:1rem; }
     .form-two-col { gap:1rem; }
-    .stats-row { grid-template-columns:1fr 1fr; gap:10px; }
+    .faixa-pista { gap:10px; }
     .stat-val { font-size:22px; }
     .form-grid { grid-template-columns:1fr; }
     .fg.full { grid-column:auto; }
@@ -1455,7 +1505,7 @@ html.dark .modal {
     .hist-grid { grid-template-columns: 1fr !important; }
 
     /* Stats 2 colunas */
-    .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .faixa-pista { gap: 8px; }
 
     /* Tabela scroll horizontal */
     .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -1490,7 +1540,7 @@ html.dark .modal {
    ══════════════════════════════════════════════════════ */
 @media (max-width:480px) {
     .content { padding: .625rem; }
-    .stats-row { grid-template-columns: 1fr 1fr; gap: 6px; }
+    .faixa-pista { gap: 6px; }
     .stat { padding: .75rem .875rem; }
     .stat-val { font-size: 20px; }
     .stat-label { font-size: 11px; }

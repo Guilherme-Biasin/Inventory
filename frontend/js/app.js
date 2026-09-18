@@ -309,6 +309,8 @@ function renderDash() {
       <div class="stat-label">Almoxarifado</div>
       <div class="stat-val" style="color:#0891b2">${S.almox.length}</div>
       <div class="stat-sub">${alertaValidade()}</div></div>`;
+  medirFaixas();
+
   const recent = [...S.items].slice(-5).reverse();
   document.getElementById('dash-tbody').innerHTML = recent.length
     ? recent.map(i => `<tr>
@@ -321,6 +323,42 @@ function renderDash() {
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="6">Nenhum patrimônio cadastrado</td></tr>';
 }
+
+// ─── FAIXA DE CARDS (carrossel) ──────────────────────────────
+// Igual ao Gerente Assist: quando a fileira de cards não cabe na linha, ela
+// corre para o lado com setas em vez de quebrar para a segunda linha.
+// Manual de propósito — nada anda sozinho enquanto a pessoa lê.
+function rolarFaixa(bt, dir) {
+  const pista = bt.parentElement.querySelector('.faixa-pista');
+  const card = pista.firstElementChild;
+  const vao = parseFloat(getComputedStyle(pista).columnGap) || 10;
+  const passo = (card ? card.getBoundingClientRect().width : 200) + vao;
+  pista.scrollBy({ left: dir * passo, behavior: 'smooth' });
+}
+
+// Mostra as setas só quando há o que rolar, e apaga cada uma ao chegar na
+// ponta. A folga de 2px é do arredondamento do zoom do navegador, que deixa
+// scrollLeft com casas decimais e nunca fecha a conta exata.
+function atualizarSetas(pista) {
+  const wrap = pista.closest('.faixa-wrap');
+  if (!wrap) return;
+  const sobra = pista.scrollWidth - pista.clientWidth;
+  wrap.classList.toggle('tem-setas', sobra > 2);
+  const esq = wrap.querySelector('.faixa-seta.esq');
+  const dir = wrap.querySelector('.faixa-seta.dir');
+  if (esq) esq.disabled = pista.scrollLeft <= 2;
+  if (dir) dir.disabled = pista.scrollLeft >= sobra - 2;
+}
+
+// Só dá para saber se cabe DEPOIS do layout. O setTimeout cobre a aba em
+// segundo plano, onde o requestAnimationFrame não dispara.
+function medirFaixas() {
+  const passo = () => document.querySelectorAll('.faixa-pista')
+    .forEach(p => { if (p.clientWidth) atualizarSetas(p); });
+  requestAnimationFrame(passo);
+  setTimeout(passo, 80);
+}
+window.addEventListener('resize', medirFaixas);
 
 // Resumo de validade para o cartão do Dashboard. Vencido na frente: é o que
 // precisa de ação hoje.
@@ -1878,16 +1916,20 @@ function _renderImportPreview(res) {
   const semProblema   = _importRows.length - linhasComErro;
 
   let h = `
-    <div style="display:flex;gap:12px;margin:1rem 0">
-      <div class="stat" style="flex:1;padding:.75rem 1rem">
-        <div class="stat-label">Total de linhas</div><div class="stat-val">${_importRows.length}</div>
+    <div class="faixa-wrap" style="margin:1rem 0">
+      <button type="button" class="faixa-seta esq" onclick="rolarFaixa(this,-1)" aria-label="Ver os anteriores">‹</button>
+      <div class="faixa-pista miuda" onscroll="atualizarSetas(this)">
+        <div class="stat" style="padding:.75rem 1rem">
+          <div class="stat-label">Total de linhas</div><div class="stat-val">${_importRows.length}</div>
+        </div>
+        <div class="stat" style="padding:.75rem 1rem">
+          <div class="stat-label">Sem problema</div><div class="stat-val" style="color:#059669">${semProblema}</div>
+        </div>
+        <div class="stat" style="padding:.75rem 1rem">
+          <div class="stat-label">Com erro</div><div class="stat-val" style="color:#dc2626">${linhasComErro}</div>
+        </div>
       </div>
-      <div class="stat" style="flex:1;padding:.75rem 1rem">
-        <div class="stat-label">Sem problema</div><div class="stat-val" style="color:#059669">${semProblema}</div>
-      </div>
-      <div class="stat" style="flex:1;padding:.75rem 1rem">
-        <div class="stat-label">Com erro</div><div class="stat-val" style="color:#dc2626">${linhasComErro}</div>
-      </div>
+      <button type="button" class="faixa-seta dir" onclick="rolarFaixa(this,1)" aria-label="Ver os próximos">›</button>
     </div>`;
 
   // Com erro, a lista de correções vem ANTES da tabela: é o que a pessoa
@@ -1935,6 +1977,7 @@ function _renderImportPreview(res) {
     </div></div>`;
 
   document.getElementById('import-preview').innerHTML = h;
+  medirFaixas();
 
   const btn = document.getElementById('import-confirm-btn');
   if (!erros.length && _importRows.length) {
