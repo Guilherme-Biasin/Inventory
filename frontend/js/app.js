@@ -303,11 +303,11 @@ function renderDash() {
   document.getElementById('stats-row').innerHTML = `
     <div class="stat"><div class="stat-label">Total Patrimônios</div><div class="stat-val">${total}</div><div class="stat-sub">itens cadastrados</div></div>
     <div class="stat"><div class="stat-label">Categorias</div><div class="stat-val">${S.cats.length}</div><div class="stat-sub">tipos cadastrados</div></div>
-    <div class="stat"><div class="stat-label">Movimentações</div><div class="stat-val" style="color:#d97706">${totalMov}</div><div class="stat-sub">registros no histórico</div></div>
-    <div class="stat"><div class="stat-label">Pessoas</div><div class="stat-val" style="color:#7c3aed">${S.pessoas.length}</div><div class="stat-sub">cadastradas</div></div>
+    <div class="stat"><div class="stat-label">Movimentações</div><div class="stat-val">${totalMov}</div><div class="stat-sub">registros no histórico</div></div>
+    <div class="stat"><div class="stat-label">Pessoas</div><div class="stat-val">${S.pessoas.length}</div><div class="stat-sub">cadastradas</div></div>
     <div class="stat" onclick="nav('almoxarifado')" style="cursor:pointer" title="Abrir o almoxarifado">
       <div class="stat-label">Almoxarifado</div>
-      <div class="stat-val" style="color:#0891b2">${S.almox.length}</div>
+      <div class="stat-val">${S.almox.length}</div>
       <div class="stat-sub">${alertaValidade()}</div></div>`;
   medirFaixas();
 

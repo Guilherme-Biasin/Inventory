@@ -435,9 +435,12 @@ html.dark .toggle-thumb {
     padding:1rem 1.25rem;
 }
 
+/* Rótulo e legenda em branco; o número no laranja. Antes cada card tinha a sua
+   cor (âmbar, roxo, azul), o que dava ao Dashboard cinco destaques disputando
+   atenção em vez de um. */
 .stat-label {
     font-size:11.5px;
-    color:var(--txt3);
+    color:var(--txt);
     margin-bottom:3px;
     font-weight:500;
 }
@@ -446,12 +449,12 @@ html.dark .toggle-thumb {
     font-size:26px;
     font-weight:600;
     letter-spacing:-.5px;
-    color:var(--txt);
+    color:#d97706;
 }
 
 .stat-sub {
     font-size:11px;
-    color:var(--txt3);
+    color:var(--txt);
     margin-top:1px;
 }
 
