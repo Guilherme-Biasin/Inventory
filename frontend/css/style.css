@@ -235,6 +235,7 @@ html.dark .toggle-thumb {
 }
 
 .topbar {
+    position:relative;   /* referência do título, que fica no meio da barra */
     background:var(--topbar-bg);
     border-bottom:1px solid var(--border);
     padding:0 1.25rem;
@@ -250,6 +251,12 @@ html.dark .toggle-thumb {
 /* É o título da tela: ele ficou sendo o ÚNICO (o das páginas repetia o mesmo
    texto logo abaixo), então cresceu e ganhou o laranja da marca. */
 .topbar-title {
+    /* No meio da barra, e não colado no menu: absoluto para que o tamanho do
+       bloco de ações da direita não empurre o centro para um lado. */
+    position:absolute;
+    left:50%;
+    transform:translateX(-50%);
+    pointer-events:none;
     font-size:19px;
     font-weight:700;
     color:var(--accent);
@@ -1388,6 +1395,9 @@ html.dark .modal {
    O card acompanha a largura do conteúdo em vez de atravessar a tela: são dois
    passos curtos, e esticá-los de ponta a ponta deixava um vazio enorme dos dois
    lados do texto. */
+/* Um respiro a mais entre o seletor e o card, só nesta tela. */
+#page-importacao #tipo-import { margin-bottom:calc(1.25rem + 2px); }
+
 .import-card {
     max-width:1040px;
     margin:0 auto 1rem;
@@ -1411,6 +1421,9 @@ html.dark .modal {
     flex:1;
     display:flex;
     flex-direction:column;
+    /* 5px acima do centro exato: com o card grande, o miolo parecia baixo. */
+    position:relative;
+    top:-5px;
     /* "safe": quando o conteúdo passa da altura da tela (prévia da planilha
        aberta), ele cresce para baixo em vez de sumir por cima. */
     justify-content:safe center;
@@ -1610,7 +1623,9 @@ html.dark .modal {
 
     /* Topbar compacto */
     .topbar { padding: 0 .75rem; gap: .5rem; }
-    .topbar-title { font-size: 14px; }
+    /* No celular a barra é estreita: centralizado, o título passaria por baixo
+       dos botões da direita. */
+    .topbar-title { position:static; transform:none; font-size: 14px; }
     .topbar-actions { gap: 5px; }
     .topbar-actions .btn { padding: 6px 9px; font-size: 12px; }
     .btn-label { display: none; }

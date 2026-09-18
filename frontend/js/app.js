@@ -169,10 +169,13 @@ function nav(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  const titles = {dashboard:'Dashboard',lista:'Patrimônios',almoxarifado:'Almoxarifado',cadastro:'Cadastro',config:'Personalizar',auditoria:'Auditoria',usuarios:'Usuários',importacao:'Importação'};
-  document.getElementById('topbar-title').textContent = titles[p] || '';
   // Ativa o item de nav correto pelo data-nav attribute
   const navEl = document.querySelector(`.nav-item[data-nav="${p}"]`);
+  // O título é o mesmo texto do menu lateral: assim os dois nunca divergem
+  // quando um item é renomeado (era uma lista à parte, que ficou defasada).
+  const titles = {dashboard:'Dashboard',lista:'Patrimônios',almoxarifado:'Almoxarifado',cadastro:'Cadastro',config:'Personalizar',auditoria:'Auditoria',usuarios:'Usuários',importacao:'Importar/Exportar'};
+  document.getElementById('topbar-title').textContent =
+    (navEl ? navEl.textContent.trim() : '') || titles[p] || '';
   if (navEl) navEl.classList.add('active');
   if (p === 'dashboard') renderDash();
   if (p === 'lista')     { populateFilters(); renderLista(); }
