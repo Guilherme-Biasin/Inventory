@@ -1411,7 +1411,9 @@ html.dark .modal {
     flex:1;
     display:flex;
     flex-direction:column;
-    justify-content:center;
+    /* "safe": quando o conteúdo passa da altura da tela (prévia da planilha
+       aberta), ele cresce para baixo em vez de sumir por cima. */
+    justify-content:safe center;
 }
 
 /* Fontes maiores neste bloco: são poucas linhas numa tela larga, e no tamanho
@@ -1460,8 +1462,12 @@ html.dark .modal {
     margin-bottom:.75rem;
 }
 .import-ref-titulo i { color:var(--accent); }
-/* A lista é montada em app.js (renderImportacao). */
-.import-ref-lista { font-size:14.5px; color:var(--txt2); line-height:2; }
+/* A lista é montada em app.js (renderImportacao). O almoxarifado tem 5 linhas
+   de regras e o patrimônio 3: sem uma altura reservada, trocar de tipo mudava a
+   altura do card e o bloco inteiro pulava de lugar no meio da tela. Reservamos
+   o espaço da maior lista (5 linhas x line-height 2 = 10em), então trocar de
+   tipo não move nada; lista maior que isso só estica o card para baixo. */
+.import-ref-lista { font-size:14.5px; color:var(--txt2); line-height:2; min-height:10em; }
 
 .import-passos {
     display:flex;
