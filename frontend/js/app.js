@@ -399,7 +399,6 @@ function renderForm() {
   if (!movMode) {
     h += `<div class="scard">
       <div class="scard-title"><i class="ti ti-clipboard-list"></i> Dados do Patrimônio
-        <span style="font-size:11px;font-weight:400;color:var(--txt3)">— preenchidos no cadastro, editáveis</span>
       </div>
       <div class="form-grid">
         <div class="fg"><label class="flabel">Nº Patrimônio<span class="req">*</span></label>
@@ -436,7 +435,6 @@ function renderForm() {
 
   h += `<div class="${movMode?'scard':'mov-card'}">
     <div class="scard-title"><i class="ti ti-transfer"></i> Dados da Movimentação
-      <span style="font-size:11px;font-weight:400;color:var(--txt3)">— registrados a cada movimentação</span>
     </div>
     <div class="form-grid">
       <div class="fg"><label class="flabel">Data de Movimentação</label>
@@ -1364,7 +1362,6 @@ function renderFormAlmox() {
   if (!movModeAlmox) {
     h += `<div class="scard">
       <div class="scard-title"><i class="ti ti-clipboard-list"></i> Dados do Item
-        <span style="font-size:11px;font-weight:400;color:var(--txt3)">— preenchidos no cadastro, editáveis</span>
       </div>
       <div class="form-grid">
         <div class="fg"><label class="flabel">Item<span class="req">*</span></label>
@@ -1406,7 +1403,6 @@ function renderFormAlmox() {
     .sort((a, b) => (a.validade || '9999-12-31').localeCompare(b.validade || '9999-12-31'));
   h += `<div class="${movModeAlmox ? 'scard' : 'mov-card'}">
     <div class="scard-title"><i class="ti ti-transfer"></i> Dados da Movimentação
-      <span style="font-size:11px;font-weight:400;color:var(--txt3)">— ${movModeAlmox ? 'entrada soma, saída desconta do lote escolhido' : 'esta é a primeira entrada do item'}</span>
     </div>
     <div class="form-grid">
       <div class="fg"><label class="flabel">Data de Movimentação</label>
