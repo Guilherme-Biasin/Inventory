@@ -469,6 +469,71 @@ html.dark .toggle-thumb {
     overflow-x:auto;
 }
 
+/* ── BARRA DE ROLAGEM ─────────────────────────────────────────
+   Um bloco só para a aplicação inteira, com os mesmos valores do Gerente
+   Assist: 8px, trilho transparente e polegar arredondado que escurece no
+   hover. Vale para o que rola dentro de .content e dentro de qualquer modal,
+   em vez de uma lista de classes — no GA a lista manual fazia cada área nova
+   nascer com a barra nativa até alguém lembrar de acrescentá-la lá.
+
+   Só ::-webkit-*, de propósito: o Chrome ignora estes pseudo-elementos no
+   elemento em que a folha define scrollbar-width. É por isso que a faixa dos
+   cards (scrollbar-width:none, barra escondida porque tem setas) continua
+   fora daqui. */
+.content::-webkit-scrollbar,       .content ::-webkit-scrollbar,
+.modal-overlay::-webkit-scrollbar, .modal-overlay ::-webkit-scrollbar,
+.sidebar::-webkit-scrollbar,
+.pk-painel::-webkit-scrollbar,     .dp-painel::-webkit-scrollbar,
+.ms-dropdown::-webkit-scrollbar {
+    width:8px;
+    height:8px;
+}
+
+.content::-webkit-scrollbar-track,       .content ::-webkit-scrollbar-track,
+.modal-overlay::-webkit-scrollbar-track, .modal-overlay ::-webkit-scrollbar-track,
+.sidebar::-webkit-scrollbar-track,
+.pk-painel::-webkit-scrollbar-track,     .dp-painel::-webkit-scrollbar-track,
+.ms-dropdown::-webkit-scrollbar-track { background:transparent; }
+
+/* Tema claro é o padrão aqui (no GA é o escuro): polegar escuro por cima do
+   fundo claro, e o branco fica para o html.dark, logo abaixo. */
+.content::-webkit-scrollbar-thumb,       .content ::-webkit-scrollbar-thumb,
+.modal-overlay::-webkit-scrollbar-thumb, .modal-overlay ::-webkit-scrollbar-thumb,
+.sidebar::-webkit-scrollbar-thumb,
+.pk-painel::-webkit-scrollbar-thumb,     .dp-painel::-webkit-scrollbar-thumb,
+.ms-dropdown::-webkit-scrollbar-thumb {
+    background:rgba(16,24,40,.20);
+    border-radius:8px;
+}
+
+.content::-webkit-scrollbar-thumb:hover,       .content ::-webkit-scrollbar-thumb:hover,
+.modal-overlay::-webkit-scrollbar-thumb:hover, .modal-overlay ::-webkit-scrollbar-thumb:hover,
+.sidebar::-webkit-scrollbar-thumb:hover,
+.pk-painel::-webkit-scrollbar-thumb:hover,     .dp-painel::-webkit-scrollbar-thumb:hover,
+.ms-dropdown::-webkit-scrollbar-thumb:hover { background:rgba(16,24,40,.32); }
+
+html.dark .content::-webkit-scrollbar-thumb,       html.dark .content ::-webkit-scrollbar-thumb,
+html.dark .modal-overlay::-webkit-scrollbar-thumb, html.dark .modal-overlay ::-webkit-scrollbar-thumb,
+html.dark .sidebar::-webkit-scrollbar-thumb,
+html.dark .pk-painel::-webkit-scrollbar-thumb,     html.dark .dp-painel::-webkit-scrollbar-thumb,
+html.dark .ms-dropdown::-webkit-scrollbar-thumb { background:rgba(255,255,255,.16); }
+
+html.dark .content::-webkit-scrollbar-thumb:hover,       html.dark .content ::-webkit-scrollbar-thumb:hover,
+html.dark .modal-overlay::-webkit-scrollbar-thumb:hover, html.dark .modal-overlay ::-webkit-scrollbar-thumb:hover,
+html.dark .sidebar::-webkit-scrollbar-thumb:hover,
+html.dark .pk-painel::-webkit-scrollbar-thumb:hover,     html.dark .dp-painel::-webkit-scrollbar-thumb:hover,
+html.dark .ms-dropdown::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,.30); }
+
+/* A rolagem horizontal da tabela é a exceção, como no GA: um pouco mais
+   grossa, com folga nas pontas, porque ali a barra é a própria pista de
+   arraste. */
+.table-wrap::-webkit-scrollbar { height:10px; }
+.table-wrap::-webkit-scrollbar-thumb {
+    border:2px solid transparent;
+    background-clip:content-box;
+}
+
+
 table {
     width:100%;
     border-collapse:collapse;
