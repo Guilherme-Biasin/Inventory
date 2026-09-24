@@ -860,7 +860,7 @@ function usosDaOpcao(tipo, chave) {
 
 function acoesTag(tipo, chave) {
   return `<span class="tedit" title="Editar" onclick="editarOpcao('${escJs(tipo)}','${escJs(chave)}')">✎</span>` +
-         `<span class="tdel" title="Excluir" onclick="excluirOpcao('${escJs(tipo)}','${escJs(chave)}')">×</span>`;
+         `<span class="tdel" title="Excluir" onclick="excluirOpcao('${escJs(tipo)}','${escJs(chave)}')"><i class="ti ti-trash"></i></span>`;
 }
 
 let _opcaoEditando = null;

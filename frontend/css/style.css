@@ -989,10 +989,14 @@ html.dark .scard-title { color:#fbbf24; }
 
 .tag .tedit:hover { color:var(--accent); }
 
+/* 15px era o tamanho do "×" de texto; o ícone de lixeira pede menos para ficar
+   na proporção do nome da etiqueta. */
 .tag .tdel {
     cursor:pointer;
     color:var(--txt3);
-    font-size:15px;
+    font-size:13px;
+    display:inline-flex;
+    align-items:center;
 }
 
 .tag .tdel:hover {
