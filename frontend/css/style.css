@@ -560,6 +560,14 @@ th {
 #page-lista .actions-cell,
 #page-almoxarifado .actions-cell { justify-content:center; }
 
+/* Cabeçalho que ordena: clique alterna crescente, decrescente e sem ordem. */
+/* nowrap para a seta nao cair sozinha numa segunda linha. */
+th.ord { cursor:pointer; user-select:none; white-space:nowrap; }
+th.ord:hover { color:var(--accent); }
+th.ord.ativa { color:var(--accent); }
+.ord-seta { font-size:10px; margin-left:3px; opacity:.35; }
+th.ord.ativa .ord-seta { opacity:1; }
+
 td {
     padding:9px 1rem;
     border-bottom:1px solid var(--border);

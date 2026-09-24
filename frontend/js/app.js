@@ -425,6 +425,80 @@ function populateFilters() {
   fs.innerHTML = '<option value="">Todos os status</option>'     + S.statusOpts.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
   fc.value = vc; fs.value = vs;
 }
+// ─── ORDENAR PELAS COLUNAS ───────────────────────────────────
+// Um clique ordena do menor para o maior, o segundo inverte e o terceiro tira a
+// ordenação (volta a ordem que veio do banco). Cada lista guarda a sua.
+const ordemDaLista = { lista: { col: null, dir: 0 }, almox: { col: null, dir: 0 } };
+
+// Colunas de cada lista: 'valor' é o que entra na comparação (o texto que a
+// pessoa lê, não o id), e coluna sem 'chave' não ordena.
+const COLUNAS = {
+  lista: [
+    { chave:'patrimonio',    titulo:'Nº',            tipo:'num', valor:i => i.patrimonio },
+    { chave:'nome',          titulo:'Marca',         valor:i => i.nome },
+    { chave:'modelo',        titulo:'Modelo',        valor:i => i.modelo },
+    { chave:'serie',         titulo:'N° Série',      valor:i => i.serie },
+    { chave:'categoria',     titulo:'Categoria',     valor:i => (i.categoria || []).map(id => getCat(id).name).join(', ') },
+    { chave:'status',        titulo:'Status',        valor:i => (i.status || []).map(id => getStat(id).name).join(', ') },
+    { chave:'local_atual',   titulo:'Local Atual',   valor:i => i.local_atual },
+    { chave:'usuario_atual', titulo:'Usuário Atual', valor:i => i.usuario_atual },
+    { chave:'movim',         titulo:'Movim.',        tipo:'num', valor:i => (i.historico || []).length },
+    { titulo:'Ações' }
+  ],
+  almox: [
+    { chave:'item',      titulo:'Item',               valor:i => i.item },
+    { chave:'categoria', titulo:'Categoria',          valor:i => getCatAlmox(i.categoria).name },
+    { chave:'modelo',    titulo:'Modelo',             valor:i => i.modelo },
+    { chave:'serie',     titulo:'N° Série',           valor:i => i.serie },
+    { chave:'saldo',     titulo:'Saldo',              tipo:'num', valor:i => i.saldo },
+    { chave:'validade',  titulo:'Validade + próxima', valor:i => i.validadeProxima },
+    { chave:'lotes',     titulo:'Lotes',              tipo:'num', valor:i => (i.lotes || []).filter(l => l.saldo > 0).length },
+    { chave:'ultima',    titulo:'Última mov.',        valor:i => ((i.historico || []).slice(-1)[0] || {}).data_mov },
+    { titulo:'Ações' }
+  ]
+};
+
+// Linha sem valor na coluna vai para o fim nos DOIS sentidos: ela não é "a
+// menor", é a que não tem o dado, e no meio da lista atrapalha a leitura.
+function ordenarLinhas(linhas, qual) {
+  const est = ordemDaLista[qual];
+  if (!est.col || !est.dir) return linhas;
+  const col = COLUNAS[qual].find(c => c.chave === est.col);
+  if (!col) return linhas;
+  const vazio = v => v === null || v === undefined || v === '';
+  return [...linhas].sort((a, b) => {
+    const va = col.valor(a), vb = col.valor(b);
+    if (vazio(va) && vazio(vb)) return 0;
+    if (vazio(va)) return 1;
+    if (vazio(vb)) return -1;
+    if (col.tipo === 'num') {
+      const x = Number(va), y = Number(vb);
+      if (!isNaN(x) && !isNaN(y)) return (x - y) * est.dir;
+    }
+    // numeric:true para "000010" vir depois de "000009" mesmo como texto.
+    return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true, sensitivity: 'base' }) * est.dir;
+  });
+}
+
+function cabecalhoOrdenavel(qual) {
+  const est = ordemDaLista[qual];
+  return COLUNAS[qual].map(c => {
+    if (!c.chave) return `<th>${esc(c.titulo)}</th>`;
+    const ativa = est.col === c.chave && est.dir;
+    const seta  = !ativa ? '↕' : (est.dir > 0 ? '↑' : '↓');
+    return `<th class="ord${ativa ? ' ativa' : ''}" onclick="ordenarPor('${escJs(qual)}','${escJs(c.chave)}')"
+      title="Ordenar por ${esc(c.titulo)}">${esc(c.titulo)} <span class="ord-seta">${seta}</span></th>`;
+  }).join('');
+}
+
+function ordenarPor(qual, chave) {
+  const est = ordemDaLista[qual];
+  if (est.col !== chave)   { est.col = chave; est.dir = 1; }   // 1º clique: crescente
+  else if (est.dir === 1)  { est.dir = -1; }                   // 2º: decrescente
+  else                     { est.col = null; est.dir = 0; }    // 3º: sem ordenação
+  if (qual === 'almox') renderAlmox(); else renderLista();
+}
+
 function renderLista() {
   const srch  = (document.getElementById('srch').value||'').toLowerCase();
   const catF  = document.getElementById('fcat').value;
@@ -438,11 +512,12 @@ function renderLista() {
     if (statF && !(i.status||[]).includes(statF))    return false;
     return true;
   });
-  S.lastFiltered = filtered;
-  document.getElementById('lista-head').innerHTML =
-    '<th>Nº</th><th>Marca</th><th>Modelo</th><th>N° Série</th><th>Categoria</th><th>Status</th><th>Local Atual</th><th>Usuário Atual</th><th>Movim.</th><th>Ações</th>';
-  document.getElementById('lista-tbody').innerHTML = filtered.length
-    ? filtered.map(it => `<tr>
+  // A exportação leva a lista como ela está na tela, ordenação inclusive.
+  const ordenados = ordenarLinhas(filtered, 'lista');
+  S.lastFiltered = ordenados;
+  document.getElementById('lista-head').innerHTML = cabecalhoOrdenavel('lista');
+  document.getElementById('lista-tbody').innerHTML = ordenados.length
+    ? ordenados.map(it => `<tr>
         <td><strong>${esc(it.patrimonio||'—')}</strong></td>
         <td>${esc(it.nome||'—')}</td>
         <td>${esc(it.modelo||'—')}</td>
@@ -1301,12 +1376,12 @@ function renderAlmox() {
     return true;
   });
 
-  S.lastFilteredAlmox = filtrados;
+  const ordenados = ordenarLinhas(filtrados, 'almox');
+  S.lastFilteredAlmox = ordenados;
 
-  document.getElementById('almox-head').innerHTML =
-    '<th>Item</th><th>Categoria</th><th>Modelo</th><th>N° Série</th><th>Saldo</th><th>Validade + próxima</th><th>Lotes</th><th>Última mov.</th><th>Ações</th>';
+  document.getElementById('almox-head').innerHTML = cabecalhoOrdenavel('almox');
 
-  tb.innerHTML = filtrados.length ? filtrados.map(it => {
+  tb.innerHTML = ordenados.length ? ordenados.map(it => {
     const ultima = (it.historico || []).slice(-1)[0];
     const lotesAtivos = (it.lotes || []).filter(l => l.saldo > 0).length;
     return `<tr>
