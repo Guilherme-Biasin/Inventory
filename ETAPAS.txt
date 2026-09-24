@@ -181,6 +181,21 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
            a coluna quem_recebeu_retirou ja guarda o texto escolhido.
       Testes: 85 no npm test.
 
+[ ~~ ] ETAPA 14 - DASHBOARD  -- 24/09/2026
+      Painel refeito com os indicadores pedidos pelo gerente. Tudo e
+      contado do que a tela ja tem em memoria (S.items/S.almox): nenhum
+      numero custa chamada nova na API.
+      [OK] Faixa de cima (carrossel): total de bens, patrimonios,
+           almoxarifado (com saldo somado), categorias dos dois
+           cadastros, status ativos, vencidos, o que vence primeiro,
+           dentro da validade, movimentacoes (com as dos ultimos 30
+           dias), patrimonios sem usuario, pessoas e locais.
+      [OK] Blocos: itens por categoria (com seletor das categorias dos
+           dois cadastros), patrimonios por status, validade do
+           almoxarifado, estoque do almoxarifado, onde estao os
+           patrimonios, com quem estao e movimentacoes dos 30 dias.
+      [ ] Estilizacao fina, um bloco por vez, com o gerente.
+
 [    ] ETAPA 10 - FECHAMENTO DA VERSAO 1.0
       Revisao final, documentacao conferida contra o codigo, tag v1.0
       no Git e entrega.

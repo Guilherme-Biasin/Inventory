@@ -696,6 +696,60 @@ tbody tr:hover td {
     grid-column:1 / -1;
 }
 
+/* ── BLOCOS DO DASHBOARD ──────────────────────────────────
+   Painéis de conteúdo (listas com barra), ao contrário da faixa de cima, que é
+   de números soltos. Grade que se acomoda sozinha: são blocos grandes, e virar
+   carrossel aqui esconderia informação em vez de organizar. */
+.dash-grid {
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+    gap:1rem;
+    margin-bottom:1rem;
+}
+.dash-bloco { margin-bottom:0; }
+.dash-corpo { padding:1rem 1.25rem; }
+.dash-cab-extra { font-size:11.5px; color:var(--txt3); }
+
+.dash-numero {
+    font-size:30px;
+    font-weight:700;
+    color:#ff9800;
+    letter-spacing:-.5px;
+    margin-top:.75rem;
+}
+.dash-nota {
+    font-size:11.5px;
+    color:var(--txt3);
+    line-height:1.5;
+    margin-top:.5rem;
+}
+.dash-vazio { font-size:12.5px; color:var(--txt3); }
+
+.dash-linha {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 90px 34px;
+    align-items:center;
+    gap:8px;
+    font-size:12.5px;
+    margin-bottom:.5rem;
+}
+.dash-linha:last-child { margin-bottom:0; }
+.dash-linha-nome {
+    color:var(--txt);
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.dash-linha-qtd { text-align:right; font-weight:600; color:var(--txt); }
+.dash-barra {
+    display:block;
+    height:6px;
+    border-radius:4px;
+    background:var(--bg3);
+    overflow:hidden;
+}
+.dash-barra > i { display:block; height:100%; border-radius:4px; }
+
 /* Hist-card ocupa largura total */
 .hist-card {
     width:100%;

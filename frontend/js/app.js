@@ -340,19 +340,139 @@ function actionButtons(id) {
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────
+// ─── DASHBOARD ───────────────────────────────────────────────
+// Tudo aqui é contado do que já está na memória (S.items e S.almox, que a tela
+// baixa uma vez e o /carimbo mantém atualizados). Nenhum número deste painel
+// custa uma chamada a mais na API.
+
+// Categoria escolhida no cartão "Itens por categoria". Guardada entre idas e
+// vindas do menu, mas não no navegador: é uma pergunta do momento.
+let _dashCat = '';
+
+// Patrimônios em cada status, do mais usado para o menos. Quem está sem status
+// entra no fim, porque também é informação — é cadastro para conferir.
+function statusDosPatrimonios() {
+  const mapa = new Map(S.statusOpts.map(s => [s.id, { nome: s.name, cor: corSegura(s.color), qtd: 0 }]));
+  let sem = 0;
+  S.items.forEach(i => {
+    const id = (i.status || [])[0];
+    if (id && mapa.has(id)) mapa.get(id).qtd++; else sem++;
+  });
+  const linhas = [...mapa.values()].sort((a, b) => b.qtd - a.qtd);
+  if (sem) linhas.push({ nome: 'Sem status', cor: '#888888', qtd: sem });
+  return linhas;
+}
+
+// Validade do almoxarifado. Só lote COM saldo conta: lote zerado que venceu não
+// é problema de ninguém. Conta itens (materiais) e a quantidade em cada caixa.
+function resumoValidade() {
+  const caixa = () => ({ itens: new Set(), qtd: 0 });
+  const r = { vencidos: caixa(), vencendo: caixa(), emDia: caixa(), semValidade: caixa(), proximo: null };
+  S.almox.forEach(it => (it.lotes || []).forEach(l => {
+    if (!(l.saldo > 0)) return;
+    if (!l.validade) { r.semValidade.itens.add(it.id); r.semValidade.qtd += l.saldo; return; }
+    const d = diasAte(l.validade);
+    const alvo = d < 0 ? r.vencidos : (d <= 30 ? r.vencendo : r.emDia);
+    alvo.itens.add(it.id); alvo.qtd += l.saldo;
+    if (d >= 0 && (!r.proximo || d < r.proximo.dias)) {
+      r.proximo = { item: it.item, validade: l.validade, dias: d, saldo: l.saldo };
+    }
+  }));
+  return r;
+}
+
+// Contagem por texto (local, usuário), do maior para o menor.
+function topContagem(valores, limite) {
+  const m = new Map();
+  valores.forEach(v => { const k = String(v || '').trim(); if (k) m.set(k, (m.get(k) || 0) + 1); });
+  return [...m.entries()].map(([nome, qtd]) => ({ nome, qtd }))
+    .sort((a, b) => b.qtd - a.qtd).slice(0, limite || 6);
+}
+
+// Movimentações dos últimos 30 dias, separadas por tipo.
+function movimentacoesRecentes() {
+  const limite = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const r = { entrada: 0, saida: 0, movimentacao: 0, almoxEntrada: 0, almoxSaida: 0, total: 0 };
+  S.items.forEach(i => (i.historico || []).forEach(h => {
+    const t = new Date(h.timestamp || 0).getTime();
+    if (!t || t < limite) return;
+    r.total++;
+    const escolha = (h.quem_recebeu_retirou || '').toLowerCase();
+    if (escolha.startsWith('entrada')) r.entrada++;
+    else if (escolha.startsWith('sa')) r.saida++;
+    else r.movimentacao++;
+  }));
+  S.almox.forEach(it => (it.historico || []).forEach(m => {
+    const t = new Date(m.criado_em || 0).getTime();
+    if (!t || t < limite) return;
+    r.total++;
+    if (m.tipo === 'saida') r.almoxSaida++; else r.almoxEntrada++;
+  }));
+  return r;
+}
+
+// Saldo somado de todo o almoxarifado.
+function saldoTotalAlmox() {
+  return S.almox.reduce((a, it) => a + (Number(it.saldo) || 0), 0);
+}
+
+// Um cartão da faixa de cima.
+function cartaoKpi(rotulo, valor, sub, acao) {
+  const clique = acao ? ` onclick="${escJs(acao)}" style="cursor:pointer"` : '';
+  return `<div class="stat"${clique}>
+    <div class="stat-label">${esc(rotulo)}</div>
+    <div class="stat-val">${esc(String(valor))}</div>
+    <div class="stat-sub">${sub}</div>
+  </div>`;
+}
+
+// Uma linha "nome — barra — número" dos blocos.
+function linhaBarra(nome, qtd, total, cor) {
+  const pct = total > 0 ? Math.round((qtd / total) * 100) : 0;
+  return `<div class="dash-linha">
+    <span class="dash-linha-nome" title="${esc(nome)}">${esc(nome)}</span>
+    <span class="dash-barra"><i style="width:${pct}%;background:${corSegura(cor)}"></i></span>
+    <span class="dash-linha-qtd">${esc(String(qtd))}</span>
+  </div>`;
+}
+
+function blocoVazio(texto) {
+  return `<div class="dash-vazio">${esc(texto)}</div>`;
+}
+
+function escolherCatDash(valor) {
+  _dashCat = valor || '';
+  renderDashBlocos();
+}
+
 function renderDash() {
-  const total    = S.items.length;
-  const totalMov = S.items.reduce((a,it) => a + (it.historico||[]).length, 0);
-  document.getElementById('stats-row').innerHTML = `
-    <div class="stat"><div class="stat-label">Total Patrimônios</div><div class="stat-val">${total}</div><div class="stat-sub">itens cadastrados</div></div>
-    <div class="stat"><div class="stat-label">Categorias</div><div class="stat-val">${S.cats.length}</div><div class="stat-sub">tipos cadastrados</div></div>
-    <div class="stat"><div class="stat-label">Movimentações</div><div class="stat-val">${totalMov}</div><div class="stat-sub">registros no histórico</div></div>
-    <div class="stat"><div class="stat-label">Pessoas</div><div class="stat-val">${S.pessoas.length}</div><div class="stat-sub">cadastradas</div></div>
-    <div class="stat" onclick="nav('almoxarifado')" style="cursor:pointer" title="Abrir o almoxarifado">
-      <div class="stat-label">Almoxarifado</div>
-      <div class="stat-val">${S.almox.length}</div>
-      <div class="stat-sub">${alertaValidade()}</div></div>`;
+  const totalMov = S.items.reduce((a, it) => a + (it.historico || []).length, 0);
+  const val = resumoValidade();
+  const mov = movimentacoesRecentes();
+  const saldo = saldoTotalAlmox();
+  const semUsuario = S.items.filter(i => !(i.usuario_atual || '').trim()).length;
+
+  document.getElementById('stats-row').innerHTML = [
+    cartaoKpi('Total de bens', S.items.length + S.almox.length,
+      `${S.items.length} patrimônios · ${S.almox.length} de consumo`),
+    cartaoKpi('Patrimônios', S.items.length, 'itens cadastrados', "nav('lista')"),
+    cartaoKpi('Almoxarifado', S.almox.length, `${esc(fmtQtd(saldo))} em estoque`, "nav('almoxarifado')"),
+    cartaoKpi('Categorias', S.cats.length + S.catsAlmox.length,
+      `${S.cats.length} de patrimônio · ${S.catsAlmox.length} de consumo`),
+    cartaoKpi('Status ativos', S.statusOpts.length, 'opções em uso na tela'),
+    cartaoKpi('Vencidos', val.vencidos.itens.size,
+      val.vencidos.qtd ? `${esc(fmtQtd(val.vencidos.qtd))} unidade(s) paradas` : 'nenhum lote vencido'),
+    cartaoKpi('Vence primeiro', val.proximo ? val.proximo.dias + ' dia(s)' : '—',
+      val.proximo ? `${esc(val.proximo.item)} · ${esc(fmtDate(val.proximo.validade))}` : 'nada com validade'),
+    cartaoKpi('Dentro da validade', val.emDia.itens.size, `${val.vencendo.itens.size} vencendo em 30 dias`),
+    cartaoKpi('Movimentações', totalMov, `${mov.total} nos últimos 30 dias`),
+    cartaoKpi('Sem usuário', semUsuario, 'patrimônios livres'),
+    cartaoKpi('Pessoas', S.pessoas.length, 'cadastradas'),
+    cartaoKpi('Locais', S.locais.length, 'cadastrados')
+  ].join('');
   medirFaixas();
+
+  renderDashBlocos();
 
   const recent = [...S.items].slice(-5).reverse();
   document.getElementById('dash-tbody').innerHTML = recent.length
@@ -365,6 +485,125 @@ function renderDash() {
         <td>${statPills(i.status)}</td>
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="6">Nenhum patrimônio cadastrado</td></tr>';
+}
+
+function renderDashBlocos() {
+  const el = document.getElementById('dash-blocos'); if (!el) return;
+  const val = resumoValidade();
+  const mov = movimentacoesRecentes();
+  const status = statusDosPatrimonios();
+  const maiorStatus = Math.max(1, ...status.map(s => s.qtd));
+
+  // Um seletor só, com as categorias dos dois cadastros. Sem <optgroup>: o
+  // seletor personalizado lista opção por opção, então o grupo vai no rótulo.
+  const opcoes = [
+    ...S.cats.map(c => ({ v: 'pat:' + c.id, t: 'Patrimônio · ' + c.name })),
+    ...S.catsAlmox.map(c => ({ v: 'alm:' + c.id, t: 'Almoxarifado · ' + c.name }))
+  ];
+  if (!opcoes.some(o => o.v === _dashCat)) _dashCat = opcoes.length ? opcoes[0].v : '';
+  const [tipoCat, idCat] = (_dashCat || ':').split(':');
+  const daCategoria = tipoCat === 'alm'
+    ? S.almox.filter(i => i.categoria === idCat)
+    : S.items.filter(i => (i.categoria || []).includes(idCat));
+  const nomeCat = tipoCat === 'alm' ? getCatAlmox(idCat).name : (getCat(idCat) || {}).name;
+  const totalDoTipo = tipoCat === 'alm' ? S.almox.length : S.items.length;
+  const pctCat = totalDoTipo ? Math.round((daCategoria.length / totalDoTipo) * 100) : 0;
+
+  const locais  = topContagem(S.items.map(i => i.local_atual));
+  const pessoas = topContagem(S.items.map(i => i.usuario_atual));
+  const semLocal   = S.items.filter(i => !(i.local_atual || '').trim()).length;
+  const semUsuario = S.items.filter(i => !(i.usuario_atual || '').trim()).length;
+  const semSaldo = S.almox.filter(i => !(i.saldo > 0)).length;
+
+  el.innerHTML = `
+    <div class="card dash-bloco">
+      <div class="card-header"><div class="card-title">Itens por categoria</div></div>
+      <div class="dash-corpo">
+        ${opcoes.length ? `
+          <select class="f-input" id="dash-cat" onchange="escolherCatDash(this.value)">
+            ${opcoes.map(o => `<option value="${esc(o.v)}"${o.v === _dashCat ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}
+          </select>
+          <div class="dash-numero">${daCategoria.length}</div>
+          <div class="dash-nota">${esc(nomeCat || '')} — ${pctCat}% ${tipoCat === 'alm' ? 'do almoxarifado' : 'dos patrimônios'}</div>
+        ` : blocoVazio('Nenhuma categoria cadastrada')}
+      </div>
+    </div>
+
+    <div class="card dash-bloco">
+      <div class="card-header">
+        <div class="card-title">Patrimônios por status</div>
+        <span class="dash-cab-extra">${S.statusOpts.length} status</span>
+      </div>
+      <div class="dash-corpo">
+        ${status.length ? status.map(s => linhaBarra(s.nome, s.qtd, maiorStatus, s.cor)).join('')
+                        : blocoVazio('Nenhum status cadastrado')}
+      </div>
+    </div>
+
+    <div class="card dash-bloco">
+      <div class="card-header">
+        <div class="card-title">Validade do almoxarifado</div>
+        <span class="dash-cab-extra">só lotes com saldo</span>
+      </div>
+      <div class="dash-corpo">
+        ${linhaBarra('Vencidos', val.vencidos.itens.size, Math.max(1, S.almox.length), '#dc2626')}
+        ${linhaBarra('Vencendo em 30 dias', val.vencendo.itens.size, Math.max(1, S.almox.length), '#d97706')}
+        ${linhaBarra('Dentro da validade', val.emDia.itens.size, Math.max(1, S.almox.length), '#059669')}
+        ${linhaBarra('Sem validade', val.semValidade.itens.size, Math.max(1, S.almox.length), '#888888')}
+        ${val.proximo ? `<div class="dash-nota">Vence primeiro: <strong>${esc(val.proximo.item)}</strong>
+          em ${esc(fmtDate(val.proximo.validade))} (${val.proximo.dias} dia(s), ${esc(fmtQtd(val.proximo.saldo))} un.)</div>`
+          : `<div class="dash-nota">Nenhum lote com validade em estoque.</div>`}
+      </div>
+    </div>
+
+    <div class="card dash-bloco">
+      <div class="card-header">
+        <div class="card-title">Estoque do almoxarifado</div>
+        <span class="dash-cab-extra">${esc(fmtQtd(saldoTotalAlmox()))} no total</span>
+      </div>
+      <div class="dash-corpo">
+        ${linhaBarra('Com saldo', S.almox.length - semSaldo, Math.max(1, S.almox.length), '#059669')}
+        ${linhaBarra('Zerados (repor)', semSaldo, Math.max(1, S.almox.length), '#dc2626')}
+        ${linhaBarra('Vencidos parados', val.vencidos.itens.size, Math.max(1, S.almox.length), '#d97706')}
+        <div class="dash-nota">O almoxarifado não usa status: a situação dele é saldo e validade.</div>
+      </div>
+    </div>
+
+    <div class="card dash-bloco">
+      <div class="card-header">
+        <div class="card-title">Onde estão os patrimônios</div>
+        <span class="dash-cab-extra">${semLocal} sem local</span>
+      </div>
+      <div class="dash-corpo">
+        ${locais.length ? locais.map(l => linhaBarra(l.nome, l.qtd, Math.max(1, ...locais.map(x => x.qtd)), '#ff9800')).join('')
+                        : blocoVazio('Nenhum patrimônio com local')}
+      </div>
+    </div>
+
+    <div class="card dash-bloco">
+      <div class="card-header">
+        <div class="card-title">Com quem estão</div>
+        <span class="dash-cab-extra">${semUsuario} sem usuário</span>
+      </div>
+      <div class="dash-corpo">
+        ${pessoas.length ? pessoas.map(p => linhaBarra(p.nome, p.qtd, Math.max(1, ...pessoas.map(x => x.qtd)), '#2563eb')).join('')
+                         : blocoVazio('Nenhum patrimônio com usuário')}
+      </div>
+    </div>
+
+    <div class="card dash-bloco">
+      <div class="card-header">
+        <div class="card-title">Movimentações (30 dias)</div>
+        <span class="dash-cab-extra">${mov.total} no período</span>
+      </div>
+      <div class="dash-corpo">
+        ${linhaBarra('Entradas de patrimônio', mov.entrada, Math.max(1, mov.total), '#059669')}
+        ${linhaBarra('Saídas de patrimônio', mov.saida, Math.max(1, mov.total), '#dc2626')}
+        ${linhaBarra('Movimentações', mov.movimentacao, Math.max(1, mov.total), '#2563eb')}
+        ${linhaBarra('Entradas no almoxarifado', mov.almoxEntrada, Math.max(1, mov.total), '#059669')}
+        ${linhaBarra('Saídas do almoxarifado', mov.almoxSaida, Math.max(1, mov.total), '#dc2626')}
+      </div>
+    </div>`;
 }
 
 // ─── FAIXA DE CARDS (carrossel) ──────────────────────────────
