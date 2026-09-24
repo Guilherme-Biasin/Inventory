@@ -137,11 +137,13 @@ async function openScanner(fieldId) {
   // configurações do celular, onde não há nada de errado. A checagem vem
   // antes de tudo para não baixar o leitor à toa.
   if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    alert('📷 O leitor de código de barras precisa de HTTPS.\n\n' +
-          'Esta página está aberta em ' + location.protocol + '//' + location.host + '.\n' +
-          'Por segurança, o navegador só libera a câmera em endereços https:// ' +
-          '(ou em localhost, na própria máquina).\n\n' +
-          'Peça ao TI o endereço https do sistema.');
+    avisar({
+      titulo: 'O leitor precisa de HTTPS',
+      texto: 'Esta página está aberta em <strong>' + location.protocol + '//' + location.host + '</strong>.<br><br>' +
+             'Por segurança, o navegador só libera a câmera em endereços <strong>https://</strong> ' +
+             '(ou em localhost, na própria máquina).<br><br>' +
+             'Peça ao TI o endereço https do sistema.'
+    });
     return;
   }
 
@@ -159,7 +161,8 @@ async function openScanner(fieldId) {
     await _initEngine();
   } catch(e) {
     closeScanner();
-    alert('📷 Erro ao carregar o leitor. Verifique sua conexão e tente novamente.');
+    avisar({ titulo: 'Não consegui carregar o leitor',
+             texto: 'Verifique a conexão e tente de novo.' });
     return;
   }
 
@@ -175,12 +178,17 @@ async function openScanner(fieldId) {
     });
   } catch(err) {
     closeScanner();
-    let msg = '📷 Não foi possível acessar a câmera.';
-    if (err.name === 'NotAllowedError')
-      msg = '📷 Permissão de câmera negada.\n\niOS: Configurações → Safari → Câmera → Permitir\nAndroid: Configurações do navegador → Permissões';
-    else if (err.name === 'NotFoundError')
-      msg = '📷 Câmera não encontrada.';
-    alert(msg);
+    let titulo = 'Não foi possível acessar a câmera';
+    let msg = 'Tente de novo; se continuar, confira as permissões do navegador.';
+    if (err.name === 'NotAllowedError') {
+      titulo = 'Permissão de câmera negada';
+      msg = 'iOS: Configurações → Safari → Câmera → Permitir<br>' +
+            'Android: Configurações do navegador → Permissões';
+    } else if (err.name === 'NotFoundError') {
+      titulo = 'Câmera não encontrada';
+      msg = 'Este aparelho não tem câmera disponível para o navegador.';
+    }
+    avisar({ titulo, texto: msg });
     return;
   }
 

@@ -99,9 +99,11 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
           "@latest" (pode mudar sozinho e quebrar a tela) e o xlsx
           0.18.5 tem falhas conhecidas ao ler planilha maliciosa -
           atualizar para a versao atual da SheetJS.
-      [ ] Excluir patrimonio e confirmar importacao ainda usam o
-          confirm() do navegador; trocar pelo modal confirmar() que a
-          aba Usuarios ja usa.
+      [OK] (24/09/2026) Nao existe mais alert(), confirm() nem
+          prompt() do navegador na aplicacao: excluir patrimonio e
+          confirmar importacao usam o modal confirmar(), os avisos da
+          camera usam o avisar() (mesmo modal, um botao so) e os avisos
+          curtos da exportacao viraram toast.
       [ ] /carimbo nao percebe mudanca na aba Personalizar: outra tela
           aberta so ve categoria/local novo ao recarregar.
 

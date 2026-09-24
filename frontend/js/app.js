@@ -738,7 +738,17 @@ function atualizarTipoSwitch() {
 
 async function delItem(id) {
   if (!can('excluir')) { showToast('Sem permissão para excluir patrimônios.','err'); return; }
-  if (!confirm('Excluir este patrimônio e todo o histórico?')) return;
+  const it = S.items.find(x => x.id === id) || {};
+  const movs = (it.historico || []).length;
+  const ok = await confirmar({
+    titulo: 'Excluir patrimônio',
+    texto: `Excluir <strong>${esc(it.patrimonio || '')}</strong>` +
+      `${it.nome || it.modelo ? ' — ' + esc(((it.nome || '') + ' ' + (it.modelo || '')).trim()) : ''}?<br><br>` +
+      `O histórico vai junto: ${movs} movimenta${movs === 1 ? 'ção' : 'ções'} registrada${movs === 1 ? '' : 's'}.<br><br>` +
+      'Isso não pode ser desfeito.',
+    botao: 'Excluir'
+  });
+  if (!ok) return;
   showLoading('Excluindo...');
   try {
     await DB.deleteItem(id);
@@ -1187,6 +1197,20 @@ function confirmar({ titulo, texto, botao = 'Confirmar' }) {
     ok.style.cssText = 'background:var(--danger-txt);border-color:var(--danger-txt);color:#fff';
     document.getElementById('confirm-modal').style.display = 'flex';
   });
+}
+
+// Aviso sem escolha: o mesmo modal do confirmar, com um botão só. Substitui o
+// alert() do navegador, que aparece com "localhost:3002 diz" no título, ignora
+// o tema da tela e trava a página inteira até alguém clicar.
+function avisar({ titulo, texto, botao = 'Entendi' }) {
+  const cancelar = document.getElementById('cf-cancelar');
+  if (cancelar) cancelar.style.display = 'none';
+  const p = confirmar({ titulo, texto, botao });
+  // O confirmar pinta o botão de vermelho (ação destrutiva); aqui não há o que
+  // destruir, então ele volta ao laranja da marca.
+  const ok = document.getElementById('cf-ok');
+  ok.style.cssText = 'background:var(--accent);border-color:var(--accent);color:#fff';
+  return p.then(v => { if (cancelar) cancelar.style.display = ''; return v; });
 }
 
 function _fecharConfirm(valor) {
@@ -2436,7 +2460,13 @@ async function confirmImport() {
   if (!can('cadastrar')) { showToast('Sem permissão para importar.','err'); return; }
   if (!_importRows.length) { showToast('Escolha a planilha primeiro.','err'); return; }
   const almox = ehAlmoxImport();
-  if (!confirm(`Importar ${_importRows.length} ${almox ? 'item(ns) de almoxarifado' : 'patrimônio(s)'}? Esta ação criará os registros no banco.`)) return;
+  const ok = await confirmar({
+    titulo: 'Confirmar importação',
+    texto: `Gravar <strong>${_importRows.length}</strong> ${almox ? 'item(ns) de almoxarifado' : 'patrimônio(s)'} no banco?<br><br>` +
+      'A planilha já passou pela conferência: ou entra tudo, ou nada.',
+    botao: 'Importar'
+  });
+  if (!ok) return;
 
   showLoading(`Importando ${_importRows.length} itens...`);
   try {
@@ -2530,7 +2560,7 @@ function doExport() {
   }
   if (type==='historico') {
     const rows=[];S.items.forEach(it=>(it.historico||[]).forEach(hv=>rows.push(buildHistRow(it,hv))));
-    if(!rows.length){alert('Nenhuma movimentação.');return;}
+    if(!rows.length){showToast('Nenhuma movimentação para exportar.','err');return;}
     const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:14},{wch:26},{wch:16},{wch:18},{wch:14},{wch:18},{wch:24},{wch:16},{wch:28}];
     styleSheet(ws);XLSX.utils.book_append_sheet(wb,ws,'Histórico');
   } else if (type==='categorias') {
@@ -2539,7 +2569,7 @@ function doExport() {
       XLSX.utils.book_append_sheet(wb,ws,cat.name.substring(0,31));});
   } else {
     const data=(type==='filtrado'?S.lastFiltered:S.items).map(buildRow);
-    if(!data.length){alert('Nenhum item.');return;}
+    if(!data.length){showToast('Nenhum patrimônio para exportar.','err');return;}
     const ws=XLSX.utils.json_to_sheet(data);ws['!cols']=cols;styleSheet(ws);
     XLSX.utils.book_append_sheet(wb,ws,'Patrimônios');
   }
