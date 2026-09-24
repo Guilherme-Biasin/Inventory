@@ -503,11 +503,12 @@ function renderLista() {
   const srch  = (document.getElementById('srch').value||'').toLowerCase();
   const catF  = document.getElementById('fcat').value;
   const statF = document.getElementById('fstat').value;
+  // A busca olha todos os campos de texto da linha: quem procura digita o que
+  // está vendo na tela — às vezes o número, às vezes o nome de quem está com o
+  // bem ou o setor onde ele fica.
+  const camposBusca = i => [i.patrimonio, i.nome, i.modelo, i.serie, i.local_atual, i.usuario_atual];
   const filtered = S.items.filter(i => {
-    if (srch  && !(i.patrimonio||'').toLowerCase().includes(srch)
-              && !(i.nome||'').toLowerCase().includes(srch)
-              && !(i.modelo||'').toLowerCase().includes(srch)
-              && !(i.serie||'').toLowerCase().includes(srch)) return false;
+    if (srch && !camposBusca(i).some(v => (v || '').toLowerCase().includes(srch))) return false;
     if (catF  && !(i.categoria||[]).includes(catF))  return false;
     if (statF && !(i.status||[]).includes(statF))    return false;
     return true;
