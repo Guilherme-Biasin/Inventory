@@ -165,6 +165,20 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
       contrario de categoria e status, que vao por id.
       Sem mudanca de banco. Testes: 83 no npm test.
 
+[ OK ] ETAPA 13 - REGRAS DA MOVIMENTACAO  -- 24/09/2026
+      [OK] Usuario Atual em branco passa a LIMPAR o campo (antes mantinha
+           o ultimo). Local e status continuam so sendo sobrescritos
+           quando vem preenchidos.
+      [OK] Local Atual obrigatorio no cadastro, na edicao e no Movimentar.
+      [OK] Data de Movimentacao e o tipo: um preenchido exige o outro;
+           os dois em branco continuam valendo. No cadastro novo nao se
+           aplica (o tipo ja e "Entrada").
+      [OK] Campo "Entrada ou Saida?" virou "Entrada, saida ou
+           movimentacao?" e ganhou a opcao MOVIMENTACAO, que tambem
+           entrou na aba Vinculos (tres colunas). Sem mudanca de banco:
+           a coluna quem_recebeu_retirou ja guarda o texto escolhido.
+      Testes: 85 no npm test.
+
 [    ] ETAPA 10 - FECHAMENTO DA VERSAO 1.0
       Revisao final, documentacao conferida contra o codigo, tag v1.0
       no Git e entrega.

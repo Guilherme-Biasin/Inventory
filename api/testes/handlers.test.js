@@ -156,14 +156,35 @@ await teste('criar sem numero recusa antes de tocar no banco', async () => {
   igual(consultas.length, 0, 'consultas disparadas');
 });
 
-await teste('movimentar so sobrescreve o que veio preenchido', async () => {
+await teste('movimentar so sobrescreve local e status quando vem preenchidos', async () => {
   respostas = [[{ patrimonio: '001' }], [], []];
   await rota('POST', '/api/v1/movimentacoes').handler(qs(), {
     patrimonioId: 1, mov: { local: 'Loja', obs_mov: 'levou' }
   }, ADMIN);
   const upd = consultas.find(c => c.sql.startsWith('UPDATE app.patrimonio'));
   if(!upd.sql.includes('local_atual = @local')) throw new Error('deveria atualizar o local');
-  if(upd.sql.includes('usuario_atual =')) throw new Error('nao deveria mexer no usuario atual');
+  if(upd.sql.includes('status = @status')) throw new Error('nao deveria mexer no status');
+});
+
+await teste('usuario em branco limpa quem esta com o bem', async () => {
+  // Campo vazio na edicao quer dizer "nao esta com ninguem". Manter o anterior
+  // deixava o sistema mostrando alguem que ja devolveu o bem.
+  respostas = [[{ patrimonio: '001' }], [], []];
+  await rota('POST', '/api/v1/movimentacoes').handler(qs(), {
+    patrimonioId: 1, mov: { local: 'TI', usuario_atual: '' }
+  }, ADMIN);
+  const upd = consultas.find(c => c.sql.startsWith('UPDATE app.patrimonio'));
+  if(!upd.sql.includes('usuario_atual = @usu')) throw new Error('deveria gravar o usuario');
+  igual(upd.entradas.usu, null, 'usuario gravado');
+});
+
+await teste('movimentacao aceita o tipo "Movimentacao" alem de entrada e saida', async () => {
+  respostas = [[{ patrimonio: '001' }], [], []];
+  await rota('POST', '/api/v1/movimentacoes').handler(qs(), {
+    patrimonioId: 1, mov: { local: 'TI', quem_recebeu_retirou: 'Movimentação' }
+  }, ADMIN);
+  const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.movimentacao'));
+  igual(ins.entradas.quem, 'Movimentação', 'tipo escolhido na tela');
 });
 
 await teste('movimentar em patrimonio inexistente avisa', async () => {

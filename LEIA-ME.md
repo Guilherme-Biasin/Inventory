@@ -225,13 +225,31 @@ senão um local antigo nunca mais poderia ser excluído.
 
 ---
 
-## Vínculos de Entrada e Saída
+## Regras do bloco "Dados da Movimentação"
+
+- **Local Atual é obrigatório** no cadastro, na edição e no Movimentar. Bem sem
+  lugar é bem que ninguém acha depois.
+- **Usuário Atual em branco limpa o campo.** Deixar vazio quer dizer "não está
+  com ninguém"; antes o sistema mantinha o último nome e seguia mostrando quem
+  já tinha devolvido o bem. Local e Status continuam só sendo sobrescritos
+  quando vêm preenchidos (o Status tem a opção "manter o atual").
+- **Data de Movimentação e o tipo andam juntos**: preencher um exige o outro,
+  e deixar os dois em branco é permitido (a edição não registra movimentação
+  nenhuma). No cadastro novo a regra não vale, porque ali o tipo já é sempre
+  **Entrada**.
+
+---
+
+## Vínculos de Entrada, Saída e Movimentação
+
+O campo chama-se **"Entrada, saída ou movimentação?"** e tem três opções:
+entrada (o bem chegou), saída (o bem saiu) e **movimentação** (mudou de lugar
+ou de pessoa sem entrar nem sair).
 
 Em **Personalizar → Vínculos** dá para dizer quais Status e quais Locais ficam
-disponíveis ao registrar uma **entrada** e quais ao registrar uma **saída**.
-Deixar tudo desmarcado = sem restrição.
+disponíveis em cada uma das três. Deixar tudo desmarcado = sem restrição.
 
-O filtro vale **onde a pessoa escolhe entrada ou saída na hora**: Movimentar e a
+O filtro vale **onde a pessoa escolhe o tipo na hora**: Movimentar e a
 edição do patrimônio. O **cadastro de um patrimônio novo mostra sempre a lista
 inteira** de locais e status. Por um tempo ele também filtrava (o cadastro é
 sempre uma entrada, então parecia coerente), e o efeito foi um vínculo marcado

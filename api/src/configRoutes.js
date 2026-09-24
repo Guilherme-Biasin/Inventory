@@ -12,9 +12,13 @@ function json(v, padrao){
   try { return JSON.parse(v); } catch(e){ return padrao; }
 }
 
+// Os tres tipos de movimentacao que a tela oferece. 'movimentacao' entrou em
+// 24/09/2026: antes so existiam entrada e saida, e trocar um bem de lugar sem
+// que ele tivesse entrado ou saido nao tinha como ser marcado.
 const VINCULOS_VAZIOS = {
-  entrada: { statusIds: [], localIds: [] },
-  saida:   { statusIds: [], localIds: [] }
+  entrada:      { statusIds: [], localIds: [] },
+  saida:        { statusIds: [], localIds: [] },
+  movimentacao: { statusIds: [], localIds: [] }
 };
 
 // A coluna cats_almox (categorias do almoxarifado) vem da migracao

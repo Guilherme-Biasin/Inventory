@@ -283,15 +283,17 @@ async function movimentar(q, body, usuario){
   try {
     await inserirMovimentacao(pedido, sql, id, 'movimentacao', mov, usuario.login);
 
-    // So sobrescreve o que veio preenchido: mandar NULL "limparia" o local
-    // atual de um bem so porque a movimentacao nao mexeu nele.
+    // Local e status so sao sobrescritos quando vem preenchidos: o status tem a
+    // opcao "manter o atual", e o local e obrigatorio na tela.
+    // O USUARIO e diferente — ele sempre vai como veio, inclusive vazio. Campo
+    // em branco na edicao quer dizer "este bem nao esta com ninguem"; mantendo
+    // o anterior, o sistema seguia mostrando alguem que ja devolveu o bem.
     const local  = txt(mov.local, 120);
     const usu    = txt(mov.usuario_atual, 120);
     const status = txt(mov.status, 40);
-    const sets = ['atualizado_em = SYSDATETIME()'];
-    const req = pedido().input('id', sql.Int, id);
+    const sets = ['atualizado_em = SYSDATETIME()', 'usuario_atual = @usu'];
+    const req = pedido().input('id', sql.Int, id).input('usu', sql.VarChar(120), usu || null);
     if(local) { sets.push('local_atual = @local');   req.input('local',  sql.VarChar(120), local); }
-    if(usu)   { sets.push('usuario_atual = @usu');   req.input('usu',    sql.VarChar(120), usu); }
     if(status){ sets.push('status = @status');       req.input('status', sql.VarChar(40),  status); }
     await req.query(`UPDATE app.patrimonio SET ${sets.join(', ')} WHERE id = @id`);
 

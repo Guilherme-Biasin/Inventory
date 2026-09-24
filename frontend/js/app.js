@@ -596,12 +596,13 @@ function renderForm() {
     <div class="form-grid">
       <div class="fg"><label class="flabel">Data de Movimentação</label>
         <input class="finput" type="date" id="f_data_mov"></div>
-      <div class="fg"><label class="flabel">Entrada ou Saída?</label>
+      <div class="fg"><label class="flabel">Entrada, saída ou movimentação?</label>
         ${(movMode || isEdit)
           ? `<select class="finput" id="f_quem_recebeu_retirou" onchange="onEntradaSaidaChange()">
                <option value="">Selecione...</option>
                <option value="Entrada">📥 Entrada</option>
                <option value="Saída">📤 Saída</option>
+               <option value="Movimentação">🔄 Movimentação</option>
              </select>`
           : `<input class="finput" value="📥 Entrada" disabled title="Cadastrar o bem é a entrada dele; saída se registra em Movimentar">`}
         </div>
@@ -676,10 +677,13 @@ function tipoMovDoForm() {
   return sel ? (sel.value || '') : 'Entrada';   // sem seletor = cadastro novo
 }
 
+// O que a pessoa escolhe no campo -> a chave dos vínculos em Personalizar.
+const CHAVE_VINCULO = { 'Entrada': 'entrada', 'Saída': 'saida', 'Movimentação': 'movimentacao' };
+
 function onEntradaSaidaChange() {
   const tipo = tipoMovDoForm();
   const v    = S.vinculos || {};
-  const cfg  = tipo === 'Entrada' ? v.entrada : tipo === 'Saída' ? v.saida : null;
+  const cfg  = v[CHAVE_VINCULO[tipo]] || null;
 
   const statSel = document.getElementById('f_status');
   if (statSel) {
@@ -759,6 +763,18 @@ async function saveItem(e) {
 
   showLoading('Salvando...');
   try {
+    // Local Atual é obrigatório em todas as telas: patrimônio sem lugar é
+    // patrimônio que ninguém acha depois.
+    if (!local) { showToast('Selecione o Local Atual.', 'err'); return; }
+
+    // Data e tipo andam juntos: um preenchido sem o outro grava meia
+    // movimentação (data sem dizer o que foi, ou tipo sem quando). Só vale
+    // onde a pessoa escolhe o tipo — no cadastro novo ele já é "Entrada".
+    if (movMode || S.editId != null) {
+      if (data_mov && !quem_recebeu_retirou) { showToast('Escolha entrada, saída ou movimentação.', 'err'); return; }
+      if (quem_recebeu_retirou && !data_mov) { showToast('Informe a data da movimentação.', 'err'); return; }
+    }
+
     if (movMode) {
       await DB.registrarMovimentacao(S.editId, mov);
       showToast('✅ Movimentação registrada!');
@@ -1020,10 +1036,10 @@ function renderVinculos() {
   el.innerHTML = `<div class="card" style="padding:1.25rem">
     <p style="font-size:13px;color:var(--txt3);margin-bottom:1.25rem;line-height:1.6">
       <i class="ti ti-info-circle" style="color:var(--accent)"></i>
-      Configure quais <strong>Status</strong> e <strong>Locais</strong> ficam disponíveis ao selecionar <strong>Entrada</strong> ou <strong>Saída</strong>.<br>
+      Configure quais <strong>Status</strong> e <strong>Locais</strong> ficam disponíveis ao selecionar <strong>Entrada</strong>, <strong>Saída</strong> ou <strong>Movimentação</strong>.<br>
       <span style="font-size:12px">Deixar tudo desmarcado = sem restrição.</span>
     </p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem">
       <div>
         <div style="font-size:13px;font-weight:700;color:var(--txt);margin-bottom:.875rem;padding-bottom:.5rem;border-bottom:2px solid #22c55e">📥 Entrada</div>
         <div style="font-size:12px;font-weight:600;color:var(--txt2);margin-bottom:.5rem">Status permitidos</div>
@@ -1037,6 +1053,13 @@ function renderVinculos() {
         ${checkboxes('saida','statusIds',S.statusOpts,s=>s.name,s=>s.id)}
         <div style="font-size:12px;font-weight:600;color:var(--txt2);margin-top:1rem;margin-bottom:.5rem">Locais permitidos</div>
         ${checkboxes('saida','localIds',S.locais,l=>l,(l,i)=>String(i))}
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--txt);margin-bottom:.875rem;padding-bottom:.5rem;border-bottom:2px solid var(--accent)">🔄 Movimentação</div>
+        <div style="font-size:12px;font-weight:600;color:var(--txt2);margin-bottom:.5rem">Status permitidos</div>
+        ${checkboxes('movimentacao','statusIds',S.statusOpts,s=>s.name,s=>s.id)}
+        <div style="font-size:12px;font-weight:600;color:var(--txt2);margin-top:1rem;margin-bottom:.5rem">Locais permitidos</div>
+        ${checkboxes('movimentacao','localIds',S.locais,l=>l,(l,i)=>String(i))}
       </div>
     </div>
   </div>`;
