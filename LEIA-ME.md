@@ -36,6 +36,10 @@ O HTTPS não é preferência: o leitor de código de barras usa a câmera, e o
 navegador só a libera em `https://` (ou `localhost`). Por `http://ip:3002` o
 leitor avisa o motivo e não abre.
 
+O leitor aparece em dois lugares: no campo **N° de Série** do cadastro, para
+não digitar o número, e ao lado da **busca** das listas de Patrimônios e
+Almoxarifado — ali ele lê a etiqueta do bem e a lista já filtra para ele.
+
 ### Variáveis do serviço na VM (obrigatórias)
 
 Como a tela (Vercel) e a API (VM) estão em endereços diferentes, o serviço

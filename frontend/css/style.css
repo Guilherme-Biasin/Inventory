@@ -1374,6 +1374,22 @@ html.dark .modal {
     transition: background .12s;
 }
 .scan-btn:hover { background: #e07800; }
+/* Leitor ao lado da busca das listas: mesmo botão do formulário, na altura dos
+   filtros (34px) para não desalinhar a linha. */
+.scan-busca {
+    width: 34px; height: 34px;
+    border-radius: 7px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background .12s;
+}
+.scan-busca:hover { background: #e07800; }
+
 .scan-hint {
     font-size: 11px;
     color: var(--txt3);
@@ -1394,7 +1410,23 @@ html.dark .modal {
 .form-grid { row-gap: 1.25rem; }
 
 .fhint,
-.form-grid .scan-hint {
+.form-grid /* Leitor ao lado da busca das listas: mesmo botão do formulário, na altura dos
+   filtros (34px) para não desalinhar a linha. */
+.scan-busca {
+    width: 34px; height: 34px;
+    border-radius: 7px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background .12s;
+}
+.scan-busca:hover { background: #e07800; }
+
+.scan-hint {
     position: absolute;
     top: 100%;
     left: 0;
@@ -1813,6 +1845,7 @@ html.dark .modal {
     /* flex-basis 100% (e não width): dentro de um flex, o flex:1 da regra
        principal venceria a largura e os filtros encolhiam para 48px. */
     .filtros-topo { flex: 1 0 100%; order: 3; flex-direction: column; align-items: stretch; }
+    .filtros-topo .scan-busca { width: 100%; height: 38px; }
 
     /* Empilhados, os dois passos da importação não têm mais um "ao lado" — a
        divisória vertical viraria um risco solto na lateral. */

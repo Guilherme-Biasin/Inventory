@@ -364,6 +364,10 @@ function _onDetected(value) {
   const field = document.getElementById(_targetField);
   if (field) {
     field.value = value;
+    // Campos que reagem ao que se digita (a busca das listas usa oninput)
+    // não percebem um valor posto por código: o evento vai na mão.
+    field.dispatchEvent(new Event('input',  { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
     field.focus();
     field.style.borderColor = '#059669';
     field.style.boxShadow   = '0 0 0 3px rgba(5,150,105,.2)';

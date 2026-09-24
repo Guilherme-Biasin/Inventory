@@ -192,6 +192,8 @@
         <div class="page-header">
           <div class="filtros-topo">
             <input class="f-input busca" id="srch" placeholder="🔍  Buscar marca, modelo, nº ou série..." oninput="renderLista()">
+            <button type="button" class="scan-busca" onclick="openScanner('srch')"
+                    title="Ler o código de barras do patrimônio ou do número de série"><i class="ti ti-scan"></i></button>
             <select class="f-input" id="fcat" onchange="renderLista()"><option value="">Todas as categorias</option></select>
             <select class="f-input" id="fstat" onchange="renderLista()"><option value="">Todos os status</option></select>
           </div>
@@ -208,6 +210,8 @@
         <div class="page-header">
           <div class="filtros-topo">
             <input class="f-input busca" id="srch-almox" placeholder="🔍  Buscar item, modelo ou série..." oninput="renderAlmox()">
+            <button type="button" class="scan-busca" onclick="openScanner('srch-almox')"
+                    title="Ler o código de barras do item ou do número de série"><i class="ti ti-scan"></i></button>
             <select class="f-input" id="fcat-almox" onchange="renderAlmox()"><option value="">Todas as categorias</option></select>
             <select class="f-input" id="fsaldo-almox" onchange="renderAlmox()">
               <option value="">Todos os itens</option>
