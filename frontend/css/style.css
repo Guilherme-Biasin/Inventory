@@ -435,11 +435,19 @@ html.dark .toggle-thumb {
 /* A faixa de números da importação usa cards menores. */
 .faixa-pista.miuda > * { flex:0 0 clamp(150px, 15vw, 200px); }
 
+/* TESTE (24/09/2026): conteúdo centralizado e borda azul bebê, para o gerente
+   ver como fica. Se não for aprovado, o que volta é border-color:var(--border)
+   e tirar o text-align/align-items. */
 .stat {
     background:var(--bg);
-    border:1px solid var(--border);
+    border:1px solid #a8d5f2;
     border-radius:12px;
     padding:1rem 1.25rem;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
 }
 
 /* Rótulo e legenda em branco; o número no laranja. Antes cada card tinha a sua
