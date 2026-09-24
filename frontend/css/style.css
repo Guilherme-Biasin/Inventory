@@ -435,12 +435,13 @@ html.dark .toggle-thumb {
 /* A faixa de números da importação usa cards menores. */
 .faixa-pista.miuda > * { flex:0 0 clamp(150px, 15vw, 200px); }
 
-/* TESTE (24/09/2026): conteúdo centralizado e borda azul bebê, para o gerente
-   ver como fica. Se não for aprovado, o que volta é border-color:var(--border)
-   e tirar o text-align/align-items. */
+/* Conteúdo centralizado e borda no laranja da marca, um pouco transparente
+   (c7 = ~78%) para marcar o card sem virar um retângulo gritante. Os cards do
+   Dashboard são os únicos com borda colorida: é a primeira coisa que se vê ao
+   entrar. */
 .stat {
     background:var(--bg);
-    border:1px solid #a8d5f2;
+    border:1px solid #f39100c7;
     border-radius:12px;
     padding:1rem 1.25rem;
     display:flex;
@@ -464,7 +465,7 @@ html.dark .toggle-thumb {
     font-size:26px;
     font-weight:600;
     letter-spacing:-.5px;
-    color:#d97706;
+    color:#ff9800;
 }
 
 .stat-sub {
