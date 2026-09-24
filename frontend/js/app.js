@@ -815,9 +815,151 @@ function switchTab(id) {
 }
 function renderConfig() { renderCats(); renderCatsAlmox(); renderPessoas(); renderLocais(); renderStatOpts(); renderVinculos(); }
 
+// ─── OPÇÕES DO PERSONALIZAR: EDITAR E EXCLUIR ────────────────
+// Cada etiqueta tem lápis e ×. Antes só havia o ×, e corrigir um nome ou uma
+// cor obrigava a excluir e criar de novo — o que trocava o id da opção e
+// deixava todo patrimônio que a usava apontando para o vazio.
+const OPCOES = {
+  cat:      { titulo: 'categoria',              lista: () => S.cats,      cor: true,  onde: 'patrimônio(s)' },
+  status:   { titulo: 'opção de status',        lista: () => S.statusOpts, cor: true, onde: 'patrimônio(s)' },
+  catAlmox: { titulo: 'categoria do almoxarifado', lista: () => S.catsAlmox, cor: true, onde: 'item(ns)' },
+  local:    { titulo: 'local',                  texto: () => S.locais,    onde: 'patrimônio(s)' },
+  pessoa:   { titulo: 'pessoa',                 texto: () => S.pessoas,   onde: 'patrimônio(s)' }
+};
+
+// O valor guardado na opção: id para as que têm id, o próprio texto para local
+// e pessoa (é assim que o patrimônio referencia cada uma).
+function valorDaOpcao(tipo, chave) {
+  const cfg = OPCOES[tipo];
+  if (cfg.texto) return cfg.texto()[chave];
+  const item = cfg.lista().find(x => String(x.id) === String(chave));
+  return item ? item.id : null;
+}
+
+function nomeDaOpcao(tipo, chave) {
+  const cfg = OPCOES[tipo];
+  if (cfg.texto) return cfg.texto()[chave] || '';
+  const item = cfg.lista().find(x => String(x.id) === String(chave));
+  return item ? item.name : '';
+}
+
+// Quantos registros usam a opção AGORA. O histórico não entra: ele é registro
+// do passado e, se contasse, um local antigo nunca mais poderia ser excluído.
+function usosDaOpcao(tipo, chave) {
+  const v = valorDaOpcao(tipo, chave);
+  if (v == null) return 0;
+  switch (tipo) {
+    case 'cat':      return S.items.filter(i => (i.categoria || []).includes(v)).length;
+    case 'status':   return S.items.filter(i => (i.status || []).includes(v)).length;
+    case 'catAlmox': return S.almox.filter(i => i.categoria === v).length;
+    case 'local':    return S.items.filter(i => i.local_atual === v).length;
+    case 'pessoa':   return S.items.filter(i => i.usuario_atual === v).length;
+  }
+  return 0;
+}
+
+function acoesTag(tipo, chave) {
+  return `<span class="tedit" title="Editar" onclick="editarOpcao('${escJs(tipo)}','${escJs(chave)}')">✎</span>` +
+         `<span class="tdel" title="Excluir" onclick="excluirOpcao('${escJs(tipo)}','${escJs(chave)}')">×</span>`;
+}
+
+let _opcaoEditando = null;
+
+function editarOpcao(tipo, chave) {
+  const cfg = OPCOES[tipo]; if (!cfg) return;
+  _opcaoEditando = { tipo, chave };
+  const nome = nomeDaOpcao(tipo, chave);
+  document.getElementById('op-titulo').textContent = 'Editar ' + cfg.titulo;
+  document.getElementById('op-sub').textContent = cfg.texto
+    ? 'O nome novo entra também nos registros que já usam este ' + cfg.titulo + '.'
+    : 'Os registros que usam esta opção passam a mostrar o nome novo.';
+  const campoNome = document.getElementById('op-nome');
+  campoNome.value = nome;
+  const cor = document.getElementById('op-cor');
+  cor.style.display = cfg.cor ? '' : 'none';
+  if (cfg.cor) cor.value = corSegura((cfg.lista().find(x => String(x.id) === String(chave)) || {}).color);
+  document.getElementById('opcao-modal').style.display = 'flex';
+  campoNome.focus();
+  campoNome.select();
+}
+
+function fecharOpcao() {
+  document.getElementById('opcao-modal').style.display = 'none';
+  _opcaoEditando = null;
+}
+
+async function salvarOpcao() {
+  if (!_opcaoEditando) return;
+  const { tipo, chave } = _opcaoEditando;
+  const cfg = OPCOES[tipo];
+  const nome = document.getElementById('op-nome').value.trim();
+  if (!nome) { showToast('Informe o nome.', 'err'); return; }
+
+  const nomeAntigo = nomeDaOpcao(tipo, chave);
+  const jaExiste = cfg.texto
+    ? cfg.texto().some((v, i) => i !== Number(chave) && v.toLowerCase() === nome.toLowerCase())
+    : cfg.lista().some(x => String(x.id) !== String(chave) && (x.name || '').toLowerCase() === nome.toLowerCase());
+  if (jaExiste) { showToast('Já existe uma opção com esse nome.', 'err'); return; }
+
+  const btn = document.getElementById('op-salvar');
+  btn.disabled = true;
+  showLoading('Salvando...');
+  try {
+    if (cfg.texto) {
+      // Local e pessoa vivem como texto dentro dos registros: o servidor troca
+      // o nome neles antes de a lista mudar, senão o que já existe fica órfão.
+      if (nome !== nomeAntigo) {
+        const r = await DB.renomearOpcao(tipo, nomeAntigo, nome);
+        cfg.texto()[Number(chave)] = nome;
+        await persistConfig();
+        S.items = await DB.loadItems();
+        if (tipo === 'pessoa') { try { S.almox = await DB.loadAlmox(); } catch (e) { /* sem almoxarifado */ } }
+        showToast(`✅ Renomeado em ${r.alterados} registro(s).`);
+      }
+    } else {
+      const item = cfg.lista().find(x => String(x.id) === String(chave));
+      if (item) { item.name = nome; if (cfg.cor) item.color = document.getElementById('op-cor').value; }
+      await persistConfig();
+      showToast('✅ Opção atualizada!');
+    }
+    fecharOpcao();
+    renderConfig();
+    populateFilters(); renderLista();
+    if (tipo === 'catAlmox' || tipo === 'pessoa') { populateFiltersAlmox(); renderAlmox(); }
+  } catch (e) {
+    showToast('Erro ao salvar: ' + e.message, 'err');
+  } finally {
+    hideLoading();
+    btn.disabled = false;
+  }
+}
+
+// Excluir passa por confirmação — e é recusado enquanto alguém estiver usando
+// a opção, para não deixar registro apontando para o que não existe mais.
+async function excluirOpcao(tipo, chave) {
+  const cfg = OPCOES[tipo]; if (!cfg) return;
+  const nome = nomeDaOpcao(tipo, chave);
+  const usos = usosDaOpcao(tipo, chave);
+  if (usos) {
+    showToast(`"${nome}" está em uso em ${usos} ${cfg.onde} — troque esses registros antes de excluir.`, 'err');
+    return;
+  }
+  const ok = await confirmar({
+    titulo: 'Excluir ' + cfg.titulo,
+    texto: `Excluir <strong>${esc(nome)}</strong>? Ninguém está usando esta opção agora, e ela some da lista de escolhas.`,
+    botao: 'Excluir'
+  });
+  if (!ok) return;
+  if (tipo === 'cat')      delCat(chave);
+  if (tipo === 'status')   delStat(chave);
+  if (tipo === 'catAlmox') delCatAlmox(chave);
+  if (tipo === 'local')    delLocal(Number(chave));
+  if (tipo === 'pessoa')   delPess(Number(chave));
+}
+
 function renderCats() {
   const el = document.getElementById('cat-cloud'); if (!el) return;
-  el.innerHTML = S.cats.map(c => `<div class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${corSegura(c.color)};display:inline-block;margin-right:3px"></span>${esc(c.name)}<span class="tdel" onclick="delCat('${escJs(c.id)}')">×</span></div>`).join('');
+  el.innerHTML = S.cats.map(c => `<div class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${corSegura(c.color)};display:inline-block;margin-right:3px"></span>${esc(c.name)}${acoesTag('cat', c.id)}</div>`).join('');
 }
 function addCat() {
   const n = document.getElementById('ncat').value.trim();
@@ -826,11 +968,11 @@ function addCat() {
   S.cats.push({id:'c'+Date.now(), name:n, color:col});
   persistConfig(); renderCats(); document.getElementById('ncat').value = '';
 }
-function delCat(id) { S.cats = S.cats.filter(c => c.id!==id); persistConfig(); renderCats(); }
+function delCat(id) { S.cats = S.cats.filter(c => c.id!==id); persistConfig(); renderCats(); populateFilters(); renderLista(); }
 
 function renderPessoas() {
   const el = document.getElementById('pess-cloud'); if (!el) return;
-  el.innerHTML = S.pessoas.map((p,i) => `<div class="tag">${esc(p)}<span class="tdel" onclick="delPess(${i})">×</span></div>`).join('');
+  el.innerHTML = S.pessoas.map((p,i) => `<div class="tag">${esc(p)}${acoesTag('pessoa', i)}</div>`).join('');
 }
 function addPess() {
   const v = document.getElementById('npess').value.trim();
@@ -841,7 +983,7 @@ function delPess(i) { S.pessoas.splice(i,1); persistConfig(); renderPessoas(); }
 
 function renderLocais() {
   const el = document.getElementById('loc-cloud'); if (!el) return;
-  el.innerHTML = S.locais.map((l,i) => `<div class="tag">${esc(l)}<span class="tdel" onclick="delLocal(${i})">×</span></div>`).join('');
+  el.innerHTML = S.locais.map((l,i) => `<div class="tag">${esc(l)}${acoesTag('local', i)}</div>`).join('');
 }
 function addLoc() {
   const v = document.getElementById('nloc').value.trim();
@@ -852,7 +994,7 @@ function delLocal(i) { S.locais.splice(i,1); persistConfig(); renderLocais(); }
 
 function renderStatOpts() {
   const el = document.getElementById('stat-cloud'); if (!el) return;
-  el.innerHTML = S.statusOpts.map(s => `<div class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${corSegura(s.color)};display:inline-block;margin-right:3px"></span>${esc(s.name)}<span class="tdel" onclick="delStat('${escJs(s.id)}')">×</span></div>`).join('');
+  el.innerHTML = S.statusOpts.map(s => `<div class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${corSegura(s.color)};display:inline-block;margin-right:3px"></span>${esc(s.name)}${acoesTag('status', s.id)}</div>`).join('');
 }
 function addStat() {
   const n = document.getElementById('nstat').value.trim();
@@ -861,7 +1003,7 @@ function addStat() {
   S.statusOpts.push({id:'s'+Date.now(), name:n, color:col});
   persistConfig(); renderStatOpts(); document.getElementById('nstat').value = '';
 }
-function delStat(id) { S.statusOpts = S.statusOpts.filter(s => s.id!==id); persistConfig(); renderStatOpts(); }
+function delStat(id) { S.statusOpts = S.statusOpts.filter(s => s.id!==id); persistConfig(); renderStatOpts(); populateFilters(); renderLista(); }
 
 function renderVinculos() {
   const el = document.getElementById('tv'); if (!el || el.style.display==='none') return;
@@ -1910,7 +2052,7 @@ async function saveAlmox(e) {
 function renderCatsAlmox() {
   const el = document.getElementById('cat-almox-cloud'); if (!el) return;
   el.innerHTML = S.catsAlmox.map(c =>
-    `<div class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${corSegura(c.color)};display:inline-block;margin-right:3px"></span>${esc(c.name)}<span class="tdel" onclick="delCatAlmox('${escJs(c.id)}')">×</span></div>`
+    `<div class="tag"><span style="width:10px;height:10px;border-radius:50%;background:${corSegura(c.color)};display:inline-block;margin-right:3px"></span>${esc(c.name)}${acoesTag('catAlmox', c.id)}</div>`
   ).join('') || '<div style="color:var(--txt3);font-size:12.5px">Nenhuma categoria cadastrada</div>';
 }
 
@@ -1924,10 +2066,8 @@ function addCatAlmox() {
 }
 
 function delCatAlmox(id) {
-  // Itens que usam a categoria não somem: ficam mostrando o id no lugar do
-  // nome, igual acontece no patrimônio. Avisar é melhor do que impedir.
-  const usados = S.almox.filter(i => i.categoria === id).length;
-  if (usados && !confirm(`${usados} item(ns) usam esta categoria. Remover mesmo assim?`)) return;
+  // Quem pergunta é excluirOpcao (modal de confirmação, e recusa se estiver em
+  // uso). Aqui só sobra a remoção em si.
   S.catsAlmox = S.catsAlmox.filter(c => c.id !== id);
   persistConfig(); renderCatsAlmox(); populateFiltersAlmox(); renderAlmox();
 }

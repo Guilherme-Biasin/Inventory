@@ -201,6 +201,30 @@ chamada** da pessoa. Mudou direto no banco pelo SSMS: vale em até 30 segundos.
 
 ---
 
+## Personalizar: editar e excluir opções
+
+Toda opção (categoria, categoria do almoxarifado, pessoa, local, status) tem
+**✎ editar** e **× excluir**. Antes só havia o ×, e corrigir um nome obrigava a
+excluir e criar de novo — o que troca o id da opção e deixa os patrimônios que
+a usavam apontando para o vazio.
+
+**Renomear categoria, categoria do almoxarifado ou status** é simples: o
+registro guarda o **id**, então tudo que já existe passa a mostrar o nome (e a
+cor) novos sozinho.
+
+**Renomear local ou pessoa mexe nos registros.** Esses dois são guardados como
+**texto** dentro do patrimônio e das movimentações, então a API troca o nome
+antigo pelo novo em `app.patrimonio`, `app.movimentacao` e
+`app.almoxarifado_mov` — tudo numa transação, com o total de linhas alteradas
+na auditoria. Sem isso, a lista teria o nome novo e o histórico o antigo.
+
+**Excluir é recusado enquanto a opção estiver em uso.** A tela diz quantos
+registros usam e pede para trocá-los antes; estando livre, ainda pede
+confirmação. "Em uso" é o que aponta para ela **hoje** — histórico não conta,
+senão um local antigo nunca mais poderia ser excluído.
+
+---
+
 ## Vínculos de Entrada e Saída
 
 Em **Personalizar → Vínculos** dá para dizer quais Status e quais Locais ficam

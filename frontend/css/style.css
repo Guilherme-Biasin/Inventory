@@ -981,6 +981,14 @@ html.dark .scard-title { color:#fbbf24; }
     border:1px solid var(--border);
 }
 
+.tag .tedit {
+    cursor:pointer;
+    color:var(--txt3);
+    font-size:12px;
+}
+
+.tag .tedit:hover { color:var(--accent); }
+
 .tag .tdel {
     cursor:pointer;
     color:var(--txt3);

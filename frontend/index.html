@@ -596,6 +596,22 @@
 </div>
 
 <!-- Modal: Confirmação de ação destrutiva -->
+<!-- Editar uma opção do Personalizar (nome e, quando tem, cor). -->
+<div id="opcao-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)fecharOpcao()">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title" id="op-titulo">Editar opção</div>
+    <div class="modal-sub" id="op-sub"></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input class="f-input" id="op-nome" style="flex:1" placeholder="Nome" onkeydown="if(event.key==='Enter'){event.preventDefault();salvarOpcao()}">
+      <input type="color" id="op-cor" value="#2563eb" style="width:38px;height:34px;border-radius:7px;border:1px solid var(--border2);padding:2px;cursor:pointer;background:var(--bg)">
+    </div>
+    <div class="modal-footer" style="margin-top:1.25rem">
+      <button class="btn" onclick="fecharOpcao()">Cancelar</button>
+      <button class="btn btn-primary" id="op-salvar" onclick="salvarOpcao()"><i class="ti ti-device-floppy"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div id="confirm-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)_fecharConfirm(false)">
   <div class="modal" style="max-width:430px">
     <div class="modal-title"><i class="ti ti-alert-triangle" style="color:var(--danger-txt);margin-right:6px"></i><span id="cf-titulo">Confirmar</span></div>

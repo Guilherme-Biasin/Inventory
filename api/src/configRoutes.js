@@ -120,9 +120,75 @@ async function salvar(q, body, usuario){
   return { ok: true };
 }
 
+// ------------------------------------------------------------
+// POST /api/v1/config/renomear — troca o nome de um local ou pessoa
+// ------------------------------------------------------------
+// Local e pessoa sao guardados como TEXTO no patrimonio e nas movimentacoes
+// (categoria e status vao por id, e por isso nao precisam disto). Sem esta
+// troca, renomear a opcao deixaria todo o historico com o nome antigo e a
+// lista com o novo — duas versoes da mesma coisa.
+const ALVOS = {
+  local:  [['app.patrimonio', 'local_atual'], ['app.movimentacao', '[local]']],
+  pessoa: [['app.patrimonio', 'usuario_atual'], ['app.movimentacao', 'usuario_atual'],
+           ['app.almoxarifado_mov', 'usuario']]
+};
+
+function texto(v){ const s = String(v == null ? '' : v).trim(); return s.slice(0, 120); }
+
+async function temAlmoxMov(p){
+  try {
+    const r = await p.request().query(`SELECT COUNT(*) AS n FROM sys.tables
+      WHERE name = 'almoxarifado_mov' AND schema_id = SCHEMA_ID('app')`);
+    return r.recordset[0].n === 1;
+  } catch(e){ return false; }
+}
+
+async function renomear(q, body, usuario){
+  const tipo = String((body && body.tipo) || '').toLowerCase();
+  const de   = texto(body && body.de);
+  const para = texto(body && body.para);
+  if(!ALVOS[tipo])   throw new Error('so da para renomear local ou pessoa');
+  if(!de || !para)   throw new Error('informe o nome atual e o novo');
+  if(de === para)    return { ok: true, alterados: 0 };
+
+  const p = await conexao(); const sql = tipos();
+  // Sem a migracao 05 a tabela do almoxarifado nao existe: renomear a pessoa
+  // continua valendo para o patrimonio em vez de a tela inteira falhar.
+  const temAlmox = tipo === 'pessoa' ? await temAlmoxMov(p) : true;
+  const alvos = ALVOS[tipo].filter(([t]) => temAlmox || t !== 'app.almoxarifado_mov');
+
+  // Tudo ou nada: metade dos registros com o nome novo e a outra metade com o
+  // velho seria pior do que nao ter renomeado.
+  const tx = new (tipos().Transaction)(p);
+  await tx.begin();
+  const pedido = () => new (tipos().Request)(tx);
+  let alterados = 0;
+  try {
+    for(const [tabela, coluna] of alvos){
+      const r = await pedido()
+        .input('de',   sql.VarChar(120), de)
+        .input('para', sql.VarChar(120), para)
+        .query(`UPDATE ${tabela} SET ${coluna} = @para WHERE ${coluna} = @de`);
+      alterados += (r.rowsAffected && r.rowsAffected[0]) || 0;
+    }
+    await tx.commit();
+  } catch(e){
+    try { await tx.rollback(); } catch(e2){ /* transacao ja abortada */ }
+    throw e;
+  }
+
+  await auditar(usuario, {
+    tabela: tipo === 'local' ? 'patrimonio' : 'movimentacao', registroId: null, acao: 'UPDATE',
+    descricao: `Renomeou o ${tipo} "${de}" para "${para}" em ${alterados} registro(s)`,
+    antes: { [tipo]: de }, depois: { [tipo]: para, alterados }
+  });
+  return { ok: true, alterados };
+}
+
 const configRoutes = [
   { method: 'GET',  path: '/api/v1/config', handler: carregar },
-  { method: 'POST', path: '/api/v1/config', handler: salvar, permissao: 'config' }
+  { method: 'POST', path: '/api/v1/config', handler: salvar, permissao: 'config' },
+  { method: 'POST', path: '/api/v1/config/renomear', handler: renomear, permissao: 'config' }
 ];
 
 module.exports = { configRoutes };

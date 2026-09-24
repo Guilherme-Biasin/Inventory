@@ -131,6 +131,10 @@ const DB = {
 
   saveConfig(cfg){ return _post('/config', cfg); },
 
+  // Renomeia um local ou uma pessoa TAMBEM nos registros ja gravados (eles
+  // guardam o texto, nao um id). Devolve quantos registros mudaram.
+  renomearOpcao(tipo, de, para){ return _post('/config/renomear', { tipo, de, para }); },
+
   // ── PATRIMONIOS ──────────────────────────────────────────────
   loadItems(){ return _get('/patrimonios'); },
 

@@ -301,6 +301,52 @@ await teste('listar devolve o status de cada movimentacao', async () => {
   igual(r[0].historico[0].status, 's3', 'status no historico');
 });
 
+await teste('renomear local troca o texto no patrimonio e no historico', async () => {
+  // O fake devolve rowsAffected = tamanho do recordset: 3 linhas + 2 linhas.
+  respostas = [[{}, {}, {}], [{}, {}]];
+  const r = await rota('POST', '/api/v1/config/renomear').handler(qs(), {
+    tipo: 'local', de: 'Gerencia', para: 'Gerência'
+  }, ADMIN);
+  igual(r.alterados, 5, 'registros alterados');
+  const ups = consultas.filter(c => c.sql.startsWith('UPDATE'));
+  igual(ups.length, 2, 'patrimonio + movimentacao');
+  if(!ups[0].sql.includes('app.patrimonio SET local_atual')) throw new Error('faltou o patrimonio');
+  if(!ups[1].sql.includes('app.movimentacao SET [local]')) throw new Error('faltou a movimentacao');
+  igual([ups[0].entradas.de, ups[0].entradas.para], ['Gerencia', 'Gerência'], 'de/para');
+});
+
+await teste('renomear pessoa alcanca o almoxarifado quando ele existe', async () => {
+  respostas = [[{ n: 1 }], [{}], [{}], [{}]];   // 1a resposta: a tabela existe?
+  await rota('POST', '/api/v1/config/renomear').handler(qs(), {
+    tipo: 'pessoa', de: 'Ana', para: 'Ana Paula'
+  }, ADMIN);
+  const ups = consultas.filter(c => c.sql.startsWith('UPDATE'));
+  igual(ups.length, 3, 'patrimonio + movimentacao + almoxarifado_mov');
+  if(!ups[2].sql.includes('app.almoxarifado_mov SET usuario')) throw new Error('faltou o almoxarifado');
+});
+
+await teste('sem a migracao 05 a pessoa e renomeada so no patrimonio', async () => {
+  respostas = [[{ n: 0 }], [{}], [{}]];
+  await rota('POST', '/api/v1/config/renomear').handler(qs(), {
+    tipo: 'pessoa', de: 'Ana', para: 'Ana Paula'
+  }, ADMIN);
+  igual(consultas.filter(c => c.sql.startsWith('UPDATE')).length, 2, 'so as duas tabelas do patrimonio');
+});
+
+await teste('renomear recusa tipo desconhecido, nome vazio e nao mexe no igual', async () => {
+  await lanca(() => rota('POST', '/api/v1/config/renomear').handler(qs(), {
+    tipo: 'categoria', de: 'a', para: 'b'
+  }, ADMIN), 'local ou pessoa');
+  await lanca(() => rota('POST', '/api/v1/config/renomear').handler(qs(), {
+    tipo: 'local', de: '  ', para: 'TI'
+  }, ADMIN), 'informe o nome atual e o novo');
+  const r = await rota('POST', '/api/v1/config/renomear').handler(qs(), {
+    tipo: 'local', de: 'TI', para: 'TI'
+  }, ADMIN);
+  igual(r.alterados, 0, 'nada a fazer');
+  igual(consultas.length, 0, 'consultas disparadas');
+});
+
 console.log('\n— ALMOXARIFADO —');
 
 // Configuracao e itens existentes que a conferencia da importacao le primeiro.

@@ -155,6 +155,16 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
           no SSMS, atualizar a VM (git pull + restart) e conferir na
           producao.
 
+[ OK ] ETAPA 12 - EDITAR AS OPCOES DO PERSONALIZAR  -- 24/09/2026
+      Cada opcao (categoria, categoria do almoxarifado, pessoa, local,
+      status) ganhou EDITAR (nome e cor) e confirmacao ao excluir.
+      Excluir e recusado enquanto houver registro usando a opcao.
+      Renomear local ou pessoa troca o texto tambem nos registros ja
+      gravados (rota POST /api/v1/config/renomear, numa transacao, com
+      a contagem na auditoria) - os dois sao guardados como texto, ao
+      contrario de categoria e status, que vao por id.
+      Sem mudanca de banco. Testes: 83 no npm test.
+
 [    ] ETAPA 10 - FECHAMENTO DA VERSAO 1.0
       Revisao final, documentacao conferida contra o codigo, tag v1.0
       no Git e entrega.
