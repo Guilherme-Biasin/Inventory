@@ -201,6 +201,21 @@ chamada** da pessoa. Mudou direto no banco pelo SSMS: vale em até 30 segundos.
 
 ---
 
+## Vínculos de Entrada e Saída
+
+Em **Personalizar → Vínculos** dá para dizer quais Status e quais Locais ficam
+disponíveis ao registrar uma **entrada** e quais ao registrar uma **saída**.
+Deixar tudo desmarcado = sem restrição.
+
+O filtro vale **onde a pessoa escolhe entrada ou saída na hora**: Movimentar e a
+edição do patrimônio. O **cadastro de um patrimônio novo mostra sempre a lista
+inteira** de locais e status. Por um tempo ele também filtrava (o cadastro é
+sempre uma entrada, então parecia coerente), e o efeito foi um vínculo marcado
+meses antes esconder quase todos os locais na hora de cadastrar, sem que quem
+estava cadastrando tivesse como saber por quê.
+
+---
+
 ## Almoxarifado (material de consumo)
 
 Aba própria, ao lado de Patrimônios, para o que é consumido: bobina, etiqueta,

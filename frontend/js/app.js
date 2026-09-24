@@ -657,10 +657,13 @@ function renderForm() {
 
   document.getElementById(alvoForm().wrap).innerHTML = h;
   document.getElementById(alvoForm().alerta).style.display = 'none';
-  // No cadastro novo o tipo já está decidido (entrada), então os vínculos de
-  // Status e Local valem desde já — antes só passavam a valer quando a pessoa
-  // escolhia no seletor.
-  if (!movMode && !isEdit) onEntradaSaidaChange();
+  // Os vínculos de Entrada/Saída (Personalizar) NÃO são aplicados sozinhos no
+  // cadastro. Foram, por um tempo: como o cadastro é sempre entrada, parecia
+  // coerente já filtrar Status e Local. O efeito na prática foi outro — um
+  // vínculo marcado meses antes escondia quase todos os locais na hora de
+  // cadastrar, e quem cadastrava não tinha como saber por quê. O filtro
+  // continua valendo onde a pessoa escolhe entrada ou saída na hora
+  // (Movimentar e edição), que é onde ele foi pensado.
 }
 
 // Igual ao almoxarifado, onde o item nasce da primeira entrada: cadastrar um
