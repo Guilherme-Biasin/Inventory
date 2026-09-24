@@ -620,10 +620,13 @@ tbody tr:hover td {
     color:var(--warn-txt);
 }
 
-/* Contador (movimentações, lotes): laranja da marca bem diluído no fundo. */
+/* Contador (movimentações, lotes): laranja da marca bem diluído no fundo, e
+   sem borda à vista. Transparente em vez de border:none para o contador manter
+   a mesma altura dos outros selos e a linha da tabela não mudar de tamanho. */
 .b-gray {
     background:#ff980014;
     color:#FF9800;
+    border-color:transparent;
 }
 
 .cat-pill {
