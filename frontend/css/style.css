@@ -598,13 +598,16 @@ tbody tr:hover td {
     background:var(--row-hover);
 }
 
+/* Cantos menos arredondados e borda da própria cor (border sem color usa o
+   currentColor), no mesmo desenho vazado do botão Movimentar. */
 .badge {
     display:inline-flex;
     align-items:center;
     padding:2px 8px;
-    border-radius:20px;
+    border-radius:7px;
     font-size:11.5px;
     font-weight:500;
+    border:1px solid;
 }
 
 .b-success {
@@ -617,9 +620,10 @@ tbody tr:hover td {
     color:var(--warn-txt);
 }
 
+/* Contador (movimentações, lotes): laranja da marca bem diluído no fundo. */
 .b-gray {
-    background:var(--gray-bg);
-    color:var(--gray-txt);
+    background:#ff980014;
+    color:#FF9800;
 }
 
 .cat-pill {
@@ -1425,23 +1429,7 @@ html.dark .modal {
 .form-grid { row-gap: 1.25rem; }
 
 .fhint,
-.form-grid /* Leitor ao lado da busca das listas: mesmo botão do formulário, na altura dos
-   filtros (34px) para não desalinhar a linha. */
-.scan-busca {
-    width: 34px; height: 34px;
-    border-radius: 7px;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background .12s;
-}
-.scan-busca:hover { background: #e07800; }
-
-.scan-hint {
+.form-grid .scan-hint {
     position: absolute;
     top: 100%;
     left: 0;
