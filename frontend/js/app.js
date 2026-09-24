@@ -600,11 +600,13 @@ function renderForm() {
         ${(movMode || isEdit)
           ? `<select class="finput" id="f_quem_recebeu_retirou" onchange="onEntradaSaidaChange()">
                <option value="">Selecione...</option>
-               <option value="Entrada">📥 Entrada</option>
-               <option value="Saída">📤 Saída</option>
-               <option value="Movimentação">🔄 Movimentação</option>
+               <option value="Entrada" data-icone="arrow-down" data-cor="#059669">Entrada</option>
+               <option value="Saída" data-icone="arrow-up" data-cor="#dc2626">Saída</option>
+               <option value="Movimentação" data-icone="arrows-up-down" data-cor="#2563eb">Movimentação</option>
              </select>`
-          : `<input class="finput" value="📥 Entrada" disabled title="Cadastrar o bem é a entrada dele; saída se registra em Movimentar">`}
+          : `<div class="finput finput-travado" title="Cadastrar o bem é a entrada dele; saída se registra em Movimentar">
+               <i class="ti ti-arrow-down" style="color:#059669"></i> Entrada
+             </div>`}
         </div>
       <div class="fg"><label class="flabel">Usuário Atual</label>
         <input class="finput" id="f_usuario_atual" placeholder="Nome do usuário atual" value="${(!movMode && it.usuario_atual) ? esc(it.usuario_atual) : ''}"></div>
@@ -1758,10 +1760,12 @@ function renderFormAlmox() {
       <div class="fg"><label class="flabel">Entrada ou Saída?</label>
         ${movModeAlmox
           ? `<select class="finput" id="a_tipo" onchange="onTipoAlmoxChange()">
-               <option value="entrada">📥 Entrada</option>
-               <option value="saida">📤 Saída</option>
+               <option value="entrada" data-icone="arrow-down" data-cor="#059669">Entrada</option>
+               <option value="saida" data-icone="arrow-up" data-cor="#dc2626">Saída</option>
              </select>`
-          : `<input class="finput" value="📥 Entrada" disabled title="O item nasce com a primeira entrada">`}
+          : `<div class="finput finput-travado" title="O item nasce com a primeira entrada">
+               <i class="ti ti-arrow-down" style="color:#059669"></i> Entrada
+             </div>`}
         <div class="fhint"></div>
       </div>
       <div class="fg"><label class="flabel">Quantidade<span class="req">*</span></label>

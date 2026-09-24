@@ -1509,6 +1509,18 @@ html.dark .modal {
     width:100%; height:100%;
 }
 
+/* Ícone de uma opção (data-icone no <option>): a lista e o rótulo desenham. */
+.pk-icone { margin-right:6px; vertical-align:-2px; }
+
+/* Campo travado que mostra ícone + texto (o "Entrada" do cadastro). Não é um
+   <input> porque input não aceita HTML dentro. */
+.finput-travado {
+    display:flex;
+    align-items:center;
+    gap:6px;
+    cursor:default;
+}
+
 .pk-btn, .dp-btn {
     display:flex; align-items:center; gap:8px;
     width:100%; text-align:left; cursor:pointer;

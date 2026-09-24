@@ -89,12 +89,24 @@
     atualizarRotulo(nativo);
   }
 
+  // Uma opção pode trazer data-icone="arrow-down" e data-cor="#059669": o
+  // <option> nativo só aceita texto, então o ícone é desenhado aqui, na lista
+  // e no rótulo do botão. Os dois valores são conferidos antes de virar HTML —
+  // ícone só com letras, números e hífen; cor só como #hex.
+  function iconeDaOpcao(o) {
+    const nome = (o.dataset && o.dataset.icone) || '';
+    if (!/^[a-z0-9-]+$/i.test(nome)) return '';
+    const cor = (o.dataset && o.dataset.cor) || '';
+    const corSegura = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(cor) ? cor : 'currentColor';
+    return '<i class="ti ti-' + nome + ' pk-icone" style="color:' + corSegura + '"></i>';
+  }
+
   function montarOpcoes(nativo, painel, botao) {
     const opcoes = [...nativo.options];
     painel.innerHTML = opcoes.map((o, i) =>
       `<button type="button" class="pk-item${o.selected ? ' sel' : ''}${o.disabled ? ' off' : ''}"
          role="option" aria-selected="${o.selected}" data-i="${i}" ${o.disabled ? 'aria-disabled="true"' : ''}
-         title="${esc(o.textContent)}">${esc(o.textContent) || '&nbsp;'}</button>`).join('')
+         title="${esc(o.textContent)}">${iconeDaOpcao(o)}${esc(o.textContent) || '&nbsp;'}</button>`).join('')
       || '<div class="pk-vazio">Nenhuma opção</div>';
 
     painel.querySelectorAll('.pk-item').forEach(item => {
@@ -157,7 +169,7 @@
     const texto = op ? op.textContent.trim() : '';
     // "vazio" = a opção sem valor (Selecione..., Todas as categorias): fica
     // com a cor de texto de apoio, como um placeholder.
-    rot.textContent = texto || ' ';
+    rot.innerHTML = (op ? iconeDaOpcao(op) : '') + (esc(texto) || '&nbsp;');
     rot.classList.toggle('vazio', !nativo.value);
     caixa.querySelector('.pk-btn').disabled = nativo.disabled;
   }
