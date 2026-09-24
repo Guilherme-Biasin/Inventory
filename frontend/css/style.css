@@ -312,14 +312,20 @@ html.dark .toggle-thumb {
     background:#047857;
 }
 
+/* Movimentar: laranja vazado em vez de preenchido. Ele fica em toda linha da
+   lista, e no laranja cheio a tabela virava uma coluna de blocos acesos; assim
+   ele continua sendo o botão de destaque sem gritar linha a linha.
+   No hover o fundo escurece um pouco e a borda fecha no laranja cheio. */
 .btn-warn {
-    background:#d97706;
-    border-color:#d97706;
-    color:#fff;
+    background:#f391001c;
+    border-color:#FF9800;
+    color:#FF9800;
 }
 
 .btn-warn:hover {
-    background:#fcad53;
+    background:#f3910040;
+    border-color:#FF9800;
+    color:#FF9800;
 }
 
 .btn-sm {
