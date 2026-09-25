@@ -723,7 +723,23 @@ tbody tr:hover td {
     gap:1rem;
     align-items:start;
 }
-.lemb-coluna { display:flex; flex-direction:column; gap:1rem; }
+/* A coluna acompanha a altura do calendario: os dois cards dividem esse
+   espaco e as listas rolam por dentro. Assim o bloco da direita fecha na mesma
+   linha do calendario, e a altura nao muda com 1 ou com 40 lembretes. */
+.lemb-coluna {
+    display:flex;
+    flex-direction:column;
+    gap:1rem;
+    height:100%;
+    min-height:0;
+}
+.lemb-coluna > .card {
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+}
+.lemb-coluna > .card:first-child { flex:1.35 1 0; }
+.lemb-coluna > .card:last-child  { flex:1 1 0; }
 @media (max-width:1000px) { .lembrete-layout { grid-template-columns:1fr; } }
 
 /* ── Cabeçalho do calendário ── */
@@ -860,13 +876,14 @@ tbody tr:hover td {
 
 /* ── Coluna da direita: lista ── */
 .lemb-filtro { height:34px; min-width:130px; }
-.lembrete-lista { padding:1rem 1.25rem; max-height:420px; overflow-y:auto; }
+.lembrete-lista { padding:1rem 1.25rem; flex:1; min-height:0; overflow-y:auto; }
 .lembrete-item {
     border-left:3px solid var(--accent);
     background:var(--bg2);
     border-radius:0 10px 10px 0;
     padding:.7rem .9rem;
-    margin-bottom:.7rem;
+    /* .55rem em vez de .7rem: e o que faz caber 3 lembretes sem rolagem. */
+    margin-bottom:.55rem;
 }
 .lembrete-item:last-child { margin-bottom:0; }
 .lembrete-item.atrasado { border-left-color:#dc2626; }
@@ -882,7 +899,9 @@ tbody tr:hover td {
 .lembrete-obs { font-size:12.5px; color:var(--txt2); margin-top:3px; line-height:1.5; white-space:pre-wrap; }
 
 /* ── Coluna da direita: próximos ── */
-.prox-lista { padding:.5rem 1.25rem 1rem; }
+/* Padding curto de proposito: com ele os 3 proximos lembretes cabem sem
+   rolagem, que e o tamanho combinado para o bloco. */
+.prox-lista { padding:.35rem 1.25rem .6rem; flex:1; min-height:0; overflow-y:auto; }
 .prox-item {
     display:flex;
     align-items:center;
