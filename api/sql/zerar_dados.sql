@@ -63,6 +63,13 @@ BEGIN
       DELETE FROM app.movimentacao;
       DELETE FROM app.patrimonio;
 
+      -- Lembretes (migracao 08) sao do inventario de teste: somem junto.
+      IF OBJECT_ID('app.lembrete') IS NOT NULL
+      BEGIN
+        DELETE FROM app.lembrete;
+        DBCC CHECKIDENT ('app.lembrete', RESEED, 0) WITH NO_INFOMSGS;
+      END
+
       -- Arquivo morto dos bens antigos (migracao 07). O IF deixa o script
       -- rodar tambem em banco que ainda nao recebeu essa migracao.
       IF OBJECT_ID('app.patrimonio_descartado') IS NOT NULL

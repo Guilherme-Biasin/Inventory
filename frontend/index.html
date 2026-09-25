@@ -130,6 +130,7 @@
       <div class="nav-item" data-nav="almoxarifado" onclick="nav('almoxarifado')"><i class="ti ti-packages"></i> Almoxarifado</div>
       <div class="nav-item" data-nav="descartados" onclick="nav('descartados')"><i class="ti ti-trash-x"></i> Patrimônios descartados</div>
       <div class="nav-item" data-nav="cadastro" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo Cadastro</div>
+      <div class="nav-item" data-nav="lembretes" onclick="nav('lembretes')"><i class="ti ti-calendar-event"></i> Lembretes <span class="nav-badge" id="nav-lembretes-badge"></span></div>
     </div>
     <div class="nav-group">
       <div class="nav-label">Dados</div>
@@ -244,6 +245,42 @@
           </div>
         </div>
         <div class="card"><div class="table-wrap"><table><thead><tr id="desc-head"></tr></thead><tbody id="desc-tbody"></tbody></table></div></div>
+      </div>
+
+      <!-- LEMBRETES -->
+      <div class="page" id="page-lembretes">
+        <div class="page-header">
+          <div class="filtros-topo">
+            <select class="f-input" id="flembrete" onchange="renderLembretes()">
+              <option value="pendentes">Pendentes</option>
+              <option value="todos">Todos</option>
+              <option value="concluidos">Concluídos</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-primary" onclick="novoLembrete()"><i class="ti ti-plus"></i> Novo lembrete</button>
+          </div>
+        </div>
+        <div class="lembrete-layout">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" id="cal-titulo">—</div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-sm" onclick="mudarMes(-1)" title="Mês anterior"><i class="ti ti-chevron-left"></i></button>
+                <button class="btn btn-sm" onclick="mudarMes(0)">Hoje</button>
+                <button class="btn btn-sm" onclick="mudarMes(1)" title="Próximo mês"><i class="ti ti-chevron-right"></i></button>
+              </div>
+            </div>
+            <div class="cal-grade" id="cal-grade"></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Lembretes</div>
+              <span class="dash-cab-extra" id="lembrete-resumo"></span>
+            </div>
+            <div class="lembrete-lista" id="lembrete-lista"></div>
+          </div>
+        </div>
       </div>
 
       <!-- CADASTRO -->
@@ -536,6 +573,34 @@
      quando formEmModal está ligado). -->
 <!-- Cadastro e edição de um patrimônio descartado. Formulário próprio: esta
      aba não compartilha nada com o cadastro do patrimônio ativo. -->
+<!-- Cadastro e edição de um lembrete. -->
+<div id="lemb-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)fecharLembrete()">
+  <div class="modal" style="max-width:560px">
+    <div class="fm-topo">
+      <div class="modal-title" id="lemb-titulo-modal">Novo lembrete</div>
+      <button type="button" class="fm-fechar" onclick="fecharLembrete()" aria-label="Fechar">&times;</button>
+    </div>
+    <form onsubmit="salvarLembrete(event)">
+      <div class="form-grid">
+        <div class="fg"><label class="flabel">Data<span class="req">*</span></label>
+          <input class="finput" type="date" id="l_data" required><div class="fhint"></div></div>
+        <div class="fg"><label class="flabel">Bem relacionado</label>
+          <input class="finput" id="l_ref" list="lista-bens" placeholder="Opcional — patrimônio ou item">
+          <div class="fhint">Opcional</div></div>
+        <datalist id="lista-bens"></datalist>
+        <div class="fg full"><label class="flabel">Do que se trata<span class="req">*</span></label>
+          <input class="finput" id="l_titulo" required maxlength="160" placeholder="Ex: Trocar o toner da impressora da recepção"></div>
+        <div class="fg full"><label class="flabel">Observações</label>
+          <textarea class="finput" id="l_obs" rows="4" style="resize:vertical" placeholder="Detalhes do lembrete: o que precisa ser feito, com quem falar, número da nota..."></textarea></div>
+      </div>
+      <div class="modal-footer" style="margin-top:1.25rem">
+        <button type="button" class="btn" onclick="fecharLembrete()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="lemb-salvar"><i class="ti ti-device-floppy"></i> Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div id="desc-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)fecharDescartado()">
   <div class="modal" style="max-width:620px">
     <div class="fm-topo">

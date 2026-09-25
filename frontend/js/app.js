@@ -18,6 +18,9 @@ let S = {
   // não entra em nenhuma conta do sistema e nada se move entre ela e o
   // patrimônio ativo — ver descartadosRoutes.js.
   descartados: [], descartadosErro: null, lastFilteredDesc: [], editDescId: null,
+
+  // LEMBRETES (recados com data, iguais para todo mundo).
+  lembretes: [], lembretesErro: null, editLembreteId: null,
   editAlmoxId: null,
   tipoCadastro: 'patrimonio'   // o que o seletor do topo do Cadastro está mostrando
 };
@@ -227,6 +230,7 @@ function nav(p) {
   if (p === 'lista')     { populateFilters(); renderLista(); }
   if (p === 'almoxarifado') { populateFiltersAlmox(); renderAlmox(); }
   if (p === 'descartados')  { carregarDescartados(); }
+  if (p === 'lembretes')    { carregarLembretes(); }
   // O botão do topo cadastra o que a aba aberta mostra: estando no
   // almoxarifado, "Novo Patrimônio" abriria o formulário errado.
   const rotulo = document.getElementById('btn-novo-label');
@@ -345,7 +349,6 @@ function actionButtons(id) {
   </div>`;
 }
 
-// ─── DASHBOARD ───────────────────────────────────────────────
 // ─── DASHBOARD ───────────────────────────────────────────────
 // Tudo aqui é contado do que já está na memória (S.items e S.almox, que a tela
 // baixa uma vez e o /carimbo mantém atualizados). Nenhum número deste painel
@@ -792,6 +795,225 @@ function renderLista() {
         <td>${actionButtons(it.id)}</td>
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="10">Nenhum resultado encontrado</td></tr>';
+}
+
+// ─── LEMBRETES ───────────────────────────────────────────────
+// Recados com data, iguais para todo mundo: o calendário mostra o mês e a
+// lista ao lado mostra o que está pendente. O aviso no menu conta o que vence
+// hoje ou já passou — é o que faz o lembrete servir para alguma coisa.
+
+// Mês aberto no calendário (1º dia).
+let _mesCal = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+const MESES = ['janeiro','fevereiro','março','abril','maio','junho',
+               'julho','agosto','setembro','outubro','novembro','dezembro'];
+
+function isoDe(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+async function carregarLembretes() {
+  try {
+    S.lembretes = await DB.loadLembretes();
+    S.lembretesErro = null;
+  } catch (e) {
+    S.lembretes = [];
+    S.lembretesErro = e.message;
+  }
+  renderLembretes();
+  marcarLembretesNoMenu();
+}
+
+// Pendente com data de hoje ou anterior. É o número que aparece no menu.
+function lembretesParaHoje() {
+  const hoje = isoDe(new Date());
+  return S.lembretes.filter(l => !l.concluido && l.data_lembrete <= hoje);
+}
+
+function marcarLembretesNoMenu() {
+  const el = document.getElementById('nav-lembretes-badge'); if (!el) return;
+  const n = lembretesParaHoje().length;
+  el.textContent = n || '';
+  el.style.display = n ? '' : 'none';
+}
+
+function mudarMes(passo) {
+  _mesCal = passo === 0
+    ? new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+    : new Date(_mesCal.getFullYear(), _mesCal.getMonth() + passo, 1);
+  renderLembretes();
+}
+
+function renderLembretes() {
+  const grade = document.getElementById('cal-grade'); if (!grade) return;
+
+  if (S.lembretesErro) {
+    document.getElementById('cal-titulo').textContent = 'Lembretes';
+    grade.innerHTML = `<div style="padding:1rem;font-size:13px;color:var(--danger-txt);grid-column:1/-1">
+      <strong>Não consegui carregar os lembretes:</strong> ${esc(S.lembretesErro)}<br>
+      <span style="font-size:12px;color:var(--txt3)">Se a mensagem fala em tabela que não existe, falta rodar
+      <code>api/sql/08_lembretes.sql</code> no banco ESTOQUE_TI e reiniciar o serviço da API.</span>
+    </div>`;
+    document.getElementById('lembrete-lista').innerHTML = '';
+    return;
+  }
+
+  const hoje = isoDe(new Date());
+  const ano = _mesCal.getFullYear(), mes = _mesCal.getMonth();
+  document.getElementById('cal-titulo').textContent = MESES[mes] + ' de ' + ano;
+
+  // Agrupa por dia uma vez só: varrer a lista inteira em cada célula custaria
+  // 42 voltas por mês à toa.
+  const porDia = new Map();
+  S.lembretes.forEach(l => {
+    const arr = porDia.get(l.data_lembrete) || [];
+    arr.push(l); porDia.set(l.data_lembrete, arr);
+  });
+
+  const primeiro = new Date(ano, mes, 1).getDay();      // domingo = 0
+  const dias = new Date(ano, mes + 1, 0).getDate();
+  let h = ['D','S','T','Q','Q','S','S'].map(d => `<div class="cal-cab">${d}</div>`).join('');
+  for (let i = 0; i < primeiro; i++) h += '<div class="cal-dia vazio"></div>';
+  for (let d = 1; d <= dias; d++) {
+    const iso = isoDe(new Date(ano, mes, d));
+    const doDia = porDia.get(iso) || [];
+    const pendentes = doDia.filter(l => !l.concluido);
+    const classe = ['cal-dia'];
+    if (iso === hoje) classe.push('hoje');
+    if (pendentes.length && iso < hoje) classe.push('atrasado');
+    else if (pendentes.length) classe.push('tem');
+    h += `<div class="${classe.join(' ')}" onclick="novoLembrete('${escJs(iso)}')" title="Clique para criar um lembrete neste dia">
+      <span class="cal-num">${d}</span>
+      ${doDia.slice(0, 2).map(l => `<span class="cal-item${l.concluido ? ' feito' : ''}" onclick="event.stopPropagation();editarLembrete(${l.id})" title="${esc(l.titulo)}">${esc(l.titulo)}</span>`).join('')}
+      ${doDia.length > 2 ? `<span class="cal-mais">+${doDia.length - 2}</span>` : ''}
+    </div>`;
+  }
+  grade.innerHTML = h;
+
+  // ── Lista ao lado ──
+  const filtro = (document.getElementById('flembrete') || {}).value || 'pendentes';
+  const lista = S.lembretes.filter(l =>
+    filtro === 'todos' ? true : (filtro === 'concluidos' ? l.concluido : !l.concluido));
+  const atrasados = lembretesParaHoje().length;
+  document.getElementById('lembrete-resumo').textContent =
+    atrasados ? `${atrasados} para hoje ou atrasado(s)` : 'nada atrasado';
+
+  document.getElementById('lembrete-lista').innerHTML = lista.length
+    ? lista.map(l => {
+        const atrasado = !l.concluido && l.data_lembrete < hoje;
+        const ehHoje   = !l.concluido && l.data_lembrete === hoje;
+        return `<div class="lembrete-item${l.concluido ? ' feito' : ''}${atrasado ? ' atrasado' : ''}">
+          <div class="lembrete-topo">
+            <span class="lembrete-data">${esc(fmtDate(l.data_lembrete))}${atrasado ? ' · atrasado' : (ehHoje ? ' · hoje' : '')}</span>
+            <div class="actions-cell">
+              <button class="btn btn-sm" onclick="alternarLembrete(${l.id}, ${l.concluido ? 'false' : 'true'})" title="${l.concluido ? 'Reabrir' : 'Concluir'}">
+                <i class="ti ti-${l.concluido ? 'rotate' : 'check'}"></i></button>
+              <button class="btn btn-sm" onclick="editarLembrete(${l.id})" title="Editar"><i class="ti ti-edit"></i></button>
+              <button class="btn btn-sm" style="border-color:var(--danger-txt);color:var(--danger-txt)" onclick="excluirLembrete(${l.id})" title="Excluir"><i class="ti ti-trash"></i></button>
+            </div>
+          </div>
+          <div class="lembrete-titulo">${esc(l.titulo)}</div>
+          ${l.referencia ? `<div class="lembrete-ref"><i class="ti ti-link"></i> ${esc(l.referencia)}</div>` : ''}
+          ${l.observacoes ? `<div class="lembrete-obs">${esc(l.observacoes)}</div>` : ''}
+        </div>`;
+      }).join('')
+    : '<div class="dash-vazio" style="padding:1rem">Nenhum lembrete aqui.</div>';
+}
+
+// Sugestões do campo "bem relacionado": patrimônios e itens do almoxarifado.
+// Vai como TEXTO — o lembrete continua valendo depois que o bem sai.
+function sugestoesDeBens() {
+  const el = document.getElementById('lista-bens'); if (!el) return;
+  const bens = [
+    ...S.items.map(i => `${i.patrimonio} — ${(i.nome || '')} ${(i.modelo || '')}`.trim()),
+    ...S.almox.map(i => i.item)
+  ];
+  el.innerHTML = bens.map(b => `<option value="${esc(b)}"></option>`).join('');
+}
+
+function abrirLembModal(titulo) {
+  sugestoesDeBens();
+  document.getElementById('lemb-titulo-modal').textContent = titulo;
+  document.getElementById('lemb-modal').style.display = 'flex';
+}
+
+function novoLembrete(dataISO) {
+  if (!can('cadastrar')) { showToast('Sem permissão para criar lembretes.', 'err'); return; }
+  S.editLembreteId = null;
+  abrirLembModal('Novo lembrete');
+  document.getElementById('l_data').value  = dataISO || isoDe(new Date());
+  document.getElementById('l_titulo').value = '';
+  document.getElementById('l_obs').value    = '';
+  document.getElementById('l_ref').value    = '';
+  document.getElementById('l_titulo').focus();
+}
+
+function editarLembrete(id) {
+  const l = S.lembretes.find(x => x.id === id); if (!l) return;
+  S.editLembreteId = id;
+  abrirLembModal('Editar lembrete');
+  document.getElementById('l_data').value   = l.data_lembrete || '';
+  document.getElementById('l_titulo').value = l.titulo || '';
+  document.getElementById('l_obs').value    = l.observacoes || '';
+  document.getElementById('l_ref').value    = l.referencia || '';
+}
+
+function fecharLembrete() {
+  document.getElementById('lemb-modal').style.display = 'none';
+  S.editLembreteId = null;
+}
+
+async function salvarLembrete(e) {
+  e.preventDefault();
+  const val = id => (document.getElementById(id) || {}).value.trim();
+  const item = {
+    data_lembrete: val('l_data'),
+    titulo:        val('l_titulo'),
+    observacoes:   val('l_obs'),
+    referencia:    val('l_ref')
+  };
+  if (!item.data_lembrete) { showToast('Escolha a data do lembrete.', 'err'); return; }
+  if (!item.titulo)        { showToast('Escreva do que se trata o lembrete.', 'err'); return; }
+
+  const btn = document.getElementById('lemb-salvar');
+  btn.disabled = true;
+  showLoading('Salvando...');
+  try {
+    if (S.editLembreteId != null) await DB.updateLembrete(S.editLembreteId, item);
+    else                          await DB.createLembrete(item);
+    showToast(S.editLembreteId != null ? '✅ Lembrete atualizado!' : '✅ Lembrete criado!');
+    fecharLembrete();
+    await carregarLembretes();
+  } catch (ex) {
+    showToast('Erro ao salvar: ' + ex.message, 'err');
+  } finally {
+    hideLoading();
+    btn.disabled = false;
+  }
+}
+
+async function alternarLembrete(id, concluido) {
+  try {
+    await DB.concluirLembrete(id, concluido);
+    await carregarLembretes();
+  } catch (e) { showToast('Erro: ' + e.message, 'err'); }
+}
+
+async function excluirLembrete(id) {
+  const l = S.lembretes.find(x => x.id === id) || {};
+  const ok = await confirmar({
+    titulo: 'Excluir lembrete',
+    texto: `Excluir <strong>${esc(l.titulo || '')}</strong>?<br><br>Isso apaga só o lembrete.`,
+    botao: 'Excluir'
+  });
+  if (!ok) return;
+  showLoading('Excluindo...');
+  try {
+    await DB.deleteLembrete(id);
+    showToast('Lembrete excluído.');
+    await carregarLembretes();
+  } catch (e) { showToast('Erro ao excluir: ' + e.message, 'err'); }
+  finally    { hideLoading(); }
 }
 
 // ─── PATRIMÔNIOS DESCARTADOS ─────────────────────────────────
@@ -2085,185 +2307,6 @@ async function delAlmox(id) {
     renderAlmox();
   } catch (e) { showToast('Erro ao excluir: ' + e.message, 'err'); }
   finally    { hideLoading(); }
-}
-
-// ─── PATRIMÔNIOS DESCARTADOS ─────────────────────────────────
-// Arquivo morto dos bens antigos (50562, 50563...). Tabela própria, com índice
-// único próprio: o mesmo número pode existir aqui e na numeração nova, que é
-// justamente o motivo desta aba existir. Nada se move entre as duas listas.
-
-async function carregarDescartados() {
-  try {
-    S.descartados = await DB.loadDescartados();
-    S.descartadosErro = null;
-  } catch (e) {
-    S.descartados = [];
-    S.descartadosErro = e.message;
-  }
-  populateFiltersDesc();
-  renderDescartados();
-}
-
-function populateFiltersDesc() {
-  const fc = document.getElementById('fcat-desc'); if (!fc) return;
-  const v = fc.value;
-  fc.innerHTML = '<option value="">Todas as categorias</option>' +
-    S.cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
-  fc.value = v;
-}
-
-function renderDescartados() {
-  const tb = document.getElementById('desc-tbody'); if (!tb) return;
-
-  if (S.descartadosErro) {
-    document.getElementById('desc-head').innerHTML = '<th>Patrimônios descartados</th>';
-    tb.innerHTML = `<tr><td style="padding:1rem;font-size:13px;color:var(--danger-txt)">
-      <strong>Não consegui carregar os descartados:</strong> ${esc(S.descartadosErro)}<br>
-      <span style="font-size:12px;color:var(--txt3)">Se a mensagem fala em tabela que não existe, falta rodar
-      <code>api/sql/07_patrimonio_descartado.sql</code> no banco ESTOQUE_TI e reiniciar o serviço da API.</span>
-    </td></tr>`;
-    return;
-  }
-
-  const srch = (document.getElementById('srch-desc').value || '').toLowerCase();
-  const catF = document.getElementById('fcat-desc').value;
-  const campos = i => [i.patrimonio, i.nome, i.modelo, i.serie, i.motivo];
-
-  const filtrados = S.descartados.filter(i => {
-    if (srch && !campos(i).some(v => (v || '').toLowerCase().includes(srch))) return false;
-    if (catF && !(i.categoria || []).includes(catF)) return false;
-    return true;
-  });
-  const ordenados = ordenarLinhas(filtrados, 'desc');
-  S.lastFilteredDesc = ordenados;
-
-  document.getElementById('desc-head').innerHTML = cabecalhoOrdenavel('desc');
-  tb.innerHTML = ordenados.length ? ordenados.map(i => `<tr>
-      <td><strong>${esc(i.patrimonio || '—')}</strong></td>
-      <td>${esc(i.nome || '—')}</td>
-      <td>${esc(i.modelo || '—')}</td>
-      <td>${esc(i.serie || '—')}</td>
-      <td>${catPills(i.categoria)}</td>
-      <td>${i.data_descarte ? esc(fmtDate(i.data_descarte)) : '—'}</td>
-      <td style="font-size:12px;color:var(--txt2)">${esc(i.motivo || '—')}</td>
-      <td>${acoesDescartado(i.id)}</td>
-    </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="8">Nenhum patrimônio descartado cadastrado</td></tr>';
-}
-
-function acoesDescartado(id) {
-  const edOk  = can('editar');
-  const delOk = can('excluir');
-  const dis = (ok, tip) => !ok ? `disabled title="${esc(tip)}" style="opacity:.4;cursor:not-allowed"` : '';
-  return `<div class="actions-cell">
-    <button class="btn btn-sm" onclick="${edOk ? `editarDescartado(${id})` : ''}" ${dis(edOk, 'Sem permissão para editar')} title="${edOk ? 'Editar' : 'Sem permissão'}"><i class="ti ti-edit"></i> <span class="btn-label">Editar</span></button>
-    <button class="btn btn-sm" style="${delOk ? 'border-color:var(--danger-txt);color:var(--danger-txt)' : 'opacity:.4;cursor:not-allowed'}" onclick="${delOk ? `excluirDescartado(${id})` : ''}" ${dis(delOk, 'Sem permissão para excluir')} title="${delOk ? 'Excluir' : 'Sem permissão'}"><i class="ti ti-trash"></i> <span class="btn-label">Excluir</span></button>
-  </div>`;
-}
-
-function abrirDescModal(titulo) {
-  const cat = document.getElementById('d_categoria');
-  cat.innerHTML = '<option value="">Selecione...</option>' +
-    S.cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
-  document.getElementById('desc-titulo').textContent = titulo;
-  document.getElementById('desc-modal').style.display = 'flex';
-}
-
-function novoDescartado() {
-  if (!can('cadastrar')) { showToast('Sem permissão para cadastrar.', 'err'); return; }
-  S.editDescId = null;
-  abrirDescModal('Novo patrimônio descartado');
-  ['d_patrimonio','d_nome','d_modelo','d_serie','d_data','d_motivo'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('d_categoria').value = '';
-  document.getElementById('d_patrimonio').focus();
-}
-
-function editarDescartado(id) {
-  const it = S.descartados.find(x => x.id === id); if (!it) return;
-  S.editDescId = id;
-  abrirDescModal('Editar descartado');
-  document.getElementById('d_patrimonio').value = it.patrimonio || '';
-  document.getElementById('d_nome').value       = it.nome || '';
-  document.getElementById('d_modelo').value     = it.modelo || '';
-  document.getElementById('d_serie').value      = it.serie || '';
-  document.getElementById('d_categoria').value  = (it.categoria || [])[0] || '';
-  document.getElementById('d_data').value       = it.data_descarte || '';
-  document.getElementById('d_motivo').value     = it.motivo || '';
-}
-
-function fecharDescartado() {
-  document.getElementById('desc-modal').style.display = 'none';
-  S.editDescId = null;
-}
-
-async function salvarDescartado(e) {
-  e.preventDefault();
-  const val = id => (document.getElementById(id) || {}).value.trim();
-  const item = {
-    patrimonio: val('d_patrimonio'),
-    nome:       val('d_nome'),
-    modelo:     val('d_modelo'),
-    serie:      val('d_serie'),
-    categoria:  val('d_categoria') ? [val('d_categoria')] : [],
-    data_descarte: val('d_data'),
-    motivo:     val('d_motivo')
-  };
-  if (!item.patrimonio) { showToast('Informe o Nº Patrimônio.', 'err'); return; }
-
-  const btn = document.getElementById('desc-salvar');
-  btn.disabled = true;
-  showLoading('Salvando...');
-  try {
-    if (S.editDescId != null) await DB.updateDescartado(S.editDescId, item);
-    else                      await DB.createDescartado(item);
-    showToast(S.editDescId != null ? '✅ Descartado atualizado!' : '✅ Descartado cadastrado!');
-    fecharDescartado();
-    await carregarDescartados();
-  } catch (ex) {
-    showToast('Erro ao salvar: ' + ex.message, 'err');
-  } finally {
-    hideLoading();
-    btn.disabled = false;
-  }
-}
-
-async function excluirDescartado(id) {
-  const it = S.descartados.find(x => x.id === id) || {};
-  const ok = await confirmar({
-    titulo: 'Excluir descartado',
-    texto: `Excluir <strong>${esc(it.patrimonio || '')}</strong> do arquivo de descartados?<br><br>` +
-           'Isso apaga só este registro de documentação — nada no patrimônio ativo muda.',
-    botao: 'Excluir'
-  });
-  if (!ok) return;
-  showLoading('Excluindo...');
-  try {
-    await DB.deleteDescartado(id);
-    showToast('Descartado excluído.');
-    await carregarDescartados();
-  } catch (e) { showToast('Erro ao excluir: ' + e.message, 'err'); }
-  finally    { hideLoading(); }
-}
-
-// Exporta a lista como ela está na tela (filtro e ordenação inclusive).
-function exportarDescartados() {
-  const linhas = (S.lastFilteredDesc.length ? S.lastFilteredDesc : S.descartados).map(i => ({
-    'Nº Patrimônio': i.patrimonio || '',
-    'Marca': i.nome || '',
-    'Modelo': i.modelo || '',
-    'N° Série': i.serie || '',
-    'Categoria': (i.categoria || []).map(id => getCat(id).name).join(', '),
-    'Data do Descarte': i.data_descarte || '',
-    'Motivo': i.motivo || ''
-  }));
-  if (!linhas.length) { showToast('Nenhum descartado para exportar.', 'err'); return; }
-  const ws = XLSX.utils.json_to_sheet(linhas);
-  ws['!cols'] = [{wch:16},{wch:18},{wch:22},{wch:22},{wch:16},{wch:18},{wch:40}];
-  styleSheet(ws);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Descartados');
-  const hoje = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
-  XLSX.writeFile(wb, `patrimonios_descartados_${hoje}.xlsx`);
 }
 
 // ─── FORMULÁRIO ──────────────────────────────────────────────

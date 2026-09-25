@@ -319,6 +319,27 @@ explicando o que falta e o resto do sistema continua funcionando.
 
 ---
 
+## Lembretes
+
+Aba com **calendário do mês** e a lista ao lado. Um lembrete tem **data**, uma
+frase curta do que se trata (é o que aparece no dia do calendário),
+**observações** para o detalhe e, se quiser, o **bem relacionado**.
+
+- Os lembretes são **de todos**: quem abre a aba vê os mesmos. O registro guarda
+  quem criou e quem concluiu.
+- Clicar num dia do calendário já abre o formulário com aquela data.
+- Cada lembrete pode ser **concluído** (e reaberto). O que está pendente com
+  data de hoje ou anterior aparece em vermelho no calendário e como um
+  **contador vermelho no menu** — é o que faz o lembrete servir para alguma
+  coisa.
+- O **bem relacionado** é guardado como texto ("000012 — Epson L3250"), com
+  sugestões dos patrimônios e itens já cadastrados. Texto, e não id, porque
+  excluir o bem não pode deixar o lembrete apontando para o vazio.
+
+Tabela `app.lembrete` (migração 08).
+
+---
+
 ## Patrimônios descartados
 
 Aba à parte, para **documentar bens antigos que já foram descartados** — os que

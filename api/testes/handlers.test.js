@@ -56,6 +56,7 @@ require.cache[dbPath] = {
 const { patrimoniosRoutes } = require(path.join(API, 'src/patrimoniosRoutes'));
 const { almoxarifadoRoutes } = require(path.join(API, 'src/almoxarifadoRoutes'));
 const { descartadosRoutes }  = require(path.join(API, 'src/descartadosRoutes'));
+const { lembretesRoutes }    = require(path.join(API, 'src/lembretesRoutes'));
 const { configRoutes }      = require(path.join(API, 'src/configRoutes'));
 const { usuariosRoutes }    = require(path.join(API, 'src/usuariosRoutes'));
 const { auditoriaRoutes }   = require(path.join(API, 'src/auditoria'));
@@ -63,7 +64,7 @@ const { authRoutes, sessaoValida, invalidarCacheAtivos } = require(path.join(API
 const auth                  = require(path.join(API, 'src/auth'));
 
 const todas = [...authRoutes, ...configRoutes, ...patrimoniosRoutes, ...almoxarifadoRoutes,
-               ...descartadosRoutes, ...auditoriaRoutes, ...usuariosRoutes];
+               ...descartadosRoutes, ...lembretesRoutes, ...auditoriaRoutes, ...usuariosRoutes];
 const rota = (metodo, caminho) => {
   const r = todas.find(x => x.method === metodo && x.path === caminho);
   if(!r) throw new Error('rota nao registrada: ' + metodo + ' ' + caminho);
@@ -966,6 +967,63 @@ await teste('simular importacao nunca grava', async () => {
   }, ADMIN);
   igual([r.gravado, r.erros.length], [false, 0], 'conferiu sem erro e sem gravar');
   if(consultas.some(c => c.sql.startsWith('INSERT'))) throw new Error('gravou na simulacao');
+});
+
+console.log('\n— LEMBRETES —');
+
+await teste('listar lembretes devolve o formato da tela', async () => {
+  respostas = [[{ n: 1 }],
+    [{ id: 1, data_lembrete: '2026-10-01', titulo: 'Trocar toner', observacoes: null,
+       referencia: '000012', concluido: false, concluido_em: null, concluido_por: null,
+       criado_por: 'ana', criado_em: new Date() }]];
+  const r = await rota('GET', '/api/v1/lembretes').handler(qs(), null, ADMIN);
+  igual([r[0].titulo, r[0].observacoes, r[0].concluido], ['Trocar toner', '', false], 'campos');
+});
+
+await teste('criar lembrete exige data e do que se trata', async () => {
+  await lanca(() => rota('POST', '/api/v1/lembretes').handler(qs(), {
+    item: { titulo: 'sem data' }
+  }, ADMIN), 'escolha a data do lembrete');
+  await lanca(() => rota('POST', '/api/v1/lembretes').handler(qs(), {
+    item: { data_lembrete: '2026-10-01' }
+  }, ADMIN), 'escreva do que se trata');
+  // Data fora do formato conta como data em branco.
+  await lanca(() => rota('POST', '/api/v1/lembretes').handler(qs(), {
+    item: { data_lembrete: '01/10/2026', titulo: 'x' }
+  }, ADMIN), 'escolha a data do lembrete');
+  igual(consultas.length, 0, 'consultas disparadas');
+});
+
+await teste('criar lembrete grava data, titulo e o bem relacionado', async () => {
+  respostas = [[{ id: 5 }]];
+  const r = await rota('POST', '/api/v1/lembretes').handler(qs(), {
+    item: { data_lembrete: '2026-10-01', titulo: ' Trocar toner ',
+            observacoes: 'antes de acabar', referencia: '000012 — Epson L3250' }
+  }, ADMIN);
+  igual(r.id, 5, 'id devolvido');
+  const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.lembrete'));
+  igual([ins.entradas.data, ins.entradas.titulo, ins.entradas.ref],
+        ['2026-10-01', 'Trocar toner', '000012 — Epson L3250'], 'campos gravados');
+});
+
+await teste('concluir e reabrir mexem so no estado', async () => {
+  respostas = [[{ titulo: 'Trocar toner', concluido: false }], []];
+  await rota('POST', '/api/v1/lembretes/concluir').handler(qs(), { id: 5, concluido: true }, ADMIN);
+  let upd = consultas.find(c => c.sql.startsWith('UPDATE app.lembrete'));
+  igual([upd.entradas.feito, upd.entradas.por], [1, 'admin'], 'concluido por quem clicou');
+
+  consultas.length = 0;
+  respostas = [[{ titulo: 'Trocar toner', concluido: true }], []];
+  await rota('POST', '/api/v1/lembretes/concluir').handler(qs(), { id: 5, concluido: false }, ADMIN);
+  upd = consultas.find(c => c.sql.startsWith('UPDATE app.lembrete'));
+  igual([upd.entradas.feito, upd.entradas.por], [0, null], 'reabrir limpa quem concluiu');
+});
+
+await teste('lembrete inexistente avisa em vez de gravar', async () => {
+  respostas = [[]];
+  await lanca(() => rota('POST', '/api/v1/lembretes/excluir').handler(qs(), { id: 999 }, ADMIN),
+              'lembrete nao encontrado');
+  if(consultas.some(c => c.sql.startsWith('DELETE'))) throw new Error('apagou mesmo assim');
 });
 
 console.log('\n— AUDITORIA —');

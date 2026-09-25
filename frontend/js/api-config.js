@@ -197,6 +197,19 @@ const DB = {
 
   bulkCreateDescartados(rows, simular){ return _post('/descartados/importar', { rows, simular: !!simular }); },
 
+  // ── LEMBRETES ────────────────────────────────────────────────
+  // Recados com data, iguais para todo mundo. O vinculo com um bem vai como
+  // TEXTO (ver lembretesRoutes.js).
+  loadLembretes(){ return _get('/lembretes'); },
+
+  async createLembrete(item){ const r = await _post('/lembretes', { item }); return r.id; },
+
+  updateLembrete(id, item){ return _post('/lembretes/atualizar', { id, item }); },
+
+  concluirLembrete(id, concluido){ return _post('/lembretes/concluir', { id, concluido }); },
+
+  deleteLembrete(id){ return _post('/lembretes/excluir', { id }); },
+
   // ── ATUALIZACAO AUTOMATICA ───────────────────────────────────
   // O SQL Server nao tem o "realtime" do Supabase. Em vez de abrir um canal, a
   // tela pergunta a cada INTERVALO se alguma coisa mudou: a rota /carimbo

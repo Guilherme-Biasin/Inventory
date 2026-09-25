@@ -218,6 +218,21 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
           atualizar a VM (git pull + restart).
       Testes: 91 no npm test.
 
+[ OK ] ETAPA 16 - LEMBRETES  -- 25/09/2026
+      Aba com calendario do mes e lista ao lado, para anotar o que
+      precisa ser feito (trocar toner, conferir garantia...).
+      [OK] Banco: app.lembrete (migracao 08) - data, titulo,
+           observacoes, bem relacionado (TEXTO), concluido/por/quando.
+      [OK] API: lembretesRoutes.js - listar, criar, editar, concluir e
+           reabrir, excluir, tudo com auditoria. Sem a migracao 08 a
+           aba explica o que fazer em vez de quebrar.
+      [OK] Tela: calendario clicavel (clicar no dia ja abre o
+           formulario naquela data), lista com filtro
+           pendentes/todos/concluidos, atrasado em vermelho e contador
+           no menu do que e para hoje ou ja passou.
+      [ ] PENDENTE: rodar 08_lembretes.sql no SSMS e atualizar a VM.
+      Testes: 96 no npm test.
+
 [    ] ETAPA 10 - FECHAMENTO DA VERSAO 1.0
       Revisao final, documentacao conferida contra o codigo, tag v1.0
       no Git e entrega.

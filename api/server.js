@@ -19,6 +19,7 @@ const { configRoutes }       = require('./src/configRoutes');
 const { patrimoniosRoutes }  = require('./src/patrimoniosRoutes');
 const { almoxarifadoRoutes } = require('./src/almoxarifadoRoutes');
 const { descartadosRoutes } = require('./src/descartadosRoutes');
+const { lembretesRoutes } = require('./src/lembretesRoutes');
 const { usuariosRoutes }     = require('./src/usuariosRoutes');
 const { auditoriaRoutes }    = require('./src/auditoria');
 const auth = require('./src/auth');
@@ -144,6 +145,7 @@ const rotas = [
   ...patrimoniosRoutes,
   ...almoxarifadoRoutes,
   ...descartadosRoutes,
+  ...lembretesRoutes,
   ...auditoriaRoutes,
   ...usuariosRoutes
 ];

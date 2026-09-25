@@ -102,6 +102,31 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_descartado_numero' AND
 GO
 
 -- ------------------------------------------------------------
+-- LEMBRETE — recados com data, de todos para todos. Ver a migracao
+-- 08_lembretes.sql. O vinculo com um bem e TEXTO de proposito:
+-- excluir o patrimonio nao pode deixar o lembrete orfao.
+-- ------------------------------------------------------------
+IF OBJECT_ID('app.lembrete') IS NULL
+CREATE TABLE app.lembrete (
+  id            INT IDENTITY(1,1) CONSTRAINT pk_lembrete PRIMARY KEY,
+  data_lembrete DATE            NOT NULL,
+  titulo        VARCHAR(160)    NOT NULL,
+  observacoes   NVARCHAR(1000)  NULL,
+  referencia    VARCHAR(160)    NULL,
+  concluido     BIT             NOT NULL CONSTRAINT df_lembrete_concluido DEFAULT 0,
+  concluido_em  DATETIME2(0)    NULL,
+  concluido_por VARCHAR(50)     NULL,
+  criado_em     DATETIME2(0)    NOT NULL CONSTRAINT df_lembrete_criado DEFAULT SYSDATETIME(),
+  criado_por    VARCHAR(50)     NULL,
+  atualizado_em DATETIME2(0)    NOT NULL CONSTRAINT df_lembrete_atualizado DEFAULT SYSDATETIME()
+);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_lembrete_data' AND object_id = OBJECT_ID('app.lembrete'))
+  CREATE INDEX ix_lembrete_data ON app.lembrete(data_lembrete, concluido);
+GO
+
+-- ------------------------------------------------------------
 -- MOVIMENTACAO — o historico. ON DELETE CASCADE reproduz o
 -- comportamento do Supabase: apagar o patrimonio leva o historico
 -- junto (a tela avisa disso antes de excluir).
