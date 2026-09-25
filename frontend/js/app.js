@@ -802,14 +802,31 @@ function renderLista() {
 // lista ao lado mostra o que está pendente. O aviso no menu conta o que vence
 // hoje ou já passou — é o que faz o lembrete servir para alguma coisa.
 
-// Mês aberto no calendário (1º dia).
+// Mês aberto no calendário (1º dia) e o modo de visualização.
 let _mesCal = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let _modoCal = 'mes';   // 'mes' | 'semana' | 'lista'
 
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho',
                'julho','agosto','setembro','outubro','novembro','dezembro'];
+const MES_CURTO = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
 function isoDe(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// "Hoje", "Em 3 dias", "Há 2 dias"... É o que a coluna da direita mostra.
+function quandoEm(iso) {
+  const d = diasAte(iso);
+  if (d === null) return '';
+  if (d === 0) return 'Hoje';
+  if (d === 1) return 'Amanhã';
+  if (d === -1) return 'Ontem';
+  const n = Math.abs(d);
+  const texto = n < 30  ? n + ' dias'
+              : n < 365 ? Math.round(n / 30) + ' ' + (Math.round(n / 30) === 1 ? 'mês' : 'meses')
+              :           Math.round(n / 365) + ' ' + (Math.round(n / 365) === 1 ? 'ano' : 'anos');
+  return (d < 0 ? 'Há ' : 'Em ') + texto;
 }
 
 async function carregarLembretes() {
@@ -838,29 +855,56 @@ function marcarLembretesNoMenu() {
 }
 
 function mudarMes(passo) {
-  _mesCal = passo === 0
-    ? new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    : new Date(_mesCal.getFullYear(), _mesCal.getMonth() + passo, 1);
+  const hoje = new Date();
+  if (passo === 0) {
+    _mesCal = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  } else if (_modoCal === 'semana') {
+    _mesCal = new Date(_mesCal.getFullYear(), _mesCal.getMonth(), _mesCal.getDate() + passo * 7);
+  } else {
+    _mesCal = new Date(_mesCal.getFullYear(), _mesCal.getMonth() + passo, 1);
+  }
   renderLembretes();
 }
 
+function mudarModoCal(modo) {
+  // Entrando na semana, mostra a semana de HOJE quando o calendario esta no mes
+  // corrente — senao cairia sempre na semana do dia 1, que quase nunca e a que
+  // interessa.
+  if (modo === 'semana') {
+    const hoje = new Date();
+    if (_mesCal.getFullYear() === hoje.getFullYear() && _mesCal.getMonth() === hoje.getMonth()) {
+      _mesCal = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    }
+  }
+  _modoCal = modo;
+  renderLembretes();
+}
+
+function verTodosLembretes() {
+  document.getElementById('flembrete').value = 'todos';
+  renderLembretes();
+}
+
+// Lembretes de um dia (ISO), na ordem em que foram criados.
+function lembretesDoDia(porDia, iso) { return porDia.get(iso) || []; }
+
 function renderLembretes() {
-  const grade = document.getElementById('cal-grade'); if (!grade) return;
+  const corpo = document.getElementById('cal-corpo'); if (!corpo) return;
 
   if (S.lembretesErro) {
     document.getElementById('cal-titulo').textContent = 'Lembretes';
-    grade.innerHTML = `<div style="padding:1rem;font-size:13px;color:var(--danger-txt);grid-column:1/-1">
+    corpo.innerHTML = `<div style="padding:1.25rem;font-size:13px;color:var(--danger-txt)">
       <strong>Não consegui carregar os lembretes:</strong> ${esc(S.lembretesErro)}<br>
       <span style="font-size:12px;color:var(--txt3)">Se a mensagem fala em tabela que não existe, falta rodar
       <code>api/sql/08_lembretes.sql</code> no banco ESTOQUE_TI e reiniciar o serviço da API.</span>
     </div>`;
     document.getElementById('lembrete-lista').innerHTML = '';
+    document.getElementById('lembrete-proximos').innerHTML = '';
+    document.getElementById('lembrete-kpis').innerHTML = '';
     return;
   }
 
   const hoje = isoDe(new Date());
-  const ano = _mesCal.getFullYear(), mes = _mesCal.getMonth();
-  document.getElementById('cal-titulo').textContent = MESES[mes] + ' de ' + ano;
 
   // Agrupa por dia uma vez só: varrer a lista inteira em cada célula custaria
   // 42 voltas por mês à toa.
@@ -870,33 +914,96 @@ function renderLembretes() {
     arr.push(l); porDia.set(l.data_lembrete, arr);
   });
 
-  const primeiro = new Date(ano, mes, 1).getDay();      // domingo = 0
-  const dias = new Date(ano, mes + 1, 0).getDate();
-  let h = ['D','S','T','Q','Q','S','S'].map(d => `<div class="cal-cab">${d}</div>`).join('');
-  for (let i = 0; i < primeiro; i++) h += '<div class="cal-dia vazio"></div>';
-  for (let d = 1; d <= dias; d++) {
-    const iso = isoDe(new Date(ano, mes, d));
-    const doDia = porDia.get(iso) || [];
-    const pendentes = doDia.filter(l => !l.concluido);
-    const classe = ['cal-dia'];
-    if (iso === hoje) classe.push('hoje');
-    if (pendentes.length && iso < hoje) classe.push('atrasado');
-    else if (pendentes.length) classe.push('tem');
-    h += `<div class="${classe.join(' ')}" onclick="novoLembrete('${escJs(iso)}')" title="Clique para criar um lembrete neste dia">
-      <span class="cal-num">${d}</span>
-      ${doDia.slice(0, 2).map(l => `<span class="cal-item${l.concluido ? ' feito' : ''}" onclick="event.stopPropagation();editarLembrete(${l.id})" title="${esc(l.titulo)}">${esc(l.titulo)}</span>`).join('')}
-      ${doDia.length > 2 ? `<span class="cal-mais">+${doDia.length - 2}</span>` : ''}
-    </div>`;
-  }
-  grade.innerHTML = h;
+  document.querySelectorAll('.cal-modo[data-modo]').forEach(b =>
+    b.classList.toggle('ativo', b.dataset.modo === _modoCal));
 
-  // ── Lista ao lado ──
-  const filtro = (document.getElementById('flembrete') || {}).value || 'pendentes';
+  if (_modoCal === 'lista')       corpo.innerHTML = calendarioLista(hoje);
+  else if (_modoCal === 'semana') corpo.innerHTML = calendarioSemana(porDia, hoje);
+  else                            corpo.innerHTML = calendarioMes(porDia, hoje);
+
+  renderListaLembretes(hoje);
+  renderProximosLembretes(hoje);
+  renderKpisLembretes(hoje);
+}
+
+// Uma célula de dia do calendário.
+function celulaDia(data, porDia, hoje, foraDoMes) {
+  const iso = isoDe(data);
+  const doDia = lembretesDoDia(porDia, iso);
+  const pendentes = doDia.filter(l => !l.concluido);
+  const classe = ['cal-dia'];
+  if (foraDoMes) classe.push('fora');
+  if (iso === hoje) classe.push('hoje');
+  if (pendentes.length && iso < hoje) classe.push('atrasado');
+  else if (pendentes.length) classe.push('tem');
+  return `<div class="${classe.join(' ')}" onclick="novoLembrete('${escJs(iso)}')" title="Clique para criar um lembrete neste dia">
+    <span class="cal-num">${data.getDate()}</span>
+    ${doDia.slice(0, 3).map(l => `<span class="cal-item${l.concluido ? ' feito' : ''}" onclick="event.stopPropagation();editarLembrete(${l.id})" title="${esc(l.titulo)}"><i class="cal-ponto"></i>${esc(l.titulo)}</span>`).join('')}
+    ${doDia.length > 3 ? `<span class="cal-mais">+${doDia.length - 3}</span>` : ''}
+  </div>`;
+}
+
+function calendarioMes(porDia, hoje) {
+  const ano = _mesCal.getFullYear(), mes = _mesCal.getMonth();
+  document.getElementById('cal-titulo').textContent =
+    MESES[mes].charAt(0).toUpperCase() + MESES[mes].slice(1) + ' de ' + ano;
+
+  // Começa no domingo da semana do dia 1 e vai até fechar as linhas: os dias
+  // do mês vizinho aparecem apagados, como num calendário de parede.
+  const primeiro = new Date(ano, mes, 1);
+  const inicio = new Date(ano, mes, 1 - primeiro.getDay());
+  const total = new Date(ano, mes + 1, 0).getDate();
+  const celulas = Math.ceil((primeiro.getDay() + total) / 7) * 7;
+
+  let h = '<div class="cal-grade">';
+  h += DIAS_SEMANA.map(d => `<div class="cal-cab">${d}</div>`).join('');
+  for (let i = 0; i < celulas; i++) {
+    const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i);
+    h += celulaDia(d, porDia, hoje, d.getMonth() !== mes);
+  }
+  return h + '</div>';
+}
+
+function calendarioSemana(porDia, hoje) {
+  const base = new Date(_mesCal.getFullYear(), _mesCal.getMonth(), _mesCal.getDate());
+  const inicio = new Date(base.getFullYear(), base.getMonth(), base.getDate() - base.getDay());
+  const fim = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + 6);
+  document.getElementById('cal-titulo').textContent =
+    `${inicio.getDate()} de ${MESES[inicio.getMonth()]} a ${fim.getDate()} de ${MESES[fim.getMonth()]}`;
+
+  let h = '<div class="cal-grade semana">';
+  h += DIAS_SEMANA.map(d => `<div class="cal-cab">${d}</div>`).join('');
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i);
+    h += celulaDia(d, porDia, hoje, false);
+  }
+  return h + '</div>';
+}
+
+function calendarioLista(hoje) {
+  const futuros = [...S.lembretes].sort((a, b) => a.data_lembrete.localeCompare(b.data_lembrete));
+  document.getElementById('cal-titulo').textContent = 'Todos os lembretes';
+  if (!futuros.length) return '<div class="dash-vazio" style="padding:1.25rem">Nenhum lembrete cadastrado.</div>';
+  return '<div class="cal-listagem">' + futuros.map(l => {
+    const atrasado = !l.concluido && l.data_lembrete < hoje;
+    return `<div class="cal-linha${l.concluido ? ' feito' : ''}${atrasado ? ' atrasado' : ''}" onclick="editarLembrete(${l.id})">
+      <div class="cal-linha-data">
+        <span class="cal-linha-dia">${esc(l.data_lembrete.slice(8, 10))}</span>
+        <span class="cal-linha-mes">${esc(MES_CURTO[Number(l.data_lembrete.slice(5, 7)) - 1] || '')}</span>
+      </div>
+      <div class="cal-linha-texto">
+        <div class="cal-linha-titulo">${esc(l.titulo)}</div>
+        ${l.observacoes ? `<div class="cal-linha-obs">${esc(l.observacoes)}</div>` : ''}
+      </div>
+      <span class="cal-linha-quando">${esc(quandoEm(l.data_lembrete))}</span>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function renderListaLembretes(hoje) {
+  const filtro = (document.getElementById('flembrete') || {}).value || 'todos';
   const lista = S.lembretes.filter(l =>
     filtro === 'todos' ? true : (filtro === 'concluidos' ? l.concluido : !l.concluido));
-  const atrasados = lembretesParaHoje().length;
-  document.getElementById('lembrete-resumo').textContent =
-    atrasados ? `${atrasados} para hoje ou atrasado(s)` : 'nada atrasado';
 
   document.getElementById('lembrete-lista').innerHTML = lista.length
     ? lista.map(l => {
@@ -905,11 +1012,11 @@ function renderLembretes() {
         return `<div class="lembrete-item${l.concluido ? ' feito' : ''}${atrasado ? ' atrasado' : ''}">
           <div class="lembrete-topo">
             <span class="lembrete-data">${esc(fmtDate(l.data_lembrete))}${atrasado ? ' · atrasado' : (ehHoje ? ' · hoje' : '')}</span>
-            <div class="actions-cell">
+            <div class="lembrete-acoes">
               <button class="btn btn-sm" onclick="alternarLembrete(${l.id}, ${l.concluido ? 'false' : 'true'})" title="${l.concluido ? 'Reabrir' : 'Concluir'}">
                 <i class="ti ti-${l.concluido ? 'rotate' : 'check'}"></i></button>
               <button class="btn btn-sm" onclick="editarLembrete(${l.id})" title="Editar"><i class="ti ti-edit"></i></button>
-              <button class="btn btn-sm" style="border-color:var(--danger-txt);color:var(--danger-txt)" onclick="excluirLembrete(${l.id})" title="Excluir"><i class="ti ti-trash"></i></button>
+              <button class="btn btn-sm lembrete-apagar" onclick="excluirLembrete(${l.id})" title="Excluir"><i class="ti ti-trash"></i></button>
             </div>
           </div>
           <div class="lembrete-titulo">${esc(l.titulo)}</div>
@@ -918,6 +1025,47 @@ function renderLembretes() {
         </div>`;
       }).join('')
     : '<div class="dash-vazio" style="padding:1rem">Nenhum lembrete aqui.</div>';
+}
+
+// Os próximos que ainda não foram feitos, do mais perto para o mais longe.
+function renderProximosLembretes(hoje) {
+  const proximos = S.lembretes
+    .filter(l => !l.concluido && l.data_lembrete >= hoje)
+    .sort((a, b) => a.data_lembrete.localeCompare(b.data_lembrete))
+    .slice(0, 5);
+
+  document.getElementById('lembrete-proximos').innerHTML = proximos.length
+    ? proximos.map(l => `<div class="prox-item" onclick="editarLembrete(${l.id})">
+        <div class="prox-data">
+          <span class="prox-dia">${esc(l.data_lembrete.slice(8, 10))}</span>
+          <span class="prox-mes">${esc((MES_CURTO[Number(l.data_lembrete.slice(5, 7)) - 1] || '').toUpperCase())}</span>
+        </div>
+        <div class="prox-texto">
+          <div class="prox-titulo"><i class="cal-ponto"></i>${esc(l.titulo)}</div>
+          ${l.observacoes ? `<div class="prox-obs">${esc(l.observacoes)}</div>` : ''}
+        </div>
+        <span class="prox-quando">${esc(quandoEm(l.data_lembrete))}</span>
+      </div>`).join('')
+    : '<div class="dash-vazio" style="padding:1rem">Nada marcado daqui para a frente.</div>';
+}
+
+function renderKpisLembretes(hoje) {
+  const mes = hoje.slice(0, 7);
+  const kpis = [
+    { rotulo: 'Total de lembretes', valor: S.lembretes.length,                              icone: 'calendar',    cor: '#2563eb' },
+    { rotulo: 'Pendentes',          valor: S.lembretes.filter(l => !l.concluido).length,    icone: 'clock',       cor: '#ff9800' },
+    { rotulo: 'Concluídos',         valor: S.lembretes.filter(l => l.concluido).length,     icone: 'circle-check',cor: '#059669' },
+    { rotulo: 'Este mês',           valor: S.lembretes.filter(l => (l.data_lembrete || '').startsWith(mes)).length, icone: 'tag', cor: '#7c3aed' }
+  ];
+  document.getElementById('lembrete-kpis').innerHTML = kpis.map(k => `
+    <div class="lemb-kpi">
+      <span class="lemb-kpi-icone" style="background:${corSegura(k.cor)}1f;color:${corSegura(k.cor)}">
+        <i class="ti ti-${k.icone}"></i></span>
+      <div>
+        <div class="lemb-kpi-rotulo">${esc(k.rotulo)}</div>
+        <div class="lemb-kpi-valor">${esc(String(k.valor))}</div>
+      </div>
+    </div>`).join('');
 }
 
 // Sugestões do campo "bem relacionado": patrimônios e itens do almoxarifado.
@@ -2161,10 +2309,14 @@ function catAlmoxPill(id) {
 
 // Dias até a validade. Negativo = já venceu.
 function diasAte(data) {
-  if (!data) return null;
+  const m = String(data || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  // Os dois na meia-noite LOCAL. Comparar a meia-noite de hoje com o MEIO-DIA
+  // da outra data dava um dia a mais ("em 4 dias" para daqui a 3) e, pior,
+  // deixava o lote que venceu ontem aparecendo como se vencesse hoje.
+  // O round cobre o dia da virada do horário de verão, que tem 23 ou 25 horas.
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  const d = new Date(data + 'T12:00');
-  if (isNaN(d)) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
   return Math.round((d - hoje) / 86400000);
 }
 

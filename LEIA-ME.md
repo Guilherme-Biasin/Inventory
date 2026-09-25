@@ -327,7 +327,8 @@ frase curta do que se trata (é o que aparece no dia do calendário),
 
 - Os lembretes são **de todos**: quem abre a aba vê os mesmos. O registro guarda
   quem criou e quem concluiu.
-- Clicar num dia do calendário já abre o formulário com aquela data.
+- O calendário tem três modos: **Mês** (grade, com os dias do mês vizinho apagados), **Semana** (a semana de hoje) e **Lista** (tudo em ordem de data). Clicar num dia já abre o formulário com aquela data.
+- A coluna da direita tem a lista (com filtro Todos/Pendentes/Concluídos) e os **Próximos lembretes**, com "Em 3 dias", "Em 3 anos". Embaixo, quatro indicadores: total, pendentes, concluídos e os deste mês.
 - Cada lembrete pode ser **concluído** (e reaberto). O que está pendente com
   data de hoje ou anterior aparece em vermelho no calendário e como um
   **contador vermelho no menu** — é o que faz o lembrete servir para alguma

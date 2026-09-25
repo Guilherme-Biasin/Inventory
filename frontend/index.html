@@ -249,38 +249,56 @@
 
       <!-- LEMBRETES -->
       <div class="page" id="page-lembretes">
-        <div class="page-header">
-          <div class="filtros-topo">
-            <select class="f-input" id="flembrete" onchange="renderLembretes()">
-              <option value="pendentes">Pendentes</option>
-              <option value="todos">Todos</option>
-              <option value="concluidos">Concluídos</option>
-            </select>
+        <div class="lemb-cabecalho">
+          <div>
+            <h2 class="lemb-titulo">Lembretes</h2>
+            <p class="lemb-sub">Organize seus compromissos e não perca nenhuma data importante.</p>
           </div>
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-primary" onclick="novoLembrete()"><i class="ti ti-plus"></i> Novo lembrete</button>
-          </div>
+          <button class="btn btn-primary lemb-novo" onclick="novoLembrete()"><i class="ti ti-plus"></i> Novo lembrete</button>
         </div>
+
         <div class="lembrete-layout">
           <div class="card">
-            <div class="card-header">
-              <div class="card-title" id="cal-titulo">—</div>
-              <div style="display:flex;gap:6px">
-                <button class="btn btn-sm" onclick="mudarMes(-1)" title="Mês anterior"><i class="ti ti-chevron-left"></i></button>
-                <button class="btn btn-sm" onclick="mudarMes(0)">Hoje</button>
-                <button class="btn btn-sm" onclick="mudarMes(1)" title="Próximo mês"><i class="ti ti-chevron-right"></i></button>
+            <div class="cal-topo">
+              <div class="cal-nav">
+                <button class="cal-seta" onclick="mudarMes(-1)" aria-label="Anterior"><i class="ti ti-chevron-left"></i></button>
+                <button class="cal-seta" onclick="mudarMes(1)" aria-label="Próximo"><i class="ti ti-chevron-right"></i></button>
+                <div class="cal-mes" id="cal-titulo">—</div>
+              </div>
+              <div class="cal-modos">
+                <button class="cal-modo" onclick="mudarMes(0)">Hoje</button>
+                <button class="cal-modo" data-modo="mes" onclick="mudarModoCal('mes')">Mês</button>
+                <button class="cal-modo" data-modo="semana" onclick="mudarModoCal('semana')">Semana</button>
+                <button class="cal-modo" data-modo="lista" onclick="mudarModoCal('lista')">Lista</button>
               </div>
             </div>
-            <div class="cal-grade" id="cal-grade"></div>
+            <div id="cal-corpo"></div>
           </div>
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">Lembretes</div>
-              <span class="dash-cab-extra" id="lembrete-resumo"></span>
+
+          <div class="lemb-coluna">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Lembretes</div>
+                <select class="f-input lemb-filtro" id="flembrete" onchange="renderLembretes()">
+                  <option value="todos">Todos</option>
+                  <option value="pendentes">Pendentes</option>
+                  <option value="concluidos">Concluídos</option>
+                </select>
+              </div>
+              <div class="lembrete-lista" id="lembrete-lista"></div>
             </div>
-            <div class="lembrete-lista" id="lembrete-lista"></div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><i class="ti ti-calendar-event" style="color:var(--accent);margin-right:6px"></i>Próximos lembretes</div>
+                <button class="btn btn-sm btn-ghost" onclick="verTodosLembretes()">Ver todos →</button>
+              </div>
+              <div class="prox-lista" id="lembrete-proximos"></div>
+            </div>
           </div>
         </div>
+
+        <div class="lemb-kpis" id="lembrete-kpis"></div>
       </div>
 
       <!-- CADASTRO -->

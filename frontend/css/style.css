@@ -697,81 +697,245 @@ tbody tr:hover td {
 }
 
 /* ── LEMBRETES ────────────────────────────────────────────
-   Calendário do mês à esquerda e a lista à direita; no celular um embaixo do
-   outro. A cor do dia é o atalho: laranja tem lembrete, vermelho tem lembrete
-   que já passou. */
+   Layout pedido em 25/09/2026: cabeçalho com título e subtítulo, calendário
+   grande à esquerda com os modos Mês/Semana/Lista, coluna da direita com a
+   lista e os próximos, e a faixa de indicadores embaixo. */
+.lemb-cabecalho {
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:1rem;
+    margin-bottom:1.25rem;
+}
+.lemb-titulo {
+    font-size:26px;
+    font-weight:700;
+    color:var(--accent);
+    letter-spacing:-.5px;
+    margin-bottom:2px;
+}
+.lemb-sub { font-size:13px; color:var(--txt2); }
+.lemb-novo { padding:11px 20px; font-size:14px; font-weight:600; }
+
 .lembrete-layout {
     display:grid;
-    grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);
+    grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);
     gap:1rem;
     align-items:start;
 }
-@media (max-width:900px) { .lembrete-layout { grid-template-columns:1fr; } }
+.lemb-coluna { display:flex; flex-direction:column; gap:1rem; }
+@media (max-width:1000px) { .lembrete-layout { grid-template-columns:1fr; } }
 
+/* ── Cabeçalho do calendário ── */
+.cal-topo {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:.75rem;
+    padding:1rem 1.25rem;
+    border-bottom:1px solid var(--border);
+}
+.cal-nav { display:flex; align-items:center; gap:8px; }
+.cal-seta {
+    width:34px; height:34px;
+    display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--border2);
+    border-radius:9px;
+    background:var(--bg);
+    color:var(--txt);
+    cursor:pointer;
+    font-size:16px;
+}
+.cal-seta:hover { border-color:var(--accent); color:var(--accent); }
+.cal-mes { font-size:18px; font-weight:700; color:var(--txt); margin-left:6px; }
+
+.cal-modos { display:flex; gap:6px; }
+.cal-modo {
+    padding:7px 16px;
+    border:1px solid var(--border2);
+    border-radius:9px;
+    background:var(--bg);
+    color:var(--txt2);
+    font-size:13px;
+    font-family:inherit;
+    cursor:pointer;
+}
+.cal-modo:hover { color:var(--txt); border-color:var(--accent); }
+.cal-modo.ativo { border-color:var(--accent); color:var(--accent); font-weight:600; }
+
+/* ── Grade do mês ── */
 .cal-grade {
     display:grid;
     grid-template-columns:repeat(7,1fr);
-    gap:4px;
+    gap:6px;
     padding:1rem 1.25rem 1.25rem;
 }
+.cal-grade.semana .cal-dia { min-height:220px; }
 .cal-cab {
-    font-size:11px;
-    font-weight:600;
+    font-size:12px;
+    font-weight:500;
     color:var(--txt3);
     text-align:center;
-    text-transform:uppercase;
-    letter-spacing:.06em;
-    padding-bottom:4px;
+    padding-bottom:6px;
 }
 .cal-dia {
-    min-height:74px;
+    min-height:92px;
     border:1px solid var(--border);
-    border-radius:8px;
-    padding:4px 5px;
+    border-radius:10px;
+    padding:6px 7px;
     background:var(--bg2);
     cursor:pointer;
     overflow:hidden;
 }
 .cal-dia:hover { border-color:var(--accent); }
-.cal-dia.vazio { background:transparent; border-color:transparent; cursor:default; }
-.cal-dia.hoje  { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+.cal-dia.fora { opacity:.4; }
+.cal-dia.hoje { border-color:var(--accent); }
+/* O dia de hoje ganha o número em pílula laranja, como no modelo. */
+.cal-dia.hoje .cal-num {
+    background:var(--accent);
+    color:#fff;
+    border-radius:6px;
+    padding:1px 6px;
+    display:inline-block;
+}
 .cal-dia.tem      { background:#ff98000f; }
-.cal-dia.atrasado { background:#dc26261f; border-color:#dc2626; }
-.cal-num { display:block; font-size:11.5px; font-weight:600; color:var(--txt2); margin-bottom:2px; }
+.cal-dia.atrasado { background:#dc26261a; border-color:#dc2626; }
+.cal-num { display:block; font-size:12.5px; font-weight:600; color:var(--txt2); margin-bottom:4px; }
+.cal-ponto {
+    display:inline-block;
+    width:6px; height:6px;
+    border-radius:50%;
+    background:var(--accent);
+    margin-right:5px;
+    vertical-align:1px;
+}
 .cal-item {
     display:block;
-    font-size:10.5px;
-    line-height:1.35;
+    font-size:11px;
+    line-height:1.4;
     color:var(--txt);
-    background:var(--bg3);
-    border-radius:4px;
-    padding:1px 4px;
+    border-radius:5px;
+    padding:1px 3px;
     margin-bottom:2px;
     overflow:hidden;
     text-overflow:ellipsis;
     white-space:nowrap;
 }
 .cal-item:hover { background:var(--accent); color:#fff; }
+.cal-item:hover .cal-ponto { background:#fff; }
 .cal-item.feito { text-decoration:line-through; color:var(--txt3); }
-.cal-mais { font-size:10px; color:var(--txt3); }
+.cal-item.feito .cal-ponto { background:var(--txt3); }
+.cal-mais { font-size:10.5px; color:var(--txt3); }
 
-.lembrete-lista { padding:1rem 1.25rem; max-height:560px; overflow-y:auto; }
+/* ── Modo lista ── */
+.cal-listagem { padding:.75rem 1.25rem 1.25rem; }
+.cal-linha {
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:.7rem .25rem;
+    border-bottom:1px solid var(--border);
+    cursor:pointer;
+}
+.cal-linha:last-child { border-bottom:none; }
+.cal-linha:hover { background:var(--bg2); }
+.cal-linha.feito .cal-linha-titulo { text-decoration:line-through; color:var(--txt3); }
+.cal-linha.atrasado .cal-linha-dia { color:#dc2626; }
+.cal-linha-data {
+    width:52px;
+    flex-shrink:0;
+    text-align:center;
+    background:var(--bg2);
+    border:1px solid var(--border);
+    border-radius:9px;
+    padding:4px 0;
+}
+.cal-linha-dia { display:block; font-size:16px; font-weight:700; color:var(--txt); line-height:1.1; }
+.cal-linha-mes { display:block; font-size:10px; text-transform:uppercase; color:var(--txt3); letter-spacing:.06em; }
+.cal-linha-texto { flex:1; min-width:0; }
+.cal-linha-titulo { font-size:13.5px; font-weight:600; color:var(--txt); }
+.cal-linha-obs { font-size:12px; color:var(--txt2); margin-top:2px; }
+.cal-linha-quando { font-size:12px; color:var(--txt3); white-space:nowrap; }
+
+/* ── Coluna da direita: lista ── */
+.lemb-filtro { height:34px; min-width:130px; }
+.lembrete-lista { padding:1rem 1.25rem; max-height:420px; overflow-y:auto; }
 .lembrete-item {
     border-left:3px solid var(--accent);
     background:var(--bg2);
-    border-radius:0 8px 8px 0;
-    padding:.6rem .8rem;
-    margin-bottom:.6rem;
+    border-radius:0 10px 10px 0;
+    padding:.7rem .9rem;
+    margin-bottom:.7rem;
 }
 .lembrete-item:last-child { margin-bottom:0; }
 .lembrete-item.atrasado { border-left-color:#dc2626; }
 .lembrete-item.feito    { border-left-color:#059669; opacity:.6; }
 .lembrete-item.feito .lembrete-titulo { text-decoration:line-through; }
-.lembrete-topo { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:3px; }
-.lembrete-data { font-size:11px; color:var(--txt3); }
-.lembrete-titulo { font-size:13px; font-weight:600; color:var(--txt); }
-.lembrete-ref { font-size:11.5px; color:var(--accent); margin-top:2px; }
-.lembrete-obs { font-size:12px; color:var(--txt2); margin-top:3px; line-height:1.5; white-space:pre-wrap; }
+.lembrete-topo { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px; }
+.lembrete-data { font-size:11.5px; color:var(--txt3); }
+.lembrete-acoes { display:flex; gap:5px; }
+.lembrete-acoes .btn { padding:5px 9px; }
+.lembrete-apagar { border-color:var(--danger-txt); color:var(--danger-txt); }
+.lembrete-titulo { font-size:14px; font-weight:600; color:var(--txt); }
+.lembrete-ref { font-size:11.5px; color:var(--accent); margin-top:3px; }
+.lembrete-obs { font-size:12.5px; color:var(--txt2); margin-top:3px; line-height:1.5; white-space:pre-wrap; }
+
+/* ── Coluna da direita: próximos ── */
+.prox-lista { padding:.5rem 1.25rem 1rem; }
+.prox-item {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:.7rem 0;
+    border-bottom:1px solid var(--border);
+    cursor:pointer;
+}
+.prox-item:last-child { border-bottom:none; }
+.prox-data {
+    width:48px;
+    flex-shrink:0;
+    text-align:center;
+    background:var(--bg2);
+    border:1px solid var(--border);
+    border-radius:9px;
+    padding:4px 0;
+}
+.prox-dia { display:block; font-size:15px; font-weight:700; color:var(--txt); line-height:1.1; }
+.prox-mes { display:block; font-size:9.5px; color:var(--txt3); letter-spacing:.06em; }
+.prox-texto { flex:1; min-width:0; }
+.prox-titulo { font-size:13px; font-weight:600; color:var(--txt); }
+.prox-obs {
+    font-size:11.5px; color:var(--txt2); margin-top:2px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.prox-quando { font-size:11.5px; color:var(--txt3); white-space:nowrap; }
+
+/* ── Indicadores embaixo ── */
+.lemb-kpis {
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:1rem;
+    margin-top:1rem;
+}
+.lemb-kpi {
+    display:flex;
+    align-items:center;
+    gap:14px;
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:1rem 1.25rem;
+}
+.lemb-kpi-icone {
+    width:44px; height:44px;
+    flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:11px;
+    font-size:20px;
+}
+.lemb-kpi-rotulo { font-size:12.5px; color:var(--txt2); }
+.lemb-kpi-valor { font-size:24px; font-weight:700; color:var(--txt); letter-spacing:-.5px; }
 
 /* Aviso no menu: quantos lembretes são para hoje ou já passaram. */
 .nav-badge {
