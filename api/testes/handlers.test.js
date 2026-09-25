@@ -55,13 +55,15 @@ require.cache[dbPath] = {
 
 const { patrimoniosRoutes } = require(path.join(API, 'src/patrimoniosRoutes'));
 const { almoxarifadoRoutes } = require(path.join(API, 'src/almoxarifadoRoutes'));
+const { descartadosRoutes }  = require(path.join(API, 'src/descartadosRoutes'));
 const { configRoutes }      = require(path.join(API, 'src/configRoutes'));
 const { usuariosRoutes }    = require(path.join(API, 'src/usuariosRoutes'));
 const { auditoriaRoutes }   = require(path.join(API, 'src/auditoria'));
 const { authRoutes, sessaoValida, invalidarCacheAtivos } = require(path.join(API, 'src/authRoutes'));
 const auth                  = require(path.join(API, 'src/auth'));
 
-const todas = [...authRoutes, ...configRoutes, ...patrimoniosRoutes, ...almoxarifadoRoutes, ...auditoriaRoutes, ...usuariosRoutes];
+const todas = [...authRoutes, ...configRoutes, ...patrimoniosRoutes, ...almoxarifadoRoutes,
+               ...descartadosRoutes, ...auditoriaRoutes, ...usuariosRoutes];
 const rota = (metodo, caminho) => {
   const r = todas.find(x => x.method === metodo && x.path === caminho);
   if(!r) throw new Error('rota nao registrada: ' + metodo + ' ' + caminho);
@@ -890,6 +892,80 @@ await teste('trocar senha grava o hash novo', async () => {
   const upd = consultas.find(c => c.sql.includes('UPDATE app.usuario SET senha_hash'));
   if(upd.entradas.h === auth.hashSenha('novaSenha')) throw new Error('hash sem sal — dois hashes iguais');
   if(!auth.verificarSenha('novaSenha', upd.entradas.h)) throw new Error('hash gravado nao confere');
+});
+
+console.log('\n— DESCARTADOS —');
+
+// A 1a resposta de cada teste e a conferencia "a tabela existe?" (migracao 07),
+// que fica em cache depois da primeira vez.
+await teste('listar descartados devolve o formato que a tela espera', async () => {
+  respostas = [[{ n: 1 }],
+    [{ id: 1, patrimonio: '50562', nome: 'Dell', modelo: 'Optiplex', serie: 'SN1',
+       categoria: 'c1', data_descarte: '2024-03-15', motivo: 'Sucata', criado_em: new Date() },
+     { id: 2, patrimonio: '50563', nome: null, modelo: null, serie: null,
+       categoria: null, data_descarte: null, motivo: null, criado_em: new Date() }]];
+  const r = await rota('GET', '/api/v1/descartados').handler(qs(), null, ADMIN);
+  igual(r.length, 2, 'qtd');
+  igual(r[0].categoria, ['c1'], 'categoria vira array');
+  igual([r[1].nome, r[1].motivo, r[1].data_descarte], ['', '', ''], 'null vira texto vazio');
+});
+
+await teste('criar descartado grava e traduz numero repetido', async () => {
+  respostas = [[{ id: 9 }]];
+  const r = await rota('POST', '/api/v1/descartados').handler(qs(), {
+    item: { patrimonio: ' 50562 ', nome: 'Dell', categoria: ['c1'],
+            data_descarte: '2024-03-15', motivo: 'Sucata' }
+  }, ADMIN);
+  igual(r.id, 9, 'id devolvido');
+  const ins = consultas.find(c => c.sql.startsWith('INSERT INTO app.patrimonio_descartado'));
+  igual([ins.entradas.patrimonio, ins.entradas.data, ins.entradas.motivo],
+        ['50562', '2024-03-15', 'Sucata'], 'campos gravados');
+
+  const dup = new Error('Violation of UNIQUE KEY constraint'); dup.number = 2601;
+  respostas = [dup];
+  await lanca(() => rota('POST', '/api/v1/descartados').handler(qs(), {
+    item: { patrimonio: '50562' }
+  }, ADMIN), 'ja existe um descartado com o numero "50562"');
+});
+
+await teste('descartado sem numero e recusado antes do banco', async () => {
+  await lanca(() => rota('POST', '/api/v1/descartados').handler(qs(), { item: {} }, ADMIN),
+              'informe o numero do patrimonio');
+  igual(consultas.length, 0, 'consultas disparadas');
+});
+
+await teste('importar descartados: confere tudo antes e nao grava com erro', async () => {
+  // Conferencia: o que ja existe no banco + as linhas repetidas na planilha.
+  respostas = [[{ patrimonio: '50562' }]];
+  const r = await rota('POST', '/api/v1/descartados/importar').handler(qs(), {
+    rows: [{ linha: 2, patrimonio: '50562' },
+           { linha: 3, patrimonio: '50570', data_descarte: '15/03/2024' },
+           { linha: 4, patrimonio: '' },
+           { linha: 5, patrimonio: '50570' }]
+  }, ADMIN);
+  igual(r.gravado, false, 'nao gravou');
+  const campos = r.erros.map(e => e.linha + ':' + e.campo);
+  igual(campos, ['2:Nº Patrimônio', '3:Data do Descarte', '4:Nº Patrimônio', '5:Nº Patrimônio'], 'erros por linha');
+  if(consultas.some(c => c.sql.startsWith('INSERT'))) throw new Error('gravou mesmo com erro');
+});
+
+await teste('importar descartados sem erro grava tudo numa transacao', async () => {
+  respostas = [[], [], []];
+  const r = await rota('POST', '/api/v1/descartados/importar').handler(qs(), {
+    rows: [{ linha: 2, patrimonio: '50562', nome: 'Dell' },
+           { linha: 3, patrimonio: '50563', motivo: 'Doado' }]
+  }, ADMIN);
+  igual(r.gravado, true, 'gravou');
+  igual(consultas.filter(c => c.sql.startsWith('INSERT INTO app.patrimonio_descartado')).length, 2, 'um insert por linha');
+});
+
+await teste('simular importacao nunca grava', async () => {
+  respostas = [[]];
+  const r = await rota('POST', '/api/v1/descartados/importar').handler(qs(), {
+    rows: [{ linha: 2, patrimonio: '50599' }], simular: true
+  }, ADMIN);
+  igual([r.gravado, r.erros.length], [false, 0], 'conferiu sem erro e sem gravar');
+  if(consultas.some(c => c.sql.startsWith('INSERT'))) throw new Error('gravou na simulacao');
 });
 
 console.log('\n— AUDITORIA —');

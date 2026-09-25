@@ -128,6 +128,7 @@
       <div class="nav-item active" data-nav="dashboard" onclick="nav('dashboard')"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
       <div class="nav-item" data-nav="lista" onclick="nav('lista')"><i class="ti ti-archive"></i> Patrimônios</div>
       <div class="nav-item" data-nav="almoxarifado" onclick="nav('almoxarifado')"><i class="ti ti-packages"></i> Almoxarifado</div>
+      <div class="nav-item" data-nav="descartados" onclick="nav('descartados')"><i class="ti ti-trash-x"></i> Patrimônios descartados</div>
       <div class="nav-item" data-nav="cadastro" onclick="nav('cadastro')"><i class="ti ti-plus"></i> Novo Cadastro</div>
     </div>
     <div class="nav-group">
@@ -230,6 +231,21 @@
         <div class="card"><div class="table-wrap"><table><thead><tr id="almox-head"></tr></thead><tbody id="almox-tbody"></tbody></table></div></div>
       </div>
 
+      <!-- PATRIMÔNIOS DESCARTADOS -->
+      <div class="page" id="page-descartados">
+        <div class="page-header">
+          <div class="filtros-topo">
+            <input class="f-input busca" id="srch-desc" placeholder="🔍  Buscar nº, marca, modelo, série ou motivo..." oninput="renderDescartados()">
+            <select class="f-input" id="fcat-desc" onchange="renderDescartados()"><option value="">Todas as categorias</option></select>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-success" onclick="exportarDescartados()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+            <button class="btn btn-primary" onclick="novoDescartado()"><i class="ti ti-plus"></i> Novo</button>
+          </div>
+        </div>
+        <div class="card"><div class="table-wrap"><table><thead><tr id="desc-head"></tr></thead><tbody id="desc-tbody"></tbody></table></div></div>
+      </div>
+
       <!-- CADASTRO -->
       <div class="page" id="page-cadastro">
         <div class="page-header">
@@ -294,6 +310,9 @@
           </button>
           <button type="button" class="tipo-opt" data-tipo="almoxarifado" onclick="trocarTipoImport('almoxarifado')">
             <i class="ti ti-packages"></i> Almoxarifado
+          </button>
+          <button type="button" class="tipo-opt" data-tipo="descartado" onclick="trocarTipoImport('descartado')">
+            <i class="ti ti-trash-x"></i> Descartados
           </button>
         </div>
 
@@ -515,6 +534,39 @@
 <!-- Editar e movimentar acontecem aqui, por cima da lista. O conteúdo é o
      MESMO formulário do cadastro (renderForm/renderFormAlmox desenham aqui
      quando formEmModal está ligado). -->
+<!-- Cadastro e edição de um patrimônio descartado. Formulário próprio: esta
+     aba não compartilha nada com o cadastro do patrimônio ativo. -->
+<div id="desc-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)fecharDescartado()">
+  <div class="modal" style="max-width:620px">
+    <div class="fm-topo">
+      <div class="modal-title" id="desc-titulo">Novo descartado</div>
+      <button type="button" class="fm-fechar" onclick="fecharDescartado()" aria-label="Fechar">&times;</button>
+    </div>
+    <form onsubmit="salvarDescartado(event)">
+      <div class="form-grid">
+        <div class="fg"><label class="flabel">Nº Patrimônio<span class="req">*</span></label>
+          <input class="finput" id="d_patrimonio" required placeholder="Ex: 50562"><div class="fhint"></div></div>
+        <div class="fg"><label class="flabel">Marca</label>
+          <input class="finput" id="d_nome" placeholder="Ex: Dell"><div class="fhint"></div></div>
+        <div class="fg"><label class="flabel">Modelo</label>
+          <input class="finput" id="d_modelo" placeholder="Ex: Vostro 3500"><div class="fhint"></div></div>
+        <div class="fg"><label class="flabel">N° de Série</label>
+          <input class="finput" id="d_serie" placeholder="Ex: SN-0001-XYZ"><div class="fhint"></div></div>
+        <div class="fg"><label class="flabel">Categoria</label>
+          <select class="finput" id="d_categoria"><option value="">Selecione...</option></select><div class="fhint"></div></div>
+        <div class="fg"><label class="flabel">Data do descarte</label>
+          <input class="finput" type="date" id="d_data"><div class="fhint"></div></div>
+        <div class="fg full"><label class="flabel">Motivo</label>
+          <textarea class="finput" id="d_motivo" rows="2" style="resize:vertical" placeholder="Quebrado, doado, vendido, sucata..."></textarea></div>
+      </div>
+      <div class="modal-footer" style="margin-top:1.25rem">
+        <button type="button" class="btn" onclick="fecharDescartado()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="desc-salvar"><i class="ti ti-device-floppy"></i> Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div id="form-modal" style="display:none" class="modal-overlay" onclick="if(event.target===this)cancelEdit()">
   <div class="modal modal-form">
     <div class="fm-topo">

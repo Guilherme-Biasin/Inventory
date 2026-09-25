@@ -29,6 +29,7 @@ em algum momento, rode todos os `04+` na ordem.
 | `04_migracao_status_mov.sql` | Se o `02` foi rodado antes de a tela de movimentação ganhar o campo Status |
 | `05_almoxarifado.sql` | Cria a aba **Almoxarifado**: tabelas de item e movimentação (lotes) e a lista de categorias própria. Sem ela a aba abre explicando que falta rodar isto — o resto do sistema continua funcionando |
 | `06_almox_usado_em.sql` | Acrescenta o campo **Usado em** (modelos de patrimônio em que o material é usado) |
+| `07_patrimonio_descartado.sql` | Cria `app.patrimonio_descartado`: arquivo morto dos bens antigos, com índice único **próprio** (o mesmo número pode existir nas duas tabelas) |
 
 O `zerar_dados.sql` **não é migração** e não entra nessa ordem. Ele existe para
 uma situação só: terminar os testes e começar a produção com o inventário

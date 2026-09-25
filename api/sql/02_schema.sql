@@ -72,6 +72,36 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_patrimonio_serie' AND 
 GO
 
 -- ------------------------------------------------------------
+-- PATRIMONIO DESCARTADO — arquivo morto dos bens antigos.
+--
+-- Tabela ILHADA: nao se relaciona com app.patrimonio nem com o
+-- historico, e nada se move de uma para a outra. Existe para que
+-- numeros antigos ja descartados (50562, 50563...) continuem
+-- documentados sem ocupar a numeracao nova. Ver 07_patrimonio_descartado.sql.
+-- ------------------------------------------------------------
+IF OBJECT_ID('app.patrimonio_descartado') IS NULL
+CREATE TABLE app.patrimonio_descartado (
+  id            INT IDENTITY(1,1) CONSTRAINT pk_pat_descartado PRIMARY KEY,
+  patrimonio    VARCHAR(50)    NOT NULL,
+  nome          VARCHAR(120)   NULL,       -- marca
+  modelo        VARCHAR(120)   NULL,
+  serie         VARCHAR(120)   NULL,
+  categoria     VARCHAR(40)    NULL,
+  data_descarte DATE           NULL,
+  motivo        NVARCHAR(500)  NULL,
+  criado_em     DATETIME2(0)   NOT NULL CONSTRAINT df_desc_criado DEFAULT SYSDATETIME(),
+  criado_por    VARCHAR(50)    NULL,
+  atualizado_em DATETIME2(0)   NOT NULL CONSTRAINT df_desc_atualizado DEFAULT SYSDATETIME()
+);
+GO
+
+-- Unico DENTRO desta tabela; o mesmo numero pode existir tambem em
+-- app.patrimonio, que e o motivo de ela existir.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_descartado_numero' AND object_id = OBJECT_ID('app.patrimonio_descartado'))
+  CREATE UNIQUE INDEX ux_descartado_numero ON app.patrimonio_descartado(patrimonio);
+GO
+
+-- ------------------------------------------------------------
 -- MOVIMENTACAO — o historico. ON DELETE CASCADE reproduz o
 -- comportamento do Supabase: apagar o patrimonio leva o historico
 -- junto (a tela avisa disso antes de excluir).

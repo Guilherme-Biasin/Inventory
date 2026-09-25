@@ -13,6 +13,11 @@ let S = {
   // ALMOXARIFADO (material de consumo). Lista própria, categorias próprias e
   // saldo por lote — ver o bloco ALMOXARIFADO mais abaixo.
   almox: [], catsAlmox: [], lastFilteredAlmox: [], almoxErro: null,
+
+  // PATRIMONIOS DESCARTADOS (arquivo morto dos bens antigos). Lista ilhada:
+  // não entra em nenhuma conta do sistema e nada se move entre ela e o
+  // patrimônio ativo — ver descartadosRoutes.js.
+  descartados: [], descartadosErro: null, lastFilteredDesc: [], editDescId: null,
   editAlmoxId: null,
   tipoCadastro: 'patrimonio'   // o que o seletor do topo do Cadastro está mostrando
 };
@@ -221,6 +226,7 @@ function nav(p) {
   if (p === 'dashboard') renderDash();
   if (p === 'lista')     { populateFilters(); renderLista(); }
   if (p === 'almoxarifado') { populateFiltersAlmox(); renderAlmox(); }
+  if (p === 'descartados')  { carregarDescartados(); }
   // O botão do topo cadastra o que a aba aberta mostra: estando no
   // almoxarifado, "Novo Patrimônio" abriria o formulário errado.
   const rotulo = document.getElementById('btn-novo-label');
@@ -667,7 +673,11 @@ function populateFilters() {
 // ─── ORDENAR PELAS COLUNAS ───────────────────────────────────
 // Um clique ordena do menor para o maior, o segundo inverte e o terceiro tira a
 // ordenação (volta a ordem que veio do banco). Cada lista guarda a sua.
-const ordemDaLista = { lista: { col: null, dir: 0 }, almox: { col: null, dir: 0 } };
+const ordemDaLista = {
+  lista: { col: null, dir: 0 },
+  almox: { col: null, dir: 0 },
+  desc:  { col: null, dir: 0 }
+};
 
 // Colunas de cada lista: 'valor' é o que entra na comparação (o texto que a
 // pessoa lê, não o id), e coluna sem 'chave' não ordena.
@@ -682,6 +692,16 @@ const COLUNAS = {
     { chave:'local_atual',   titulo:'Local Atual',   valor:i => i.local_atual },
     { chave:'usuario_atual', titulo:'Usuário Atual', valor:i => i.usuario_atual },
     { chave:'movim',         titulo:'Movim.',        tipo:'num', valor:i => (i.historico || []).length },
+    { titulo:'Ações' }
+  ],
+  desc: [
+    { chave:'patrimonio', titulo:'Nº',               tipo:'num', valor:i => i.patrimonio },
+    { chave:'nome',       titulo:'Marca',            valor:i => i.nome },
+    { chave:'modelo',     titulo:'Modelo',           valor:i => i.modelo },
+    { chave:'serie',      titulo:'N° Série',         valor:i => i.serie },
+    { chave:'categoria',  titulo:'Categoria',        valor:i => (i.categoria || []).map(id => getCat(id).name).join(', ') },
+    { chave:'data',       titulo:'Data do descarte', valor:i => i.data_descarte },
+    { chave:'motivo',     titulo:'Motivo',           valor:i => i.motivo },
     { titulo:'Ações' }
   ],
   almox: [
@@ -735,7 +755,9 @@ function ordenarPor(qual, chave) {
   if (est.col !== chave)   { est.col = chave; est.dir = 1; }   // 1º clique: crescente
   else if (est.dir === 1)  { est.dir = -1; }                   // 2º: decrescente
   else                     { est.col = null; est.dir = 0; }    // 3º: sem ordenação
-  if (qual === 'almox') renderAlmox(); else renderLista();
+  if (qual === 'almox') renderAlmox();
+  else if (qual === 'desc') renderDescartados();
+  else renderLista();
 }
 
 function renderLista() {
@@ -770,6 +792,185 @@ function renderLista() {
         <td>${actionButtons(it.id)}</td>
       </tr>`).join('')
     : '<tr class="empty-row"><td colspan="10">Nenhum resultado encontrado</td></tr>';
+}
+
+// ─── PATRIMÔNIOS DESCARTADOS ─────────────────────────────────
+// Arquivo morto dos bens antigos (50562, 50563...). Tabela própria, com índice
+// único próprio: o mesmo número pode existir aqui e na numeração nova, que é
+// justamente o motivo desta aba existir. Nada se move entre as duas listas.
+
+async function carregarDescartados() {
+  try {
+    S.descartados = await DB.loadDescartados();
+    S.descartadosErro = null;
+  } catch (e) {
+    S.descartados = [];
+    S.descartadosErro = e.message;
+  }
+  populateFiltersDesc();
+  renderDescartados();
+}
+
+function populateFiltersDesc() {
+  const fc = document.getElementById('fcat-desc'); if (!fc) return;
+  const v = fc.value;
+  fc.innerHTML = '<option value="">Todas as categorias</option>' +
+    S.cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  fc.value = v;
+}
+
+function renderDescartados() {
+  const tb = document.getElementById('desc-tbody'); if (!tb) return;
+
+  if (S.descartadosErro) {
+    document.getElementById('desc-head').innerHTML = '<th>Patrimônios descartados</th>';
+    tb.innerHTML = `<tr><td style="padding:1rem;font-size:13px;color:var(--danger-txt)">
+      <strong>Não consegui carregar os descartados:</strong> ${esc(S.descartadosErro)}<br>
+      <span style="font-size:12px;color:var(--txt3)">Se a mensagem fala em tabela que não existe, falta rodar
+      <code>api/sql/07_patrimonio_descartado.sql</code> no banco ESTOQUE_TI e reiniciar o serviço da API.</span>
+    </td></tr>`;
+    return;
+  }
+
+  const srch = (document.getElementById('srch-desc').value || '').toLowerCase();
+  const catF = document.getElementById('fcat-desc').value;
+  const campos = i => [i.patrimonio, i.nome, i.modelo, i.serie, i.motivo];
+
+  const filtrados = S.descartados.filter(i => {
+    if (srch && !campos(i).some(v => (v || '').toLowerCase().includes(srch))) return false;
+    if (catF && !(i.categoria || []).includes(catF)) return false;
+    return true;
+  });
+  const ordenados = ordenarLinhas(filtrados, 'desc');
+  S.lastFilteredDesc = ordenados;
+
+  document.getElementById('desc-head').innerHTML = cabecalhoOrdenavel('desc');
+  tb.innerHTML = ordenados.length ? ordenados.map(i => `<tr>
+      <td><strong>${esc(i.patrimonio || '—')}</strong></td>
+      <td>${esc(i.nome || '—')}</td>
+      <td>${esc(i.modelo || '—')}</td>
+      <td>${esc(i.serie || '—')}</td>
+      <td>${catPills(i.categoria)}</td>
+      <td>${i.data_descarte ? esc(fmtDate(i.data_descarte)) : '—'}</td>
+      <td style="font-size:12px;color:var(--txt2)">${esc(i.motivo || '—')}</td>
+      <td>${acoesDescartado(i.id)}</td>
+    </tr>`).join('')
+    : '<tr class="empty-row"><td colspan="8">Nenhum patrimônio descartado cadastrado</td></tr>';
+}
+
+function acoesDescartado(id) {
+  const edOk  = can('editar');
+  const delOk = can('excluir');
+  const dis = (ok, tip) => !ok ? `disabled title="${esc(tip)}" style="opacity:.4;cursor:not-allowed"` : '';
+  return `<div class="actions-cell">
+    <button class="btn btn-sm" onclick="${edOk ? `editarDescartado(${id})` : ''}" ${dis(edOk, 'Sem permissão para editar')} title="${edOk ? 'Editar' : 'Sem permissão'}"><i class="ti ti-edit"></i> <span class="btn-label">Editar</span></button>
+    <button class="btn btn-sm" style="${delOk ? 'border-color:var(--danger-txt);color:var(--danger-txt)' : 'opacity:.4;cursor:not-allowed'}" onclick="${delOk ? `excluirDescartado(${id})` : ''}" ${dis(delOk, 'Sem permissão para excluir')} title="${delOk ? 'Excluir' : 'Sem permissão'}"><i class="ti ti-trash"></i> <span class="btn-label">Excluir</span></button>
+  </div>`;
+}
+
+function abrirDescModal(titulo) {
+  const cat = document.getElementById('d_categoria');
+  cat.innerHTML = '<option value="">Selecione...</option>' +
+    S.cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  document.getElementById('desc-titulo').textContent = titulo;
+  document.getElementById('desc-modal').style.display = 'flex';
+}
+
+function novoDescartado() {
+  if (!can('cadastrar')) { showToast('Sem permissão para cadastrar.', 'err'); return; }
+  S.editDescId = null;
+  abrirDescModal('Novo patrimônio descartado');
+  ['d_patrimonio','d_nome','d_modelo','d_serie','d_data','d_motivo'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('d_categoria').value = '';
+  document.getElementById('d_patrimonio').focus();
+}
+
+function editarDescartado(id) {
+  const it = S.descartados.find(x => x.id === id); if (!it) return;
+  S.editDescId = id;
+  abrirDescModal('Editar descartado');
+  document.getElementById('d_patrimonio').value = it.patrimonio || '';
+  document.getElementById('d_nome').value       = it.nome || '';
+  document.getElementById('d_modelo').value     = it.modelo || '';
+  document.getElementById('d_serie').value      = it.serie || '';
+  document.getElementById('d_categoria').value  = (it.categoria || [])[0] || '';
+  document.getElementById('d_data').value       = it.data_descarte || '';
+  document.getElementById('d_motivo').value     = it.motivo || '';
+}
+
+function fecharDescartado() {
+  document.getElementById('desc-modal').style.display = 'none';
+  S.editDescId = null;
+}
+
+async function salvarDescartado(e) {
+  e.preventDefault();
+  const val = id => (document.getElementById(id) || {}).value.trim();
+  const item = {
+    patrimonio: val('d_patrimonio'),
+    nome:       val('d_nome'),
+    modelo:     val('d_modelo'),
+    serie:      val('d_serie'),
+    categoria:  val('d_categoria') ? [val('d_categoria')] : [],
+    data_descarte: val('d_data'),
+    motivo:     val('d_motivo')
+  };
+  if (!item.patrimonio) { showToast('Informe o Nº Patrimônio.', 'err'); return; }
+
+  const btn = document.getElementById('desc-salvar');
+  btn.disabled = true;
+  showLoading('Salvando...');
+  try {
+    if (S.editDescId != null) await DB.updateDescartado(S.editDescId, item);
+    else                      await DB.createDescartado(item);
+    showToast(S.editDescId != null ? '✅ Descartado atualizado!' : '✅ Descartado cadastrado!');
+    fecharDescartado();
+    await carregarDescartados();
+  } catch (ex) {
+    showToast('Erro ao salvar: ' + ex.message, 'err');
+  } finally {
+    hideLoading();
+    btn.disabled = false;
+  }
+}
+
+async function excluirDescartado(id) {
+  const it = S.descartados.find(x => x.id === id) || {};
+  const ok = await confirmar({
+    titulo: 'Excluir descartado',
+    texto: `Excluir <strong>${esc(it.patrimonio || '')}</strong> do arquivo de descartados?<br><br>` +
+           'Isso apaga só este registro de documentação — nada no patrimônio ativo muda.',
+    botao: 'Excluir'
+  });
+  if (!ok) return;
+  showLoading('Excluindo...');
+  try {
+    await DB.deleteDescartado(id);
+    showToast('Descartado excluído.');
+    await carregarDescartados();
+  } catch (e) { showToast('Erro ao excluir: ' + e.message, 'err'); }
+  finally    { hideLoading(); }
+}
+
+// Exporta a lista como ela está na tela (filtro e ordenação inclusive).
+function exportarDescartados() {
+  const linhas = (S.lastFilteredDesc.length ? S.lastFilteredDesc : S.descartados).map(i => ({
+    'Nº Patrimônio': i.patrimonio || '',
+    'Marca': i.nome || '',
+    'Modelo': i.modelo || '',
+    'N° Série': i.serie || '',
+    'Categoria': (i.categoria || []).map(id => getCat(id).name).join(', '),
+    'Data do Descarte': i.data_descarte || '',
+    'Motivo': i.motivo || ''
+  }));
+  if (!linhas.length) { showToast('Nenhum descartado para exportar.', 'err'); return; }
+  const ws = XLSX.utils.json_to_sheet(linhas);
+  ws['!cols'] = [{wch:16},{wch:18},{wch:22},{wch:22},{wch:16},{wch:18},{wch:40}];
+  styleSheet(ws);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Descartados');
+  const hoje = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+  XLSX.writeFile(wb, `patrimonios_descartados_${hoje}.xlsx`);
 }
 
 // ─── FORMULÁRIO ──────────────────────────────────────────────
@@ -1886,6 +2087,185 @@ async function delAlmox(id) {
   finally    { hideLoading(); }
 }
 
+// ─── PATRIMÔNIOS DESCARTADOS ─────────────────────────────────
+// Arquivo morto dos bens antigos (50562, 50563...). Tabela própria, com índice
+// único próprio: o mesmo número pode existir aqui e na numeração nova, que é
+// justamente o motivo desta aba existir. Nada se move entre as duas listas.
+
+async function carregarDescartados() {
+  try {
+    S.descartados = await DB.loadDescartados();
+    S.descartadosErro = null;
+  } catch (e) {
+    S.descartados = [];
+    S.descartadosErro = e.message;
+  }
+  populateFiltersDesc();
+  renderDescartados();
+}
+
+function populateFiltersDesc() {
+  const fc = document.getElementById('fcat-desc'); if (!fc) return;
+  const v = fc.value;
+  fc.innerHTML = '<option value="">Todas as categorias</option>' +
+    S.cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  fc.value = v;
+}
+
+function renderDescartados() {
+  const tb = document.getElementById('desc-tbody'); if (!tb) return;
+
+  if (S.descartadosErro) {
+    document.getElementById('desc-head').innerHTML = '<th>Patrimônios descartados</th>';
+    tb.innerHTML = `<tr><td style="padding:1rem;font-size:13px;color:var(--danger-txt)">
+      <strong>Não consegui carregar os descartados:</strong> ${esc(S.descartadosErro)}<br>
+      <span style="font-size:12px;color:var(--txt3)">Se a mensagem fala em tabela que não existe, falta rodar
+      <code>api/sql/07_patrimonio_descartado.sql</code> no banco ESTOQUE_TI e reiniciar o serviço da API.</span>
+    </td></tr>`;
+    return;
+  }
+
+  const srch = (document.getElementById('srch-desc').value || '').toLowerCase();
+  const catF = document.getElementById('fcat-desc').value;
+  const campos = i => [i.patrimonio, i.nome, i.modelo, i.serie, i.motivo];
+
+  const filtrados = S.descartados.filter(i => {
+    if (srch && !campos(i).some(v => (v || '').toLowerCase().includes(srch))) return false;
+    if (catF && !(i.categoria || []).includes(catF)) return false;
+    return true;
+  });
+  const ordenados = ordenarLinhas(filtrados, 'desc');
+  S.lastFilteredDesc = ordenados;
+
+  document.getElementById('desc-head').innerHTML = cabecalhoOrdenavel('desc');
+  tb.innerHTML = ordenados.length ? ordenados.map(i => `<tr>
+      <td><strong>${esc(i.patrimonio || '—')}</strong></td>
+      <td>${esc(i.nome || '—')}</td>
+      <td>${esc(i.modelo || '—')}</td>
+      <td>${esc(i.serie || '—')}</td>
+      <td>${catPills(i.categoria)}</td>
+      <td>${i.data_descarte ? esc(fmtDate(i.data_descarte)) : '—'}</td>
+      <td style="font-size:12px;color:var(--txt2)">${esc(i.motivo || '—')}</td>
+      <td>${acoesDescartado(i.id)}</td>
+    </tr>`).join('')
+    : '<tr class="empty-row"><td colspan="8">Nenhum patrimônio descartado cadastrado</td></tr>';
+}
+
+function acoesDescartado(id) {
+  const edOk  = can('editar');
+  const delOk = can('excluir');
+  const dis = (ok, tip) => !ok ? `disabled title="${esc(tip)}" style="opacity:.4;cursor:not-allowed"` : '';
+  return `<div class="actions-cell">
+    <button class="btn btn-sm" onclick="${edOk ? `editarDescartado(${id})` : ''}" ${dis(edOk, 'Sem permissão para editar')} title="${edOk ? 'Editar' : 'Sem permissão'}"><i class="ti ti-edit"></i> <span class="btn-label">Editar</span></button>
+    <button class="btn btn-sm" style="${delOk ? 'border-color:var(--danger-txt);color:var(--danger-txt)' : 'opacity:.4;cursor:not-allowed'}" onclick="${delOk ? `excluirDescartado(${id})` : ''}" ${dis(delOk, 'Sem permissão para excluir')} title="${delOk ? 'Excluir' : 'Sem permissão'}"><i class="ti ti-trash"></i> <span class="btn-label">Excluir</span></button>
+  </div>`;
+}
+
+function abrirDescModal(titulo) {
+  const cat = document.getElementById('d_categoria');
+  cat.innerHTML = '<option value="">Selecione...</option>' +
+    S.cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  document.getElementById('desc-titulo').textContent = titulo;
+  document.getElementById('desc-modal').style.display = 'flex';
+}
+
+function novoDescartado() {
+  if (!can('cadastrar')) { showToast('Sem permissão para cadastrar.', 'err'); return; }
+  S.editDescId = null;
+  abrirDescModal('Novo patrimônio descartado');
+  ['d_patrimonio','d_nome','d_modelo','d_serie','d_data','d_motivo'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('d_categoria').value = '';
+  document.getElementById('d_patrimonio').focus();
+}
+
+function editarDescartado(id) {
+  const it = S.descartados.find(x => x.id === id); if (!it) return;
+  S.editDescId = id;
+  abrirDescModal('Editar descartado');
+  document.getElementById('d_patrimonio').value = it.patrimonio || '';
+  document.getElementById('d_nome').value       = it.nome || '';
+  document.getElementById('d_modelo').value     = it.modelo || '';
+  document.getElementById('d_serie').value      = it.serie || '';
+  document.getElementById('d_categoria').value  = (it.categoria || [])[0] || '';
+  document.getElementById('d_data').value       = it.data_descarte || '';
+  document.getElementById('d_motivo').value     = it.motivo || '';
+}
+
+function fecharDescartado() {
+  document.getElementById('desc-modal').style.display = 'none';
+  S.editDescId = null;
+}
+
+async function salvarDescartado(e) {
+  e.preventDefault();
+  const val = id => (document.getElementById(id) || {}).value.trim();
+  const item = {
+    patrimonio: val('d_patrimonio'),
+    nome:       val('d_nome'),
+    modelo:     val('d_modelo'),
+    serie:      val('d_serie'),
+    categoria:  val('d_categoria') ? [val('d_categoria')] : [],
+    data_descarte: val('d_data'),
+    motivo:     val('d_motivo')
+  };
+  if (!item.patrimonio) { showToast('Informe o Nº Patrimônio.', 'err'); return; }
+
+  const btn = document.getElementById('desc-salvar');
+  btn.disabled = true;
+  showLoading('Salvando...');
+  try {
+    if (S.editDescId != null) await DB.updateDescartado(S.editDescId, item);
+    else                      await DB.createDescartado(item);
+    showToast(S.editDescId != null ? '✅ Descartado atualizado!' : '✅ Descartado cadastrado!');
+    fecharDescartado();
+    await carregarDescartados();
+  } catch (ex) {
+    showToast('Erro ao salvar: ' + ex.message, 'err');
+  } finally {
+    hideLoading();
+    btn.disabled = false;
+  }
+}
+
+async function excluirDescartado(id) {
+  const it = S.descartados.find(x => x.id === id) || {};
+  const ok = await confirmar({
+    titulo: 'Excluir descartado',
+    texto: `Excluir <strong>${esc(it.patrimonio || '')}</strong> do arquivo de descartados?<br><br>` +
+           'Isso apaga só este registro de documentação — nada no patrimônio ativo muda.',
+    botao: 'Excluir'
+  });
+  if (!ok) return;
+  showLoading('Excluindo...');
+  try {
+    await DB.deleteDescartado(id);
+    showToast('Descartado excluído.');
+    await carregarDescartados();
+  } catch (e) { showToast('Erro ao excluir: ' + e.message, 'err'); }
+  finally    { hideLoading(); }
+}
+
+// Exporta a lista como ela está na tela (filtro e ordenação inclusive).
+function exportarDescartados() {
+  const linhas = (S.lastFilteredDesc.length ? S.lastFilteredDesc : S.descartados).map(i => ({
+    'Nº Patrimônio': i.patrimonio || '',
+    'Marca': i.nome || '',
+    'Modelo': i.modelo || '',
+    'N° Série': i.serie || '',
+    'Categoria': (i.categoria || []).map(id => getCat(id).name).join(', '),
+    'Data do Descarte': i.data_descarte || '',
+    'Motivo': i.motivo || ''
+  }));
+  if (!linhas.length) { showToast('Nenhum descartado para exportar.', 'err'); return; }
+  const ws = XLSX.utils.json_to_sheet(linhas);
+  ws['!cols'] = [{wch:16},{wch:18},{wch:22},{wch:22},{wch:16},{wch:18},{wch:40}];
+  styleSheet(ws);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Descartados');
+  const hoje = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+  XLSX.writeFile(wb, `patrimonios_descartados_${hoje}.xlsx`);
+}
+
 // ─── FORMULÁRIO ──────────────────────────────────────────────
 let movModeAlmox = false;
 
@@ -2407,9 +2787,10 @@ function linhaAlmoxHistExport(it, m) {
 // colunas lidas e a rota da API; as REGRAS (campo obrigatório, repetido, valor
 // que não existe) ficam só no servidor, e a tela mostra o que voltou.
 let _importRows = [];              // linhas lidas da planilha (a API confere e grava)
-let _importTipo = 'patrimonio';    // 'patrimonio' | 'almoxarifado'
+let _importTipo = 'patrimonio';    // 'patrimonio' | 'almoxarifado' | 'descartado'
 
 const ehAlmoxImport = () => _importTipo === 'almoxarifado';
+const ehDescImport  = () => _importTipo === 'descartado';
 
 function trocarTipoImport(tipo) {
   _importTipo = tipo;
@@ -2421,7 +2802,7 @@ function renderImportacao() {
 
   // O botão exporta o que o seletor estiver mostrando.
   document.getElementById('import-titulo').textContent =
-    almox ? 'Exportar almoxarifado' : 'Exportar patrimônios';
+    ehDescImport() ? 'Exportar descartados' : (almox ? 'Exportar almoxarifado' : 'Exportar patrimônios');
 
   const podeImportar = can('cadastrar');
   document.querySelectorAll('#tipo-import, #page-importacao .import-card')
@@ -2432,7 +2813,13 @@ function renderImportacao() {
   // Lista de valores aceitos, como referência visual.
   const el = document.getElementById('import-ref');
   if (el) {
-    const linhas = almox
+    const linhas = ehDescImport()
+      ? [['Obrigatório', 'só o Nº Patrimônio — o resto é opcional'],
+         ['Nº Patrimônio', 'não pode repetir DENTRO dos descartados (pode existir igual no patrimônio ativo)'],
+         ['Categorias válidas', S.cats.map(c => c.name).join(', ')],
+         ['Data do Descarte', 'opcional, no formato AAAA-MM-DD (ex.: 2024-03-15)'],
+         ['Motivo', 'opcional: quebrado, doado, vendido, sucata...']]
+      : almox
       ? [['Categorias válidas', S.catsAlmox.map(c => c.name).join(', ')],
          ['Obrigatórios', 'Item, Categoria, Modelo, N° Série e Quantidade'],
          ['Quantidade', 'número maior que zero (ex.: 12 ou 2,5)'],
@@ -2459,6 +2846,36 @@ function renderImportacao() {
 // Baixa planilha modelo com cabeçalhos e uma linha de exemplo.
 function downloadModelo() {
   const almox = ehAlmoxImport();
+
+  // Descartados: planilha própria, curta. É documentação de bem que já saiu —
+  // status, local e usuário não fazem sentido aqui.
+  if (ehDescImport()) {
+    const ws = XLSX.utils.json_to_sheet([{
+      'Nº Patrimônio': '50562',
+      'Marca': 'Dell',
+      'Modelo': 'Optiplex 3010',
+      'N° Série': 'SN-ANTIGO-01',
+      'Categoria': S.cats[0]?.name || 'Desktop',
+      'Data do Descarte': '2024-03-15',
+      'Motivo': 'Sucata'
+    }]);
+    ws['!cols'] = [{wch:16},{wch:18},{wch:22},{wch:22},{wch:16},{wch:18},{wch:40}];
+    const wsRef = XLSX.utils.json_to_sheet([
+      { 'Campo': 'Nº Patrimônio',   'Valores aceitos': 'Obrigatório — não pode repetir DENTRO dos descartados' },
+      { 'Campo': 'Marca',           'Valores aceitos': 'Opcional — texto' },
+      { 'Campo': 'Modelo',          'Valores aceitos': 'Opcional — texto' },
+      { 'Campo': 'N° Série',        'Valores aceitos': 'Opcional — texto' },
+      { 'Campo': 'Categoria',       'Valores aceitos': S.cats.map(c => c.name).join(' | ') || '(cadastre em Personalizar)' },
+      { 'Campo': 'Data do Descarte','Valores aceitos': 'Opcional — AAAA-MM-DD (ex.: 2024-03-15)' },
+      { 'Campo': 'Motivo',          'Valores aceitos': 'Opcional — quebrado, doado, vendido, sucata...' }
+    ]);
+    wsRef['!cols'] = [{wch:18},{wch:60}];
+    const wbd = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wbd, ws, 'Descartados');
+    XLSX.utils.book_append_sheet(wbd, wsRef, 'Instruções');
+    XLSX.writeFile(wbd, 'modelo_importacao_descartados.xlsx');
+    return;
+  }
 
   const exemplo = almox ? {
     'Item': 'Bobina 80mm',
@@ -2529,16 +2946,18 @@ function handleImportFile(input) {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const brutas = XLSX.utils.sheet_to_json(ws, { defval: '' });
       if (!brutas.length) { showToast('A planilha não tem nenhuma linha preenchida.', 'err'); return; }
-      _importRows = brutas.map(ehAlmoxImport() ? _linhaAlmoxDaPlanilha : _linhaDaPlanilha);
+      const leitor = ehDescImport() ? _linhaDescDaPlanilha
+                   : ehAlmoxImport() ? _linhaAlmoxDaPlanilha : _linhaDaPlanilha;
+      _importRows = brutas.map(leitor);
     } catch(err) {
       showToast('Erro ao ler arquivo: ' + err.message, 'err');
       return;
     }
     showLoading('Conferindo a planilha...');
     try {
-      const res = ehAlmoxImport()
-        ? await DB.bulkCreateAlmox(_importRows, true)
-        : await DB.bulkCreateItems(_importRows, true);
+      const res = ehDescImport()  ? await DB.bulkCreateDescartados(_importRows, true)
+                : ehAlmoxImport() ? await DB.bulkCreateAlmox(_importRows, true)
+                :                   await DB.bulkCreateItems(_importRows, true);
       _renderImportPreview(res);
     } catch(err) {
       _importRows = [];
@@ -2573,6 +2992,21 @@ function _linhaDaPlanilha(r, idx) {
     status:        col('Status'),
     local_atual:   col('Local Atual', 'Local'),
     usuario_atual: col('Usuário Atual', 'Usuario Atual')
+  };
+}
+
+function _linhaDescDaPlanilha(r, idx) {
+  const col = _colunaDe(r);
+  return {
+    linha:         _linhaDoExcel(r, idx),
+    patrimonio:    col('Nº Patrimônio', 'No Patrimônio', 'N° Patrimônio', 'Patrimônio'),
+    nome:          col('Marca', 'Nome'),
+    modelo:        col('Modelo'),
+    serie:         col('N° Série', 'No Série', 'Nº Série', 'Série', 'Serie'),
+    // A API guarda o ID da categoria; a planilha traz o nome.
+    categoria:     (S.cats.find(c => c.name.toLowerCase() === col('Categoria').toLowerCase()) || {}).id || '',
+    data_descarte: _dataDaPlanilha(col('Data do Descarte', 'Data Descarte', 'Data')),
+    motivo:        col('Motivo')
   };
 }
 
@@ -2699,9 +3133,11 @@ async function confirmImport() {
   if (!can('cadastrar')) { showToast('Sem permissão para importar.','err'); return; }
   if (!_importRows.length) { showToast('Escolha a planilha primeiro.','err'); return; }
   const almox = ehAlmoxImport();
+  const oque = ehDescImport() ? 'patrimônio(s) descartado(s)'
+             : almox ? 'item(ns) de almoxarifado' : 'patrimônio(s)';
   const ok = await confirmar({
     titulo: 'Confirmar importação',
-    texto: `Gravar <strong>${_importRows.length}</strong> ${almox ? 'item(ns) de almoxarifado' : 'patrimônio(s)'} no banco?<br><br>` +
+    texto: `Gravar <strong>${_importRows.length}</strong> ${oque} no banco?<br><br>` +
       'A planilha já passou pela conferência: ou entra tudo, ou nada.',
     botao: 'Importar'
   });
@@ -2709,18 +3145,21 @@ async function confirmImport() {
 
   showLoading(`Importando ${_importRows.length} itens...`);
   try {
-    const res = almox
-      ? await DB.bulkCreateAlmox(_importRows, false)
-      : await DB.bulkCreateItems(_importRows, false);
+    const res = ehDescImport()  ? await DB.bulkCreateDescartados(_importRows, false)
+              : almox           ? await DB.bulkCreateAlmox(_importRows, false)
+              :                   await DB.bulkCreateItems(_importRows, false);
     if (!res.gravado) {
       // Algo mudou entre a conferência e a gravação (outra pessoa cadastrou o
       // mesmo número, por exemplo). Nada entrou; mostra o motivo.
       _renderImportPreview(res);
       return;
     }
-    showToast(`✅ ${res.sucesso} ${almox ? 'itens' : 'patrimônios'} importados com sucesso!`);
+    showToast(`✅ ${res.sucesso || res.linhas} ${ehDescImport() ? 'descartados' : (almox ? 'itens' : 'patrimônios')} importados com sucesso!`);
     _importRows = [];
-    if (almox) {
+    if (ehDescImport()) {
+      await carregarDescartados();
+      nav('descartados');
+    } else if (almox) {
       await recarregarAlmox();
       nav('almoxarifado');
     } else {
@@ -2745,6 +3184,9 @@ function openExportModal(preSelecionar) {
 }
 
 function exportarDaImportacao() {
+  // Descartados tem exportacao propria (lista curta, colunas proprias), entao
+  // nao passa pelo modal de exportacao do patrimonio.
+  if (ehDescImport()) { exportarDescartados(); return; }
   openExportModal(ehAlmoxImport() ? 'almox' : 'todos');
 }
 function closeExportModal(e) { if (e.target.id==='exp-modal') document.getElementById('exp-modal').style.display='none'; }

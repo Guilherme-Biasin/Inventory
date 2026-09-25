@@ -18,6 +18,7 @@ const { authRoutes, sessaoValida } = require('./src/authRoutes');
 const { configRoutes }       = require('./src/configRoutes');
 const { patrimoniosRoutes }  = require('./src/patrimoniosRoutes');
 const { almoxarifadoRoutes } = require('./src/almoxarifadoRoutes');
+const { descartadosRoutes } = require('./src/descartadosRoutes');
 const { usuariosRoutes }     = require('./src/usuariosRoutes');
 const { auditoriaRoutes }    = require('./src/auditoria');
 const auth = require('./src/auth');
@@ -142,6 +143,7 @@ const rotas = [
   ...configRoutes,
   ...patrimoniosRoutes,
   ...almoxarifadoRoutes,
+  ...descartadosRoutes,
   ...auditoriaRoutes,
   ...usuariosRoutes
 ];

@@ -319,6 +319,28 @@ explicando o que falta e o resto do sistema continua funcionando.
 
 ---
 
+## Patrimônios descartados
+
+Aba à parte, para **documentar bens antigos que já foram descartados** — os que
+tinham numeração própria (50562, 50563, 50564...). Eles não podiam entrar em
+`app.patrimonio`: o índice único de número travaria a numeração nova nesses
+valores para sempre.
+
+Por isso existe `app.patrimonio_descartado` (migração 07), uma tabela **ilhada**:
+
+- índice único **próprio** — o mesmo número pode existir nas duas tabelas;
+- **nada se move** entre elas, nos dois sentidos;
+- não entra em nenhuma conta do sistema (dashboard, busca de patrimônios,
+  auditoria de movimentação, /carimbo);
+- guarda o que o bem era (nº, marca, modelo, série, categoria) mais **data do
+  descarte** e **motivo**. Status, local e usuário não existem aqui: o bem saiu.
+
+Entra por **cadastro manual** na aba ou por **importação de planilha** (o
+terceiro botão da tela Importar/Exportar), com a mesma regra de tudo-ou-nada.
+Exportar sai da própria aba, respeitando filtro e ordenação da tela.
+
+---
+
 ## Zerar os dados antes de começar a valer
 
 Depois dos testes, `api/sql/zerar_dados.sql` deixa o banco limpo para a

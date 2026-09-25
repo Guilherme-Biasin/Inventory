@@ -184,6 +184,19 @@ const DB = {
   // so confere.
   bulkCreateAlmox(rows, simular){ return _post('/almoxarifado/importar', { rows, simular: !!simular }); },
 
+  // ── PATRIMONIOS DESCARTADOS ──────────────────────────────────
+  // Arquivo morto dos bens antigos, numa tabela ilhada: nao tem relacao com o
+  // patrimonio ativo e nada se move de uma lista para a outra.
+  loadDescartados(){ return _get('/descartados'); },
+
+  async createDescartado(item){ const r = await _post('/descartados', { item }); return r.id; },
+
+  updateDescartado(id, item){ return _post('/descartados/atualizar', { id, item }); },
+
+  deleteDescartado(id){ return _post('/descartados/excluir', { id }); },
+
+  bulkCreateDescartados(rows, simular){ return _post('/descartados/importar', { rows, simular: !!simular }); },
+
   // ── ATUALIZACAO AUTOMATICA ───────────────────────────────────
   // O SQL Server nao tem o "realtime" do Supabase. Em vez de abrir um canal, a
   // tela pergunta a cada INTERVALO se alguma coisa mudou: a rota /carimbo

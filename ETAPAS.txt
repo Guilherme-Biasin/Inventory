@@ -196,6 +196,28 @@ Fluxo por etapa:    explicar entendimento -> validar -> codar -> testar
            patrimonios, com quem estao e movimentacoes dos 30 dias.
       [ ] Estilizacao fina, um bloco por vez, com o gerente.
 
+[ OK ] ETAPA 15 - PATRIMONIOS DESCARTADOS  -- 25/09/2026
+      Aba e tabela a parte para documentar os bens antigos ja
+      descartados (50562, 50563...), que nao podiam ocupar a
+      numeracao nova.
+      [OK] Banco: app.patrimonio_descartado (migracao 07), com indice
+           unico PROPRIO - o mesmo numero pode existir nas duas
+           tabelas. O 02_schema ja nasce com ela e o zerar_dados.sql
+           tambem limpa.
+      [OK] API: descartadosRoutes.js - listar, criar, editar, excluir e
+           importar tudo-ou-nada, com auditoria. Se a migracao 07 nao
+           foi rodada, a aba explica o que fazer em vez de quebrar.
+      [OK] Tela: aba "Patrimonios descartados" com busca, filtro de
+           categoria, ordenacao por coluna, cadastro/edicao em popup,
+           exclusao com confirmacao, exportar Excel e o terceiro tipo
+           na tela de Importar/Exportar.
+      [OK] Tabela ILHADA de proposito: nada se move entre ela e o
+           patrimonio ativo, e ela nao entra em nenhuma conta do
+           sistema (dashboard, busca, carimbo).
+      [ ] PENDENTE: rodar 07_patrimonio_descartado.sql no SSMS e
+          atualizar a VM (git pull + restart).
+      Testes: 91 no npm test.
+
 [    ] ETAPA 10 - FECHAMENTO DA VERSAO 1.0
       Revisao final, documentacao conferida contra o codigo, tag v1.0
       no Git e entrega.

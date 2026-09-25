@@ -63,6 +63,14 @@ BEGIN
       DELETE FROM app.movimentacao;
       DELETE FROM app.patrimonio;
 
+      -- Arquivo morto dos bens antigos (migracao 07). O IF deixa o script
+      -- rodar tambem em banco que ainda nao recebeu essa migracao.
+      IF OBJECT_ID('app.patrimonio_descartado') IS NOT NULL
+      BEGIN
+        DELETE FROM app.patrimonio_descartado;
+        DBCC CHECKIDENT ('app.patrimonio_descartado', RESEED, 0) WITH NO_INFOMSGS;
+      END
+
       -- A auditoria vai por ultimo: se algo acima falhar, o registro do
       -- que aconteceu ate aqui ainda existe para consultar.
       DELETE FROM app.auditoria;
