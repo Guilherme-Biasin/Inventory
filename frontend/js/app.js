@@ -95,6 +95,7 @@ async function loadAll(user) {
     // Aplica permissões na UI
     applyPapelUI();
     renderDash();
+    abrirAbaGuardada();
 
     DB.subscribeItems(async () => {
       const fresh = await DB.loadItems();
@@ -112,6 +113,20 @@ async function loadAll(user) {
   } finally {
     hideLoading();
   }
+}
+
+// Volta para a aba em que a pessoa estava antes do F5. Confere se a aba ainda
+// existe e se ela ainda pode entrar: alguém que perdeu o papel de admin não
+// pode cair direto em Usuários só porque era ali que estava.
+function abrirAbaGuardada() {
+  let aba = null;
+  try { aba = localStorage.getItem(CHAVE_ABA); } catch(e) { /* sem storage */ }
+  if (!aba || aba === 'dashboard') return;
+  if (!document.getElementById('page-' + aba)) return;
+  if (aba === 'usuarios' && !can('gerenciar_usuarios')) return;
+  if (aba === 'cadastro' && !can('cadastrar')) return;
+  if (aba === 'config'   && !can('config')) return;
+  nav(aba);
 }
 
 // Busca a lista do almoxarifado guardando o motivo quando falha, em vez de
@@ -214,6 +229,11 @@ function voltarDoForm(pagina) {
 }
 
 // ─── NAVEGAÇÃO ───────────────────────────────────────────────
+// Recarregar a página (F5) volta para a aba em que a pessoa estava, e não para
+// o Dashboard: quem está conferindo uma lista e aperta F5 quer a mesma lista.
+// Fica no navegador de quem usa, não no servidor — é preferência de tela.
+const CHAVE_ABA = 'ig_aba';
+
 function nav(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -226,6 +246,7 @@ function nav(p) {
   document.getElementById('topbar-title').textContent =
     (navEl ? navEl.textContent.trim() : '') || titles[p] || '';
   if (navEl) navEl.classList.add('active');
+  try { localStorage.setItem(CHAVE_ABA, p); } catch(e) { /* navegador sem storage */ }
   if (p === 'dashboard') renderDash();
   if (p === 'lista')     { populateFilters(); renderLista(); }
   if (p === 'almoxarifado') { populateFiltersAlmox(); renderAlmox(); }

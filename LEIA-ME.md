@@ -182,6 +182,16 @@ A porta **3001 é do Gerente Assist** — não use.
 
 ---
 
+## A aba aberta sobrevive ao F5
+
+Recarregar a página volta para a aba em que a pessoa estava, e não para o
+Dashboard. A escolha fica no navegador de quem usa (chave ig_aba no localStorage), não no
+servidor — é preferência de tela. Ao voltar, o sistema confere se a aba ainda
+existe e se a pessoa ainda pode entrar nela: quem perdeu o papel de admin cai
+no Dashboard em vez de abrir Usuários.
+
+---
+
 ## Papéis de acesso
 
 | Papel | Pode |
